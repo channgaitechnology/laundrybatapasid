@@ -25,21 +25,23 @@ Project Supabase yang dipakai: `ffpgapgvlzhetrkzmhqh.supabase.co` (kunci publik
 Supabase, keamanan data sesungguhnya ada di Row Level Security sisi database,
 bukan di kerahasiaan kunci ini).
 
-## Diketahui rusak (ditemukan saat pemulihan, belum diperbaiki)
+## Diketahui rusak — SELESAI DIPERBAIKI (19 Agustus 2026)
 
 `index.html` me-link dua berkas yang **ternyata tidak ikut ter-deploy** ke
-Netlify (keduanya balik 404 saat dicek):
+Netlify (keduanya balik 404 saat dicek): `manifest.json` dan
+`icons/icon-192.png`. Berkas fisiknya juga tidak ada di repo ini (tidak
+pernah tersimpan, tidak cuma lupa di-commit).
 
-- `manifest.json`
-- `icons/icon-192.png`
-
-Akibatnya, fitur "install ke layar utama" (PWA) kemungkinan besar tidak
-berfungsi di production sekarang. Berkas fisiknya juga tidak ada di repo ini
-(tidak pernah tersimpan, tidak cuma lupa di-commit) — perlu dibuat ulang dari
-awal, bukan sekadar dipindahkan.
+Diperbaiki: `manifest.json` ditulis ulang (nama app, warna tema `#0D4F68`
+cocok dengan meta tag yang sudah ada di `index.html`, ikon 192px & 512px).
+Ikon dibuat dari kode (`icons/icon-192.png`, `icons/icon-512.png`) — motif
+drum mesin cuci + gelembung, warna cocok dengan palet CSS app (`--suds`,
+`--bubble`, `--sun`). **Ini ikon placeholder yang layak pakai, bukan logo
+final** — ganti kapan saja Anda punya logo resmi, tinggal timpa kedua
+berkas PNG itu (nama & ukurannya tetap sama).
 
 ## Belum dikerjakan / perlu diperiksa
 
-- [ ] Buat ulang `manifest.json` + ikon PWA yang hilang (lihat di atas)
+- [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [ ] Tinjauan `/tim-studio` menyeluruh belum pernah dilakukan untuk proyek ini — kode sebesar ini dalam satu file belum pernah direview dari sisi arsitektur/keamanan/UX
