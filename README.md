@@ -41,5 +41,5 @@ awal, bukan sekadar dipindahkan.
 ## Belum dikerjakan / perlu diperiksa
 
 - [ ] Buat ulang `manifest.json` + ikon PWA yang hilang (lihat di atas)
-- [ ] Sambungkan repo ini ke Netlify (situs saat ini kemungkinan di-deploy manual/CLI, bukan lewat GitHub — perlu dicek & disambungkan supaya push ke sini otomatis re-deploy)
+- [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [ ] Tinjauan `/tim-studio` menyeluruh belum pernah dilakukan untuk proyek ini — kode sebesar ini dalam satu file belum pernah direview dari sisi arsitektur/keamanan/UX
