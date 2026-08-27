@@ -2105,27 +2105,37 @@ function renderUsageList(){
     el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:10px 0;">Belum ada catatan di periode ini.</div>`;
     return;
   }
-  const sorted = currentUsageList.slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0));
-  let pemakaianNo = 0, extraNo = 0;
-  el.innerHTML = sorted.map(u=>{
-    if(u.type==='layanan_tambahan'){
-      extraNo++;
-      return `<div class="item-line" style="align-items:center;">
-        <span>${padNo(extraNo)}. ${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})</span>
-        <span style="display:flex;align-items:center;gap:8px;">${rupiah(u.subtotal)}
-          <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
-        </span>
-      </div>`;
-    }
-    pemakaianNo++;
-    return `<div class="item-line" style="align-items:center;">
-      <span>${padNo(pemakaianNo)}. ${fmtDate(u.tanggal)} — Laundry masuk ${u.catatan ? '('+escapeHTML(u.catatan)+')' : ''}</span>
+  const byDateAsc = (a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0);
+  const pemakaianList = currentUsageList.filter(u=>u.type!=='layanan_tambahan').slice().sort(byDateAsc);
+  const extraList = currentUsageList.filter(u=>u.type==='layanan_tambahan').slice().sort(byDateAsc);
+
+  const pemakaianHTML = pemakaianList.map((u,i)=>`<div class="item-line" style="align-items:center;">
+      <span>${padNo(i+1)}. ${fmtDate(u.tanggal)} — Laundry masuk ${u.catatan ? '('+escapeHTML(u.catatan)+')' : ''}</span>
       <span style="display:flex;align-items:center;gap:8px;">${fmtKg(u.berat)} kg
         <button onclick="openUsageNotaOptions('${u.id}')" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="Kirim nota">🧾</button>
         <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
-    </div>`;
-  }).join('');
+    </div>`).join('');
+  const extraHTML = extraList.map((u,i)=>`<div class="item-line" style="align-items:center;">
+      <span>${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})</span>
+      <span style="display:flex;align-items:center;gap:8px;">${rupiah(u.subtotal)}
+        <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
+      </span>
+    </div>`).join('');
+  const sectionLabel = (text)=> `<div class="section-title" style="margin:0 0 6px;">${text}</div>`;
+
+  /* Kalau dua-duanya ada (Paket Bulanan dengan layanan tambahan), pisahkan jadi dua
+     blok — paket di atas, layanan tambahan di bawah — biar tidak tercampur jadi satu
+     daftar kronologis yang membingungkan (nomor urut loncat antar jenis). */
+  if(pemakaianList.length>0 && extraList.length>0){
+    el.innerHTML = sectionLabel('Timbangan Paket') + pemakaianHTML
+      + `<div style="border-top:3px solid #000;margin:14px 0;"></div>`
+      + sectionLabel('Layanan Tambahan') + extraHTML;
+  } else if(pemakaianList.length>0){
+    el.innerHTML = pemakaianHTML;
+  } else {
+    el.innerHTML = extraHTML;
+  }
 }
 async function addUsage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
