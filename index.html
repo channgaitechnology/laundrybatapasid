@@ -2109,16 +2109,22 @@ function renderUsageList(){
   const pemakaianList = currentUsageList.filter(u=>u.type!=='layanan_tambahan').slice().sort(byDateAsc);
   const extraList = currentUsageList.filter(u=>u.type==='layanan_tambahan').slice().sort(byDateAsc);
 
+  /* Nomor urut ditaruh di kolom sendiri (lebar tetap) supaya baris lanjutan saat teks
+     membungkus rata di bawah teksnya (menjorok), bukan mepet balik ke bawah angkanya. */
+  const numberedLabel = (no, text)=> `<span style="display:flex;gap:4px;flex:1;min-width:0;">
+        <span style="flex:none;">${padNo(no)}.</span>
+        <span style="min-width:0;">${text}</span>
+      </span>`;
   const pemakaianHTML = pemakaianList.map((u,i)=>`<div class="item-line" style="align-items:center;">
-      <span>${padNo(i+1)}. ${fmtDate(u.tanggal)} — Laundry masuk ${u.catatan ? '('+escapeHTML(u.catatan)+')' : ''}</span>
-      <span style="display:flex;align-items:center;gap:8px;">${fmtKg(u.berat)} kg
+      ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — Laundry masuk ${u.catatan ? '('+escapeHTML(u.catatan)+')' : ''}`)}
+      <span style="display:flex;align-items:center;gap:8px;flex:none;">${fmtKg(u.berat)} kg
         <button onclick="openUsageNotaOptions('${u.id}')" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="Kirim nota">🧾</button>
         <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');
   const extraHTML = extraList.map((u,i)=>`<div class="item-line" style="align-items:center;">
-      <span>${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})</span>
-      <span style="display:flex;align-items:center;gap:8px;">${rupiah(u.subtotal)}
+      ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})`)}
+      <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(u.subtotal)}
         <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');
