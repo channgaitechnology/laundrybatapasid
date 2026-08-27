@@ -525,14 +525,26 @@
   <section class="view" id="view-paket">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h2 style="margin:0;">Pelanggan Paket Bulanan</h2>
+        <h2 style="margin:0;">Pelanggan Paket &amp; Tempo</h2>
         <button class="btn btn-primary btn-sm" style="width:auto;" onclick="openNewSubscription()">+ Pelanggan</button>
       </div>
-      <label for="subsFilterStatus">Tampilkan</label>
-      <select id="subsFilterStatus" onchange="renderSubscriptions()">
-        <option value="aktif">Sedang Aktif</option>
-        <option value="semua">Semua (termasuk berakhir)</option>
-      </select>
+      <div class="row2">
+        <div>
+          <label for="subsFilterTipe">Jenis</label>
+          <select id="subsFilterTipe" onchange="renderSubscriptions()">
+            <option value="semua">Semua Jenis</option>
+            <option value="bulanan">Paket Bulanan</option>
+            <option value="tempo">Tempo (Bayar Nanti)</option>
+          </select>
+        </div>
+        <div>
+          <label for="subsFilterStatus">Tampilkan</label>
+          <select id="subsFilterStatus" onchange="renderSubscriptions()">
+            <option value="aktif">Sedang Aktif</option>
+            <option value="semua">Semua (termasuk berakhir)</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div id="subscriptionList"></div>
   </section>
@@ -551,13 +563,21 @@
     </div>
     <label for="subsHP">No. WhatsApp</label>
     <input id="subsHP" placeholder="cth. 0812xxxxxxx" inputmode="tel">
-    <label for="subsPaket">Pilih Paket</label>
-    <select id="subsPaket" onchange="fillSubsFromPaket()"></select>
-    <div class="row2">
-      <div><label for="subsKuota">Kuota (kg)</label><input id="subsKuota" type="number" min="0"></div>
+    <label for="subsTipe">Jenis Pelanggan</label>
+    <select id="subsTipe" onchange="onSubsTipeChange()">
+      <option value="bulanan">Paket Bulanan (kuota kg)</option>
+      <option value="tempo">Tempo — Bayar Nanti (tanpa kuota)</option>
+    </select>
+    <div id="subsPaketField">
+      <label for="subsPaket">Pilih Paket</label>
+      <select id="subsPaket" onchange="fillSubsFromPaket()"></select>
+    </div>
+    <div class="row2" id="subsRow2">
+      <div id="subsKuotaField"><label for="subsKuota">Kuota (kg)</label><input id="subsKuota" type="number" min="0"></div>
       <div><label for="subsTanggalMulai">Tanggal Mulai</label><input id="subsTanggalMulai" type="date" oninput="updateSubsEndPreview()"></div>
     </div>
-    <div style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Periode berakhir otomatis: <b id="subsEndPreview">-</b> (1 bulan dari tanggal mulai)</div>
+    <div id="subsEndPreviewRow" style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Periode berakhir otomatis: <b id="subsEndPreview">-</b> (1 bulan dari tanggal mulai)</div>
+    <p id="subsTempoHint" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Tanpa kuota & tanpa batas periode. Setiap laundry masuk dicatat pakai harga layanan reguler dari katalog dan tercatat di nota — pelanggan boleh bayar kapan saja siap, langsung, dicicil, atau nanti sekaligus.</p>
     <button class="btn btn-primary" id="subsSubmitBtn" onclick="createSubscription()">Simpan Pelanggan Paket</button>
   </div>
 </div>
@@ -572,24 +592,32 @@
       <button class="btn btn-outline btn-sm" onclick="editSubscription()">✏️ Edit Pelanggan</button>
       <button class="btn btn-danger-ghost btn-sm" onclick="deleteSubscription()">🗑️ Hapus</button>
     </div>
-    <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
+    <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-bottom:16px;" id="subsKuotaCard">
       <div class="stat-grid" style="margin-bottom:0;">
         <div class="stat-card"><div class="label">Kuota Periode Ini</div><div class="value" id="subsDetailKuota">0 kg</div></div>
         <div class="stat-card warn"><div class="label">Sisa / Lebih Kuota</div><div class="value" id="subsDetailSisa">0 kg</div></div>
       </div>
     </div>
-
-    <h2 style="font-size:14px;">Catat Laundry Masuk (kg)</h2>
-    <div class="row2">
-      <div><label for="usageTanggal">Tanggal</label><input id="usageTanggal" type="date"></div>
-      <div><label for="usageBerat">Berat (kg)</label><input id="usageBerat" type="number" min="0" step="0.1"></div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-bottom:16px;display:none;" id="subsTempoCard">
+      <div class="stat-grid" style="margin-bottom:0;">
+        <div class="stat-card"><div class="label">Jumlah Kunjungan</div><div class="value" id="subsTempoKunjungan">0</div></div>
+        <div class="stat-card warn"><div class="label">Belum Dibayar</div><div class="value" id="subsTempoBelum">Rp0</div></div>
+      </div>
     </div>
-    <label for="usageCatatan">Catatan (opsional)</label>
-    <input id="usageCatatan" placeholder="cth. 2 karung">
-    <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:18px;" onclick="addUsage()">+ Catat Laundry Masuk</button>
 
-    <h2 style="font-size:14px;">Tambah Layanan Lain (di luar paket)</h2>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
+    <div id="subsUsageKgSection">
+      <h2 style="font-size:14px;">Catat Laundry Masuk (kg)</h2>
+      <div class="row2">
+        <div><label for="usageTanggal">Tanggal</label><input id="usageTanggal" type="date"></div>
+        <div><label for="usageBerat">Berat (kg)</label><input id="usageBerat" type="number" min="0" step="0.1"></div>
+      </div>
+      <label for="usageCatatan">Catatan (opsional)</label>
+      <input id="usageCatatan" placeholder="cth. 2 karung">
+      <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:18px;" onclick="addUsage()">+ Catat Laundry Masuk</button>
+    </div>
+
+    <h2 style="font-size:14px;" id="extraSectionHeading">Tambah Layanan Lain (di luar paket)</h2>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;" id="extraSectionHint">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
     <label for="extraLayanan">Pilih Layanan</label>
     <select id="extraLayanan" onchange="fillExtraServiceFromCatalog()"></select>
     <div class="row2">
@@ -598,15 +626,15 @@
     </div>
     <label for="extraHarga">Harga/satuan</label>
     <input id="extraHarga" type="number" min="0">
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:18px;" onclick="addExtraService()">+ Tambah Layanan Ini</button>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:18px;" id="extraSectionSubmitBtn" onclick="addExtraService()">+ Tambah Layanan Ini</button>
 
-    <h2 style="font-size:14px;">Riwayat Periode Ini</h2>
+    <h2 style="font-size:14px;" id="usageListHeading">Riwayat Periode Ini</h2>
     <div id="usageList"></div>
 
     <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-top:14px;">
-      <div class="item-line"><span>Harga Paket</span><span id="sumHargaPaket">Rp0</span></div>
+      <div class="item-line" id="sumHargaPaketRow"><span>Harga Paket</span><span id="sumHargaPaket">Rp0</span></div>
       <div class="item-line" id="sumKelebihanRow" style="display:none;"><span>Kelebihan Kuota</span><span id="sumKelebihan">Rp0</span></div>
-      <div class="item-line" id="sumExtraRow" style="display:none;"><span>Layanan Tambahan</span><span id="sumExtra">Rp0</span></div>
+      <div class="item-line" id="sumExtraRow" style="display:none;"><span id="sumExtraLabel">Layanan Tambahan</span><span id="sumExtra">Rp0</span></div>
       <div class="total-line"><span>Total Tagihan</span><span id="sumTotal">Rp0</span></div>
       <div class="item-line" style="margin-top:8px;"><span>Sudah Dibayar (DP)</span><span id="sumDP">Rp0</span></div>
       <div class="item-line"><span>Sisa Bayar</span><span id="sumSisa">Rp0</span></div>
@@ -747,8 +775,21 @@
       </div>
     </div>
 
+    <div class="tut-item">
+      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Pelanggan Tempo (Bayar Nanti)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Untuk pelanggan yang bayarnya tidak tetap — kadang sebulan sekali, kadang setelah beberapa kali laundry</li>
+          <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan</b>, pilih Jenis Pelanggan <b>Tempo — Bayar Nanti</b></li>
+          <li>Tidak ada kuota & tidak ada batas periode — cukup isi nama dan tanggal mulai</li>
+          <li>Setiap laundry masuk, buka detail pelanggannya lalu <b>Catat Laundry Masuk</b> (pilih layanan reguler dari katalog) — nota otomatis muncul berisi rekap seluruh riwayat yang belum dibayar</li>
+          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat Transaksi & Laporan</li>
+        </ol>
+      </div>
+    </div>
+
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Laporan Omset (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Laporan Omset (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
           <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total omzet, lunas, dan belum lunas</li>
@@ -759,7 +800,7 @@
     </div>
 
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Kelola Karyawan (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">6️⃣ Kelola Karyawan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
           <li>Buka ⚙️ <b>Pengaturan</b> → scroll ke <b>Karyawan/Kasir</b></li>
@@ -908,8 +949,8 @@
 <div class="modal-bg" id="usageNotaModal" style="z-index:107;">
   <div class="modal">
     <button class="modal-close" onclick="closeUsageNotaOptions()">✕</button>
-    <h3>Kirim Nota Timbangan</h3>
-    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
+    <h3 id="usageNotaTitle">Kirim Nota Timbangan</h3>
+    <p id="usageNotaHint" style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wab')">Kirim via WhatsApp Business</button>
     <button class="btn btn-accent" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
@@ -1417,7 +1458,7 @@ const TOUR_STEPS = [
   { tab:'baru', el:'button[onclick="addItem()"]', text:'Setelah nama layanan, qty, dan harga terisi, tekan tombol ini untuk menambahkannya ke daftar transaksi.' },
   { tab:'baru', el:'#submitTrxBtn', text:'Kalau semua sudah diisi, tekan tombol ini untuk menyimpan transaksi & langsung membuat nota.' },
   { tab:'riwayat', el:'#searchInput', text:'Di tab Riwayat, kamu bisa cari transaksi pelanggan tertentu di sini.', pre:()=>renderHistory() },
-  { tab:'paket', el:'button[onclick="openNewSubscription()"]', text:'Ini untuk mendaftarkan pelanggan yang mau langganan paket bulanan.' },
+  { tab:'paket', el:'button[onclick="openNewSubscription()"]', text:'Ini untuk mendaftarkan pelanggan paket bulanan maupun pelanggan Tempo (bayar nanti, tanpa kuota).' },
 ];
 var tourIndex = 0;
 function startGuidedTour(){
@@ -1787,6 +1828,18 @@ function updateSubsEndPreview(){
   if(!start){ el.textContent = '-'; return; }
   el.textContent = fmtDate(addOneMonthClamped(start));
 }
+/* Pelanggan Tempo (bayar nanti) ditandai dengan kuota_kg = 0 — validasi Paket Bulanan
+   selalu mewajibkan kuota > 0, jadi 0 hanya mungkin berasal dari alur Tempo. */
+function isTempo(s){ return Number(s.kuotaKg) === 0; }
+function onSubsTipeChange(){
+  const tipe = document.getElementById('subsTipe').value;
+  const tempo = tipe === 'tempo';
+  document.getElementById('subsPaketField').style.display = tempo ? 'none' : 'block';
+  document.getElementById('subsKuotaField').style.display = tempo ? 'none' : 'block';
+  document.getElementById('subsRow2').style.gridTemplateColumns = tempo ? '1fr' : '1fr 1fr';
+  document.getElementById('subsEndPreviewRow').style.display = tempo ? 'none' : 'block';
+  document.getElementById('subsTempoHint').style.display = tempo ? 'block' : 'none';
+}
 async function loadSubscriptionsFromDB(){
   const { data, error } = await sb.from('subscriptions').select('*').eq('user_id', shopOwnerId).order('tanggal_mulai', { ascending:false });
   if(error){ return; }
@@ -1802,35 +1855,67 @@ async function loadSubscriptionsFromDB(){
 async function loadAllUsageTotals(){
   if(subscriptions.length===0) return;
   const ids = subscriptions.map(s=>s.id);
-  const { data, error } = await sb.from('subscription_usage').select('subscription_id, berat_kg, type').in('subscription_id', ids);
+  const { data, error } = await sb.from('subscription_usage').select('subscription_id, berat_kg, type, subtotal').in('subscription_id', ids);
   if(error) return;
-  const totals = {};
+  const totals = {}, tempoTotals = {}, tempoCounts = {};
   (data||[]).forEach(row=>{
-    if(row.type && row.type!=='pemakaian') return;
+    if(row.type === 'layanan_tambahan'){
+      tempoTotals[row.subscription_id] = (tempoTotals[row.subscription_id]||0) + Number(row.subtotal||0);
+      tempoCounts[row.subscription_id] = (tempoCounts[row.subscription_id]||0) + 1;
+      return;
+    }
     totals[row.subscription_id] = (totals[row.subscription_id]||0) + Number(row.berat_kg||0);
   });
-  subscriptions.forEach(s=>{ s.terpakai = totals[s.id] || 0; });
+  subscriptions.forEach(s=>{
+    s.terpakai = totals[s.id] || 0;
+    s.tempoTotal = tempoTotals[s.id] || 0;
+    s.tempoCount = tempoCounts[s.id] || 0;
+  });
 }
 function renderSubscriptions(){
   const filterEl = document.getElementById('subsFilterStatus');
   const filter = filterEl ? filterEl.value : 'aktif';
+  const filterTipeEl = document.getElementById('subsFilterTipe');
+  const filterTipe = filterTipeEl ? filterTipeEl.value : 'semua';
   const today = todayISO();
   const el = document.getElementById('subscriptionList');
   let list = subscriptions.slice();
+  if(filterTipe==='bulanan') list = list.filter(s=>!isTempo(s));
+  else if(filterTipe==='tempo') list = list.filter(s=>isTempo(s));
   if(filter==='aktif'){
-    list = list.filter(s => s.tanggalMulai <= today && today <= s.tanggalSelesai);
+    // Tempo tidak punya batas periode, jadi selalu dianggap aktif selama belum dihapus.
+    list = list.filter(s => isTempo(s) || (s.tanggalMulai <= today && today <= s.tanggalSelesai));
   }
   list.sort((a,b)=> (b.tanggalMulai||'').localeCompare(a.tanggalMulai||''));
 
   if(list.length===0){
     el.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Belum ada pelanggan paket ${filter==='aktif' ? 'yang sedang aktif' : ''}</h3>
-      <p>Klik "+ Pelanggan" untuk mendaftarkan pelanggan paket baru.</p>
+      <h3>Belum ada pelanggan ${filter==='aktif' ? 'yang sedang aktif' : ''}</h3>
+      <p>Klik "+ Pelanggan" untuk mendaftarkan pelanggan paket atau tempo baru.</p>
     </div>`;
     return;
   }
   el.innerHTML = list.map(s=>{
+    if(isTempo(s)){
+      const belumBayar = Math.max((s.tempoTotal||0) - (s.dp||0), 0);
+      let badgeText, badgeClass;
+      if((s.tempoTotal||0)<=0){ badgeText='Belum Ada Transaksi'; badgeClass='badge-belum'; }
+      else if(belumBayar<=0){ badgeText='Lunas'; badgeClass='badge-lunas'; }
+      else { badgeText='Belum Lunas'; badgeClass='badge-belum'; }
+      return `
+      <div class="trx-card" onclick="openSubsDetail('${s.id}')" style="cursor:pointer;">
+        <div class="trx-top">
+          <div>
+            <div class="trx-name">${escapeHTML(s.nama)}</div>
+            <div class="kode">Tempo — Bayar Nanti</div>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="trx-meta" style="margin-bottom:6px;">Terdaftar sejak ${fmtDate(s.tanggalMulai)} · ${s.tempoCount||0} kunjungan</div>
+        <div class="trx-meta">Belum dibayar: <b>${rupiah(belumBayar)}</b>${(s.dp||0)>0 ? ` · Sudah bayar ${rupiah(s.dp)}` : ''}</div>
+      </div>`;
+    }
     const sisa = Math.max(s.kuotaKg - s.terpakai, 0);
     const pct = Math.min((s.terpakai/s.kuotaKg)*100, 100);
     const overKuota = s.terpakai > s.kuotaKg;
@@ -1864,6 +1949,9 @@ function openNewSubscription(){
   document.getElementById('subsHP').value = '';
   document.getElementById('subsKuota').value = '';
   document.getElementById('subsTanggalMulai').value = todayISO();
+  const filterTipe = document.getElementById('subsFilterTipe');
+  document.getElementById('subsTipe').value = (filterTipe && filterTipe.value === 'tempo') ? 'tempo' : 'bulanan';
+  onSubsTipeChange();
   updateSubsEndPreview();
   populateSubsPaketSelect();
   document.getElementById('subsModal').classList.add('show');
@@ -1887,34 +1975,40 @@ function fillSubsFromPaket(){
 async function createSubscription(){
   const nama = document.getElementById('subsNama').value.trim();
   const hp = document.getElementById('subsHP').value.trim();
-  const paketId = document.getElementById('subsPaket').value;
-  const kuota = parseFloat(document.getElementById('subsKuota').value) || 0;
   const tanggalMulai = document.getElementById('subsTanggalMulai').value;
-  const paket = serviceCatalog.find(p=>p.id===paketId);
+  const tempo = document.getElementById('subsTipe').value === 'tempo';
 
   if(!nama){ showToast('Nama pelanggan wajib diisi'); return; }
-  if(!paket){ showToast('Pilih paket dari katalog dulu (tambahkan di Kelola Katalog jika belum ada)'); return; }
-  if(kuota<=0){ showToast('Kuota harus lebih dari 0'); return; }
-  if(!tanggalMulai){ showToast('Pilih tanggal mulai langganan'); return; }
+  if(!tanggalMulai){ showToast('Pilih tanggal mulai'); return; }
 
-  const tanggalSelesai = addOneMonthClamped(tanggalMulai);
+  let payload;
+  if(tempo){
+    payload = {
+      nama, hp, paket_nama: 'Tempo (Bayar Nanti)', harga_paket: 0, harga_lebih_kg: 0,
+      kuota_kg: 0, tanggal_mulai: tanggalMulai, tanggal_selesai: tanggalMulai
+    };
+  } else {
+    const paketId = document.getElementById('subsPaket').value;
+    const kuota = parseFloat(document.getElementById('subsKuota').value) || 0;
+    const paket = serviceCatalog.find(p=>p.id===paketId);
+    if(!paket){ showToast('Pilih paket dari katalog dulu (tambahkan di Kelola Katalog jika belum ada)'); return; }
+    if(kuota<=0){ showToast('Kuota harus lebih dari 0'); return; }
+    payload = {
+      nama, hp, paket_nama: paket.nama, harga_paket: paket.harga, harga_lebih_kg: paket.hargaLebihKg||0,
+      kuota_kg: kuota, tanggal_mulai: tanggalMulai, tanggal_selesai: addOneMonthClamped(tanggalMulai)
+    };
+  }
 
   if(editingSubscriptionId){
-    const { error } = await sb.from('subscriptions').update({
-      nama, hp, paket_nama: paket.nama, harga_paket: paket.harga, harga_lebih_kg: paket.hargaLebihKg||0,
-      kuota_kg: kuota, tanggal_mulai: tanggalMulai, tanggal_selesai: tanggalSelesai
-    }).eq('id', editingSubscriptionId);
+    const { error } = await sb.from('subscriptions').update(payload).eq('id', editingSubscriptionId);
     if(error){ showToast('Gagal menyimpan perubahan'); return; }
     showToast('Data pelanggan paket diperbarui');
   } else {
     const { error } = await sb.from('subscriptions').insert({
-      user_id: shopOwnerId, nama, hp, paket_nama: paket.nama,
-      harga_paket: paket.harga, harga_lebih_kg: paket.hargaLebihKg||0, kuota_kg: kuota,
-      tanggal_mulai: tanggalMulai, tanggal_selesai: tanggalSelesai, status:'aktif',
-      status_bayar:'belum', dp:0
+      user_id: shopOwnerId, ...payload, status:'aktif', status_bayar:'belum', dp:0
     });
     if(error){ showToast('Gagal menyimpan pelanggan paket'); return; }
-    showToast('Pelanggan paket ditambahkan');
+    showToast(tempo ? 'Pelanggan tempo ditambahkan' : 'Pelanggan paket ditambahkan');
     saveContactIfNew(nama, hp);
   }
   editingSubscriptionId = null;
@@ -1926,7 +2020,7 @@ async function openSubsDetail(id){
   currentSubscriptionId = id;
   const s = subscriptions.find(x=>x.id===id);
   if(!s) return;
-  document.getElementById('subsDetailTitle').textContent = `${s.nama} — ${s.paketNama}`;
+  document.getElementById('subsDetailTitle').textContent = isTempo(s) ? `${s.nama} — Tempo (Bayar Nanti)` : `${s.nama} — ${s.paketNama}`;
   document.getElementById('usageTanggal').value = todayISO();
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
@@ -1946,6 +2040,7 @@ async function refreshSubsDetail(){
     satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0
   }));
 
+  const tempo = isTempo(s);
   const terpakai = currentUsageList.filter(u=>u.type==='pemakaian').reduce((sum,u)=>sum+u.berat,0);
   s.terpakai = terpakai;
   const sisaKg = Math.max(s.kuotaKg - terpakai, 0);
@@ -1956,11 +2051,31 @@ async function refreshSubsDetail(){
   const extraTotal = extraList.reduce((sum,u)=>sum+u.subtotal,0);
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
   const sisaBayar = Math.max(totalTagihan - (s.dp||0), 0);
-  s._calc = { excessKg, excessCost, extraTotal, totalTagihan, sisaBayar, excessRate };
+  const lunasNow = tempo ? (totalTagihan>0 && sisaBayar<=0) : s.statusBayar==='lunas';
+  s._calc = { excessKg, excessCost, extraTotal, totalTagihan, sisaBayar, excessRate, lunasNow };
 
-  document.getElementById('subsDetailPeriode').textContent = `Periode: ${fmtDate(s.tanggalMulai)} – ${fmtDate(s.tanggalSelesai)}`;
-  document.getElementById('subsDetailKuota').textContent = `${fmtKg(s.kuotaKg)} kg`;
-  document.getElementById('subsDetailSisa').textContent = excessKg>0 ? `Lebih ${fmtKg(excessKg)} kg` : `${fmtKg(sisaKg)} kg`;
+  document.getElementById('subsKuotaCard').style.display = tempo ? 'none' : 'block';
+  document.getElementById('subsTempoCard').style.display = tempo ? 'block' : 'none';
+  document.getElementById('subsUsageKgSection').style.display = tempo ? 'none' : 'block';
+  document.getElementById('extraSectionHeading').textContent = tempo ? 'Catat Laundry Masuk' : 'Tambah Layanan Lain (di luar paket)';
+  document.getElementById('extraSectionHint').textContent = tempo
+    ? 'Pilih layanan reguler dari katalog & harganya — tercatat di nota, ditagih kapan pelanggan siap bayar.'
+    : 'cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.';
+  document.getElementById('extraSectionSubmitBtn').textContent = tempo ? '+ Catat Laundry Masuk' : '+ Tambah Layanan Ini';
+  document.getElementById('usageListHeading').textContent = tempo ? 'Rekap Riwayat Transaksi (Belum Ditagih)' : 'Riwayat Periode Ini';
+  document.getElementById('sumHargaPaketRow').style.display = tempo ? 'none' : 'flex';
+  document.getElementById('sumExtraLabel').textContent = tempo ? 'Total Kunjungan' : 'Layanan Tambahan';
+  document.getElementById('btnMarkLunas').textContent = tempo ? '✅ Tandai Lunas & Mulai Baru' : '✅ Tandai Lunas';
+
+  if(tempo){
+    document.getElementById('subsTempoKunjungan').textContent = extraList.length;
+    document.getElementById('subsTempoBelum').textContent = rupiah(sisaBayar);
+    document.getElementById('subsDetailPeriode').textContent = `Terdaftar sejak ${fmtDate(s.tanggalMulai)} · ${extraList.length} kunjungan tercatat`;
+  } else {
+    document.getElementById('subsDetailPeriode').textContent = `Periode: ${fmtDate(s.tanggalMulai)} – ${fmtDate(s.tanggalSelesai)}`;
+    document.getElementById('subsDetailKuota').textContent = `${fmtKg(s.kuotaKg)} kg`;
+    document.getElementById('subsDetailSisa').textContent = excessKg>0 ? `Lebih ${fmtKg(excessKg)} kg` : `${fmtKg(sisaKg)} kg`;
+  }
 
   document.getElementById('sumHargaPaket').textContent = rupiah(s.hargaPaket);
   document.getElementById('sumKelebihanRow').style.display = excessCost>0 ? 'flex' : 'none';
@@ -1972,8 +2087,8 @@ async function refreshSubsDetail(){
   document.getElementById('sumSisa').textContent = rupiah(sisaBayar);
   document.getElementById('subsDPInput').value = s.dp||0;
 
-  document.getElementById('subsPayBadge').innerHTML = `<span class="badge ${s.statusBayar==='lunas'?'badge-lunas':'badge-belum'}">${s.statusBayar==='lunas'?'LUNAS':'BELUM LUNAS'}</span>`;
-  document.getElementById('btnMarkLunas').style.display = s.statusBayar==='lunas' ? 'none' : 'flex';
+  document.getElementById('subsPayBadge').innerHTML = `<span class="badge ${lunasNow?'badge-lunas':'badge-belum'}">${lunasNow?'LUNAS':'BELUM LUNAS'}</span>`;
+  document.getElementById('btnMarkLunas').style.display = (tempo ? totalTagihan<=0 : s.statusBayar==='lunas') ? 'none' : 'flex';
 
   populateExtraLayananSelect();
   renderUsageList();
@@ -2043,15 +2158,20 @@ async function addExtraService(){
   const harga = parseFloat(document.getElementById('extraHarga').value) || 0;
   if(qty<=0 || harga<=0){ showToast('Isi qty dan harga layanan'); return; }
   const subtotal = qty*harga;
-  const { error } = await sb.from('subscription_usage').insert({
+  const { data: inserted, error } = await sb.from('subscription_usage').insert({
     subscription_id: s.id, user_id: shopOwnerId, tanggal,
     type:'layanan_tambahan', layanan_nama: item.nama, qty, satuan: item.satuan, harga, subtotal
-  });
+  }).select().single();
   if(error){ showToast('Gagal menambah layanan'); return; }
   document.getElementById('extraQty').value = '1';
   document.getElementById('extraTanggal').value = todayISO();
-  showToast('Layanan tambahan dicatat');
   await refreshSubsDetail();
+  if(isTempo(s)){
+    showToast('Laundry masuk tercatat');
+    if(inserted) openUsageNotaOptions(inserted.id);
+  } else {
+    showToast('Layanan tambahan dicatat');
+  }
 }
 async function deleteUsage(id){
   const { error } = await sb.from('subscription_usage').delete().eq('id', id);
@@ -2072,18 +2192,28 @@ async function saveSubsDP(){
 async function markSubsLunas(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s || !s._calc) return;
-  if(!confirm('Tandai periode paket ini LUNAS? Tagihan akan otomatis masuk ke Laporan & Riwayat Transaksi.')) return;
+  const tempo = isTempo(s);
+  if(tempo && s._calc.totalTagihan<=0){ showToast('Belum ada laundry yang tercatat untuk ditagih'); return; }
+  const confirmMsg = tempo
+    ? 'Tandai seluruh tagihan Tempo pelanggan ini LUNAS? Rekap transaksi akan masuk ke Laporan & Riwayat Transaksi, lalu catatan kunjungan di sini direset untuk siklus bayar berikutnya.'
+    : 'Tandai periode paket ini LUNAS? Tagihan akan otomatis masuk ke Laporan & Riwayat Transaksi.';
+  if(!confirm(confirmMsg)) return;
   const calc = s._calc;
-  const items = [{ nama:`Paket Bulanan - ${s.paketNama}`, qty:1, satuan:'paket', harga:s.hargaPaket, subtotal:s.hargaPaket }];
+  const extras = currentUsageList.filter(u=>u.type==='layanan_tambahan');
+  const items = [];
+  if(!tempo) items.push({ nama:`Paket Bulanan - ${s.paketNama}`, qty:1, satuan:'paket', harga:s.hargaPaket, subtotal:s.hargaPaket });
   if(calc.excessCost>0) items.push({ nama:'Kelebihan Kuota', qty:calc.excessKg, satuan:'kg', harga:calc.excessRate, subtotal:calc.excessCost });
-  currentUsageList.filter(u=>u.type==='layanan_tambahan').forEach(u=>{
+  extras.forEach(u=>{
     items.push({ nama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal });
   });
   const today = todayISO();
+  const catatan = tempo
+    ? `Pembayaran Tempo (Bayar Nanti) - rekap ${extras.length} kunjungan`
+    : `Pembayaran Paket Bulanan periode ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`;
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId, kode: nextKode(), nama:s.nama, hp:s.hp, tanggal: today,
     estimasi:null, items, diskon:0, total: calc.totalTagihan, dp: calc.totalTagihan,
-    status:'lunas', catatan:`Pembayaran Paket Bulanan periode ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`
+    status:'lunas', catatan
   }).select().single();
   if(error){ showToast('Gagal membuat catatan pembayaran'); return; }
   transactions.push({
@@ -2091,64 +2221,102 @@ async function markSubsLunas(){
     items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
     status:data.status, catatan:data.catatan
   });
-  const { error: err2 } = await sb.from('subscriptions').update({
-    status_bayar:'lunas', dp: calc.totalTagihan, lunas_at: today, transaction_id: data.id
-  }).eq('id', s.id);
-  if(err2){ showToast('Pembayaran tercatat, tapi gagal update status paket'); }
-  s.statusBayar = 'lunas'; s.dp = calc.totalTagihan; s.lunasAt = today; s.transactionId = data.id;
-  showToast('Paket ditandai lunas & masuk ke laporan omset');
+  if(tempo){
+    await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+    const { error: err2 } = await sb.from('subscriptions').update({
+      status_bayar:'belum', dp:0, lunas_at: today, transaction_id: data.id
+    }).eq('id', s.id);
+    if(err2){ showToast('Pembayaran tercatat, tapi gagal mereset catatan Tempo'); }
+    s.statusBayar = 'belum'; s.dp = 0; s.lunasAt = today; s.transactionId = data.id;
+    s.tempoTotal = 0; s.tempoCount = 0;
+    currentUsageList = [];
+    showToast('Pembayaran tercatat & masuk ke laporan omset. Siklus baru dimulai.');
+  } else {
+    const { error: err2 } = await sb.from('subscriptions').update({
+      status_bayar:'lunas', dp: calc.totalTagihan, lunas_at: today, transaction_id: data.id
+    }).eq('id', s.id);
+    if(err2){ showToast('Pembayaran tercatat, tapi gagal update status paket'); }
+    s.statusBayar = 'lunas'; s.dp = calc.totalTagihan; s.lunasAt = today; s.transactionId = data.id;
+    showToast('Paket ditandai lunas & masuk ke laporan omset');
+  }
   await refreshSubsDetail();
   renderSubscriptions();
 }
 function subsInvoiceTextWA(s){
-  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0) };
+  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lunasNow:s.statusBayar==='lunas' };
+  const tempo = isTempo(s);
   const lines = [];
   lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
   lines.push('-------------------------------');
   lines.push(`Pelanggan  : ${s.nama}`);
-  lines.push(`Paket      : ${s.paketNama}`);
-  lines.push(`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
-  lines.push('-------------------------------');
-  lines.push(`Terpakai   : ${fmtKg(s.terpakai)} / ${fmtKg(s.kuotaKg)} kg`);
-  lines.push(`Harga Paket : ${rupiah(s.hargaPaket)}`);
-  if(calc.excessCost>0) lines.push(`Kelebihan  : ${fmtKg(calc.excessKg)} kg x ${rupiah(calc.excessRate)} = ${rupiah(calc.excessCost)}`);
-  currentUsageList.filter(u=>u.type==='layanan_tambahan').forEach(u=>{
-    lines.push(`${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
-  });
+  if(tempo){
+    lines.push('Jenis      : Tempo (Bayar Nanti)');
+    lines.push(`Terdaftar  : ${fmtDate(s.tanggalMulai)}`);
+    lines.push('-------------------------------');
+    lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
+    currentUsageList.filter(u=>u.type==='layanan_tambahan')
+      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0))
+      .forEach(u=>{
+        lines.push(`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+      });
+  } else {
+    lines.push(`Paket      : ${s.paketNama}`);
+    lines.push(`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
+    lines.push('-------------------------------');
+    lines.push(`Terpakai   : ${fmtKg(s.terpakai)} / ${fmtKg(s.kuotaKg)} kg`);
+    lines.push(`Harga Paket : ${rupiah(s.hargaPaket)}`);
+    if(calc.excessCost>0) lines.push(`Kelebihan  : ${fmtKg(calc.excessKg)} kg x ${rupiah(calc.excessRate)} = ${rupiah(calc.excessCost)}`);
+    currentUsageList.filter(u=>u.type==='layanan_tambahan').forEach(u=>{
+      lines.push(`${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+    });
+  }
   lines.push('-------------------------------');
   lines.push(`*TOTAL TAGIHAN : ${rupiah(calc.totalTagihan)}*`);
   lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
   lines.push(`Sisa Bayar : ${rupiah(calc.sisaBayar)}`);
-  lines.push(`Status     : ${s.statusBayar==='lunas' ? 'LUNAS' : 'BELUM LUNAS'}`);
+  lines.push(`Status     : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('_dibuat oleh tinggirantech@gmail.com © 2026_');
   return lines.join('\n');
 }
 function buildSubsInvoicePDFLines(s){
-  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0) };
+  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lunasNow:s.statusBayar==='lunas' };
+  const tempo = isTempo(s);
   const L = [];
   const div = '--------------------------------';
   L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
   if(settings.address) L.push({t: settings.address, c:true, s:8});
   if(settings.phone) L.push({t: settings.phone, c:true, s:8});
   L.push({t: div, s:9});
-  L.push({t:'TAGIHAN PAKET BULANAN', c:true, b:true, s:10});
+  L.push({t: tempo ? 'REKAP TAGIHAN TEMPO' : 'TAGIHAN PAKET BULANAN', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
-  L.push({t:`Paket      : ${s.paketNama}`, s:9, indent:13});
-  L.push({t:`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
-  L.push({t: div, s:9});
-  L.push({t:`Terpakai    : ${fmtKg(s.terpakai)} / ${fmtKg(s.kuotaKg)} kg`, s:9, indent:14});
-  L.push({t:`Harga Paket : ${rupiah(s.hargaPaket)}`, s:9, indent:14});
-  if(calc.excessCost>0) L.push({t:`Kelebihan   : ${fmtKg(calc.excessKg)} kg x ${rupiah(calc.excessRate)} = ${rupiah(calc.excessCost)}`, s:8, indent:14});
-  currentUsageList.filter(u=>u.type==='layanan_tambahan').forEach(u=>{
-    L.push({t:`${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
-  });
+  if(tempo){
+    L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
+    L.push({t:`Terdaftar  : ${fmtDate(s.tanggalMulai)}`, s:9, indent:13});
+    L.push({t: div, s:9});
+    L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
+    currentUsageList.filter(u=>u.type==='layanan_tambahan')
+      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0))
+      .forEach(u=>{
+        L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+      });
+  } else {
+    L.push({t:`Paket      : ${s.paketNama}`, s:9, indent:13});
+    L.push({t:`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
+    L.push({t: div, s:9});
+    L.push({t:`Terpakai    : ${fmtKg(s.terpakai)} / ${fmtKg(s.kuotaKg)} kg`, s:9, indent:14});
+    L.push({t:`Harga Paket : ${rupiah(s.hargaPaket)}`, s:9, indent:14});
+    if(calc.excessCost>0) L.push({t:`Kelebihan   : ${fmtKg(calc.excessKg)} kg x ${rupiah(calc.excessRate)} = ${rupiah(calc.excessCost)}`, s:8, indent:14});
+    currentUsageList.filter(u=>u.type==='layanan_tambahan').forEach(u=>{
+      L.push({t:`${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+    });
+  }
   L.push({t: div, s:9});
   L.push({t:`Total Tagihan  : ${rupiah(calc.totalTagihan)}`, b:true, s:9, indent:17});
   L.push({t:`Sudah Dibayar  : ${rupiah(s.dp||0)}`, s:9, indent:17});
   L.push({t:`Sisa Bayar     : ${rupiah(calc.sisaBayar)}`, s:9, indent:17});
-  L.push({t:`Status         : ${s.statusBayar==='lunas' ? 'LUNAS' : 'BELUM LUNAS'}`, s:9, indent:17});
+  L.push({t:`Status         : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`, s:9, indent:17});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'developed by tinggirantech@gmail.com © 2026', c:true, s:6});
@@ -2185,6 +2353,8 @@ function editSubscription(){
   document.getElementById('subsHP').value = s.hp||'';
   document.getElementById('subsKuota').value = s.kuotaKg;
   document.getElementById('subsTanggalMulai').value = s.tanggalMulai;
+  document.getElementById('subsTipe').value = isTempo(s) ? 'tempo' : 'bulanan';
+  onSubsTipeChange();
   populateSubsPaketSelect();
   const paketOpt = serviceCatalog.find(p=>p.type==='paket' && p.nama===s.paketNama);
   if(paketOpt) document.getElementById('subsPaket').value = paketOpt.id;
@@ -2253,6 +2423,12 @@ function openWA(phone, text, target){
 var currentUsageNotaId = null;
 function openUsageNotaOptions(usageId){
   currentUsageNotaId = usageId;
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  const tempo = s && isTempo(s);
+  document.getElementById('usageNotaTitle').textContent = tempo ? 'Kirim Nota Transaksi' : 'Kirim Nota Timbangan';
+  document.getElementById('usageNotaHint').textContent = tempo
+    ? 'Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.'
+    : 'Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.';
   const modal = document.getElementById('usageNotaModal');
   if(modal) modal.classList.add('show');
 }
@@ -2282,7 +2458,35 @@ function hitungHargaSampai(usage, s, terpakaiUpTo){
   const totalHarga = (s.hargaPaket||0) + excessCost + extraTotal;
   return { excessKg, excessCost, extras, extraTotal, totalHarga };
 }
+function tempoUsageNotaTextWA(usage, s){
+  const extras = extrasSampai(usage);
+  const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
+  const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const lines = [];
+  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  lines.push('-------------------------------');
+  lines.push('*CATATAN TRANSAKSI - TEMPO*');
+  lines.push(`Pelanggan  : ${s.nama}`);
+  lines.push('Jenis      : Tempo (Bayar Nanti)');
+  lines.push('-------------------------------');
+  lines.push('*Laundry Hari Ini*');
+  lines.push(`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`);
+  lines.push('-------------------------------');
+  lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
+  extras.forEach(u=>{
+    lines.push(`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+  });
+  lines.push('-------------------------------');
+  lines.push(`*Total Tagihan Berjalan : ${rupiah(totalHarga)}*`);
+  lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
+  lines.push(`Sisa Bayar    : ${rupiah(sisaBayar)}`);
+  lines.push('-------------------------------');
+  lines.push(settings.note || 'Terima kasih');
+  lines.push('_dibuat oleh tinggirantech@gmail.com © 2026_');
+  return lines.join('\n');
+}
 function usageNotaTextWA(usage, s){
+  if(isTempo(s)) return tempoUsageNotaTextWA(usage, s);
   const upTo = pemakaianSampai(usage);
   const terpakaiUpTo = upTo.reduce((sum,u)=>sum+u.berat, 0);
   const sisaKg = Math.max(s.kuotaKg - terpakaiUpTo, 0);
@@ -2331,7 +2535,38 @@ function sendUsageNotaWA(target){
   openWA(normalizePhone(s.hp), usageNotaTextWA(usage, s), target);
   closeUsageNotaOptions();
 }
+function buildTempoUsageNotaPDFLines(usage, s){
+  const extras = extrasSampai(usage);
+  const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
+  const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const L = [];
+  const div = '--------------------------------';
+  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
+  if(settings.address) L.push({t: settings.address, c:true, s:8});
+  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  L.push({t: div, s:9});
+  L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
+  L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
+  L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
+  L.push({t: div, s:9});
+  L.push({t:'LAUNDRY HARI INI', b:true, s:9});
+  L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, s:9});
+  L.push({t: div, s:9});
+  L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
+  extras.forEach(u=>{
+    L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+  });
+  L.push({t: div, s:9});
+  L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
+  L.push({t:`Sudah Dibayar          : ${rupiah(s.dp||0)}`, s:9});
+  L.push({t:`Sisa Bayar             : ${rupiah(sisaBayar)}`, s:9});
+  L.push({t: div, s:9});
+  L.push({t: settings.note || 'Terima kasih', c:true, s:8});
+  L.push({t: 'developed by tinggirantech@gmail.com © 2026', c:true, s:6});
+  return L;
+}
 function buildUsageNotaPDFLines(usage, s){
+  if(isTempo(s)) return buildTempoUsageNotaPDFLines(usage, s);
   const upTo = pemakaianSampai(usage);
   const terpakaiUpTo = upTo.reduce((sum,u)=>sum+u.berat, 0);
   const L = [];
@@ -2491,8 +2726,9 @@ async function downloadUsageNotaImage(){
   const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
   if(!s || !usage) return;
   const lines = buildUsageNotaPDFLines(usage, s);
-  const filenameBase = `Nota-Timbangan-${usage.tanggal}-${(s.nama||'pelanggan').replace(/\s+/g,'-')}`;
-  await shareOrDownloadNotaImage(lines, filenameBase, 80, `Nota timbangan laundry - ${s.nama}`);
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${usage.tanggal}-${(s.nama||'pelanggan').replace(/\s+/g,'-')}`;
+  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? 'Nota transaksi laundry' : 'Nota timbangan laundry'} - ${s.nama}`);
   closeUsageNotaOptions();
 }
 function nextKode(){
