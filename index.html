@@ -2962,7 +2962,10 @@ async function submitTransaction(){
 
   const subtotal = draftItems.reduce((s,it)=>s+it.subtotal,0);
   const total = Math.max(subtotal - diskon, 0);
-  const finalDp = status==='lunas' ? total : dp;
+  /* Status Lunas selalu berarti minimal lunas (dp >= total) — tapi kalau kasir sengaja
+     isi DP lebih besar dari total (pelanggan bayar lebih & kelebihannya dititip),
+     nilai itu tetap disimpan apa adanya, bukan ditimpa jadi persis sama dengan total. */
+  const finalDp = status==='lunas' ? Math.max(dp, total) : dp;
 
   if(editingTransactionId){
     const { data, error } = await sb.from('transactions').update({
@@ -3082,6 +3085,7 @@ function buildReceiptHTML(trx){
     <div class="r-total"><span>TOTAL</span><span>${rupiah(trx.total)}</span></div>
     ${trx.status==='belum' ? `<div class="r-row" style="margin-top:6px;"><span>Uang Muka</span><span>${rupiah(trx.dp||0)}</span></div>
     <div class="r-row"><span>Sisa Bayar</span><span>${rupiah(sisa)}</span></div>` : ''}
+    ${trx.status==='lunas' && (trx.dp||0)>trx.total ? `<div class="r-row" style="margin-top:6px;color:var(--success);"><span>Kelebihan Bayar</span><span>${rupiah((trx.dp||0)-trx.total)}</span></div>` : ''}
     <div class="r-status"><span class="badge ${trx.status==='lunas'?'badge-lunas':'badge-belum'}">${trx.status==='lunas'?'LUNAS':'BELUM LUNAS'}</span></div>
     ${trx.catatan ? `<div class="r-divider"></div><div class="r-row" style="display:block;"><i>Catatan: ${escapeHTML(trx.catatan)}</i></div>` : ''}
     <div class="r-footer">${escapeHTML(settings.note||'')}</div>
@@ -3127,6 +3131,9 @@ function buildReceiptPDFLines(trx){
   if(trx.status==='belum'){
     L.push({t:`Uang Muka  : ${rupiah(trx.dp||0)}`, s:9});
     L.push({t:`Sisa Bayar : ${rupiah(trx.total-(trx.dp||0))}`, s:9});
+  }
+  if(trx.status==='lunas' && (trx.dp||0)>trx.total){
+    L.push({t:`Kelebihan Bayar : ${rupiah((trx.dp||0)-trx.total)}`, s:9});
   }
   L.push({t:`Status     : ${trx.status==='lunas'?'LUNAS':'BELUM LUNAS'}`, b:true, s:9});
   L.push({t: div, s:9});
@@ -3218,6 +3225,9 @@ function receiptTextForWA(trx){
   if(trx.status==='belum'){
     lines.push(`Uang Muka  : ${rupiah(trx.dp||0)}`);
     lines.push(`Sisa Bayar : ${rupiah(trx.total-(trx.dp||0))}`);
+  }
+  if(trx.status==='lunas' && (trx.dp||0)>trx.total){
+    lines.push(`Kelebihan Bayar : ${rupiah((trx.dp||0)-trx.total)} (dititip untuk laundry berikutnya, bukan kembalian)`);
   }
   lines.push(`Status     : ${trx.status==='lunas' ? 'LUNAS' : 'BELUM LUNAS'}`);
   lines.push('-------------------------------');
