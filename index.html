@@ -2403,7 +2403,7 @@ function subsInvoiceTextWA(s){
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_App & Website Builder_');
+  lines.push('_Bikin Apps & Website Kilat_');
   lines.push('🟢 WhatsApp: 081293228520');
   lines.push('📧 tinggirantech@gmail.com');
   return lines.join('\n');
@@ -2457,7 +2457,7 @@ function buildSubsInvoicePDFLines(s){
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'App & Website Builder', c:true, s:6});
+  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
   L.push({t: '081293228520', c:true, s:6, icon:'wa'});
   L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
   return L;
@@ -2640,7 +2640,7 @@ function tempoUsageNotaTextWA(usage, s){
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_App & Website Builder_');
+  lines.push('_Bikin Apps & Website Kilat_');
   lines.push('🟢 WhatsApp: 081293228520');
   lines.push('📧 tinggirantech@gmail.com');
   return lines.join('\n');
@@ -2685,7 +2685,7 @@ function usageNotaTextWA(usage, s){
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_App & Website Builder_');
+  lines.push('_Bikin Apps & Website Kilat_');
   lines.push('🟢 WhatsApp: 081293228520');
   lines.push('📧 tinggirantech@gmail.com');
   return lines.join('\n');
@@ -2728,7 +2728,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'App & Website Builder', c:true, s:6});
+  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
   L.push({t: '081293228520', c:true, s:6, icon:'wa'});
   L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
   return L;
@@ -2776,7 +2776,7 @@ function buildUsageNotaPDFLines(usage, s){
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'App & Website Builder', c:true, s:6});
+  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
   L.push({t: '081293228520', c:true, s:6, icon:'wa'});
   L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
   return L;
@@ -2798,17 +2798,23 @@ function loadImageEl(src){
    garis lipatan merah) — satu sumber path dipakai bareng untuk versi HTML
    (SVG, di nota tampilan app) & versi canvas (nota JPG/PDF), supaya
    bentuknya identik. Semua koordinat dalam ruang 24x24. */
-const ICON_WA_CIRCLE = { cx:11, cy:11, r:10 };
-const ICON_WA_TAIL_PATH = 'M5 16 L12 21 L3 23 Z';
-const ICON_WA_PHONE_PATH = 'M14.7 8.6c-.17-.09-1-.49-1.15-.55-.16-.06-.27-.09-.38.09-.11.17-.43.55-.53.66-.1.11-.19.13-.36.04-.17-.09-.72-.27-1.37-.85-.51-.45-.85-1.01-.95-1.18-.1-.17 0-.26.08-.35.08-.08.17-.19.25-.29.08-.1.11-.17.16-.29.05-.11.03-.21-.01-.3-.05-.09-.38-.93-.53-1.27-.14-.33-.28-.29-.38-.29-.1-.01-.21-.01-.33-.01-.11 0-.3.04-.46.21-.16.17-.6.59-.6 1.43 0 .84.61 1.65.7 1.77.08.11 1.2 1.84 2.92 2.58.41.18.73.28.98.36.41.13.78.11 1.07.07.33-.05 1-.42 1.15-.82.14-.4.14-.75.1-.82-.04-.07-.16-.11-.34-.19z';
+const ICON_WA_SQUARE = { x:0.5, y:0.5, w:23, h:23, rx:5.4 };
+const ICON_WA_RING = { cx:12, cy:12, rOuter:7.3, rInner:5.6 };
+const ICON_WA_TAIL_PATH = 'M8.6 17.9 C7.7 19.4 5.9 20.7 4 21.4 C6.3 21.1 8.5 20.1 10 18.6 Z';
+const ICON_WA_PHONE_PATH = 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z';
+const ICON_WA_PHONE_XF = { tx:6.48, ty:6.48, scale:0.46 };
 const ICON_EMAIL_BODY = { x:2, y:5, w:20, h:14 };
 const ICON_EMAIL_FLAP_PATH = 'M3 6.5 L12 14.5 L21 6.5';
 function iconBadgeSVG(kind){
   if(kind==='wa'){
     return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="${ICON_WA_CIRCLE.cx}" cy="${ICON_WA_CIRCLE.cy}" r="${ICON_WA_CIRCLE.r}" fill="#25D366"/>
-      <path d="${ICON_WA_TAIL_PATH}" fill="#25D366"/>
-      <path d="${ICON_WA_PHONE_PATH}" fill="#fff"/>
+      <rect x="${ICON_WA_SQUARE.x}" y="${ICON_WA_SQUARE.y}" width="${ICON_WA_SQUARE.w}" height="${ICON_WA_SQUARE.h}" rx="${ICON_WA_SQUARE.rx}" fill="#25D366"/>
+      <path d="${ICON_WA_TAIL_PATH}" fill="#fff"/>
+      <circle cx="${ICON_WA_RING.cx}" cy="${ICON_WA_RING.cy}" r="${ICON_WA_RING.rOuter}" fill="#fff"/>
+      <circle cx="${ICON_WA_RING.cx}" cy="${ICON_WA_RING.cy}" r="${ICON_WA_RING.rInner}" fill="#25D366"/>
+      <g transform="translate(${ICON_WA_PHONE_XF.tx} ${ICON_WA_PHONE_XF.ty}) scale(${ICON_WA_PHONE_XF.scale})">
+        <path d="${ICON_WA_PHONE_PATH}" fill="#fff"/>
+      </g>
     </svg>`;
   }
   return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
@@ -2822,10 +2828,20 @@ function drawIconBadgeOnCanvas(ctx, kind, left, top, size){
   ctx.scale(size/24, size/24);
   if(kind==='wa'){
     ctx.fillStyle = '#25D366';
-    ctx.beginPath(); ctx.arc(ICON_WA_CIRCLE.cx, ICON_WA_CIRCLE.cy, ICON_WA_CIRCLE.r, 0, Math.PI*2); ctx.fill();
-    ctx.fill(new Path2D(ICON_WA_TAIL_PATH));
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(ICON_WA_SQUARE.x, ICON_WA_SQUARE.y, ICON_WA_SQUARE.w, ICON_WA_SQUARE.h, ICON_WA_SQUARE.rx) : ctx.rect(ICON_WA_SQUARE.x, ICON_WA_SQUARE.y, ICON_WA_SQUARE.w, ICON_WA_SQUARE.h);
+    ctx.fill();
     ctx.fillStyle = '#ffffff';
+    ctx.fill(new Path2D(ICON_WA_TAIL_PATH));
+    ctx.beginPath(); ctx.arc(ICON_WA_RING.cx, ICON_WA_RING.cy, ICON_WA_RING.rOuter, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#25D366';
+    ctx.beginPath(); ctx.arc(ICON_WA_RING.cx, ICON_WA_RING.cy, ICON_WA_RING.rInner, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.save();
+    ctx.translate(ICON_WA_PHONE_XF.tx, ICON_WA_PHONE_XF.ty);
+    ctx.scale(ICON_WA_PHONE_XF.scale, ICON_WA_PHONE_XF.scale);
     ctx.fill(new Path2D(ICON_WA_PHONE_PATH));
+    ctx.restore();
   } else {
     ctx.fillStyle = '#F1F3F4';
     ctx.strokeStyle = '#BDC1C6'; ctx.lineWidth = 1.8;
@@ -2852,16 +2868,16 @@ function wrapCanvasLines(ctx, lines, usableWidthPx, ptToPx){
   };
   lines.forEach(line=>{
     const px = Math.round(ptToPx(line.s||9));
-    ctx.font = `${line.b?'bold ':''}${px}px 'Courier New', monospace`;
+    ctx.font = `${line.it?'italic ':''}${line.b?'bold ':''}${px}px 'Courier New', monospace`;
     if(line.indent){
       const prefix = String(line.t).slice(0, line.indent);
       const rest = String(line.t).slice(line.indent);
       const prefixWidth = ctx.measureText(prefix).width;
       const pieces = wrapOne(rest, Math.max(usableWidthPx - prefixWidth, 20));
-      pieces.forEach((p,i)=> wrapped.push({ t: i===0?prefix+p:p, b:line.b, s:line.s, c:line.c, icon: i===0?line.icon:undefined, indentPx: i===0?0:prefixWidth }));
+      pieces.forEach((p,i)=> wrapped.push({ t: i===0?prefix+p:p, b:line.b, it:line.it, s:line.s, c:line.c, icon: i===0?line.icon:undefined, indentPx: i===0?0:prefixWidth }));
     } else {
       const pieces = wrapOne(String(line.t), usableWidthPx);
-      pieces.forEach((p,i)=> wrapped.push({ t:p, b:line.b, s:line.s, c:line.c, icon: i===0?line.icon:undefined, indentPx:0 }));
+      pieces.forEach((p,i)=> wrapped.push({ t:p, b:line.b, it:line.it, s:line.s, c:line.c, icon: i===0?line.icon:undefined, indentPx:0 }));
     }
   });
   return wrapped;
@@ -2903,7 +2919,7 @@ async function buildNotaCanvas(lines, pageWidthMm){
 
   wrapped.forEach(line=>{
     const px = Math.round(ptToPx(line.s||9));
-    ctx.font = `${line.b?'bold ':''}${px}px 'Courier New', monospace`;
+    ctx.font = `${line.it?'italic ':''}${line.b?'bold ':''}${px}px 'Courier New', monospace`;
     y += lh*0.72;
     if(line.icon){
       /* Lencana WA (bubble hijau + gagang telepon) / Gmail (amplop + flap merah)
@@ -3311,7 +3327,7 @@ function buildReceiptHTML(trx){
     <div class="r-footer">${escapeHTML(settings.note||'')}</div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1.5px dashed #B8AD97;font-size:11px;color:#6b5f4d;">
       <div style="font-weight:800;color:var(--ink);">dikembangkan oleh Tinggiran Tech Studio</div>
-      <div>App &amp; Website Builder</div>
+      <div style="font-style:italic;">Bikin Apps &amp; Website Kilat</div>
       <a href="https://wa.me/6281293228520" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
         <span style="width:18px;height:18px;flex:none;display:inline-flex;">${iconBadgeSVG('wa')}</span>
         <span>081293228520</span>
@@ -3371,7 +3387,7 @@ function buildReceiptPDFLines(trx){
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'App & Website Builder', c:true, s:6});
+  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
   L.push({t: '081293228520', c:true, s:6, icon:'wa'});
   L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
   return L;
@@ -3468,7 +3484,7 @@ function receiptTextForWA(trx){
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_App & Website Builder_');
+  lines.push('_Bikin Apps & Website Kilat_');
   lines.push('🟢 WhatsApp: 081293228520');
   lines.push('📧 tinggirantech@gmail.com');
   return lines.join('\n');
