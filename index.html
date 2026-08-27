@@ -2250,15 +2250,21 @@ function subsInvoiceTextWA(s){
   lines.push('-------------------------------');
   lines.push(`Pelanggan  : ${s.nama}`);
   if(tempo){
+    const extras = currentUsageList.filter(u=>u.type==='layanan_tambahan')
+      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0));
+    const latest = extras[extras.length-1];
     lines.push('Jenis      : Tempo (Bayar Nanti)');
     lines.push(`Terdaftar  : ${fmtDate(s.tanggalMulai)}`);
+    if(latest){
+      lines.push('-------------------------------');
+      lines.push('*Timbangan Sekarang*');
+      lines.push(`*${fmtDate(latest.tanggal)} — ${latest.layananNama} : ${fmtKg(latest.qty)} ${latest.satuan} x ${rupiah(latest.harga)} = ${rupiah(latest.subtotal)}*`);
+    }
     lines.push('-------------------------------');
     lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
-    currentUsageList.filter(u=>u.type==='layanan_tambahan')
-      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0))
-      .forEach(u=>{
-        lines.push(`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
-      });
+    extras.forEach(u=>{
+      lines.push(`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+    });
   } else {
     lines.push(`Paket      : ${s.paketNama}`);
     lines.push(`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
@@ -2292,15 +2298,21 @@ function buildSubsInvoicePDFLines(s){
   L.push({t: tempo ? 'REKAP TAGIHAN TEMPO' : 'TAGIHAN PAKET BULANAN', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
   if(tempo){
+    const extras = currentUsageList.filter(u=>u.type==='layanan_tambahan')
+      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0));
+    const latest = extras[extras.length-1];
     L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
     L.push({t:`Terdaftar  : ${fmtDate(s.tanggalMulai)}`, s:9, indent:13});
+    if(latest){
+      L.push({t: div, s:9});
+      L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+      L.push({t:`${fmtDate(latest.tanggal)} — ${latest.layananNama} : ${fmtKg(latest.qty)} ${latest.satuan} x ${rupiah(latest.harga)} = ${rupiah(latest.subtotal)}`, b:true, s:11});
+    }
     L.push({t: div, s:9});
     L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
-    currentUsageList.filter(u=>u.type==='layanan_tambahan')
-      .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0))
-      .forEach(u=>{
-        L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
-      });
+    extras.forEach(u=>{
+      L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+    });
   } else {
     L.push({t:`Paket      : ${s.paketNama}`, s:9, indent:13});
     L.push({t:`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
@@ -2469,8 +2481,8 @@ function tempoUsageNotaTextWA(usage, s){
   lines.push(`Pelanggan  : ${s.nama}`);
   lines.push('Jenis      : Tempo (Bayar Nanti)');
   lines.push('-------------------------------');
-  lines.push('*Laundry Hari Ini*');
-  lines.push(`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`);
+  lines.push('*Timbangan Sekarang*');
+  lines.push(`*${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}*`);
   lines.push('-------------------------------');
   lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
   extras.forEach(u=>{
@@ -2549,8 +2561,8 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
   L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
   L.push({t: div, s:9});
-  L.push({t:'LAUNDRY HARI INI', b:true, s:9});
-  L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, s:9});
+  L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+  L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:11});
   L.push({t: div, s:9});
   L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
   extras.forEach(u=>{
