@@ -469,6 +469,13 @@
     </div>
 
     <div class="card">
+      <h2>Laba Rugi Bulan Ini</h2>
+      <div class="item-line"><span>Total Pemasukan (Omzet)</span><span id="lrPemasukan">Rp0</span></div>
+      <div class="item-line"><span>Total Pengeluaran</span><span id="lrPengeluaran">Rp0</span></div>
+      <div class="total-line"><span>Laba / Rugi Bersih</span><span id="lrLabaRugi">Rp0</span></div>
+    </div>
+
+    <div class="card">
       <h2>Omzet Harian</h2>
       <div class="chart" id="chartBars"></div>
       <div class="chart-labels" id="chartLabels"></div>
@@ -550,6 +557,51 @@
       </div>
     </div>
     <div id="subscriptionList"></div>
+  </section>
+
+  <!-- ===== VIEW 6: PENGELUARAN ===== -->
+  <section class="view" id="view-pengeluaran">
+    <div class="card">
+      <h2>Catat Pengeluaran</h2>
+      <div class="row2">
+        <div>
+          <label for="expTanggal">Tanggal</label>
+          <input id="expTanggal" type="date">
+        </div>
+        <div>
+          <label for="expKategori">Kategori</label>
+          <select id="expKategori">
+            <option>Listrik</option>
+            <option>Air</option>
+            <option>Gaji Karyawan</option>
+            <option>Deterjen &amp; Perlengkapan</option>
+            <option>Sewa Tempat</option>
+            <option>Perawatan Mesin</option>
+            <option>Transportasi</option>
+            <option>Lain-lain</option>
+          </select>
+        </div>
+      </div>
+      <label for="expJumlah">Jumlah (Rp)</label>
+      <input id="expJumlah" type="number" min="0" placeholder="cth. 150000">
+      <label for="expCatatan">Catatan (opsional)</label>
+      <input id="expCatatan" placeholder="cth. Bayar listrik bulan Agustus">
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="submitExpense()">+ Simpan Pengeluaran</button>
+    </div>
+
+    <div class="card">
+      <label for="expFilterMonth">Pilih Bulan</label>
+      <input id="expFilterMonth" type="month" onchange="renderExpenseList()">
+      <div class="stat-grid" style="margin-top:10px;">
+        <div class="stat-card warn"><div class="label">Total Pengeluaran</div><div class="value" id="expStTotal">Rp0</div></div>
+        <div class="stat-card"><div class="label">Jumlah Catatan</div><div class="value" id="expStCount">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Riwayat Pengeluaran</h2>
+      <div id="expenseList"></div>
+    </div>
   </section>
 
 </main>
@@ -668,6 +720,10 @@
   <button class="tab" data-tab="paket" onclick="switchTab('paket')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.5 7.3L12 12l-8.5-4.7M12 22V12"/><path d="M20.5 16.7L12 12l-8.5 4.7"/><path d="M12 2l8.5 4.7L12 12 3.5 6.7z"/></svg></div>
     <span>Paket</span>
+  </button>
+  <button class="tab owner-only" data-tab="pengeluaran" onclick="switchTab('pengeluaran')">
+    <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v20M17 6.5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6.5"/></svg></div>
+    <span>Pengeluaran</span>
   </button>
   <button class="tab owner-only" data-tab="laporan" onclick="switchTab('laporan')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
@@ -1076,6 +1132,7 @@ var authMode = 'masuk';
 var serviceCatalog = [];
 var editingCatalogId = null;
 var subscriptions = [];
+var expenses = [];
 var currentSubscriptionId = null;
 var currentUsageList = [];
 var editingTransactionId = null;
@@ -1636,7 +1693,7 @@ async function initUserData(){
   let lastTab = 'baru';
   try{
     const saved = localStorage.getItem('nk_lastTab');
-    if(saved && ['baru','riwayat','paket','laporan'].includes(saved)) lastTab = saved;
+    if(saved && ['baru','riwayat','paket','laporan','pengeluaran'].includes(saved)) lastTab = saved;
   }catch(e){}
   try{
     await loadSettingsFromDB();
@@ -1644,6 +1701,7 @@ async function initUserData(){
     await loadCatalogFromDB();
     await loadSubscriptionsFromDB();
     await loadContactsFromDB();
+    await loadExpensesFromDB();
     applySettingsToUI();
     renderAll();
   }catch(e){
@@ -1666,6 +1724,17 @@ async function loadTransactionsFromDB(){
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
     status: row.status, catatan: row.catatan||''
+  }));
+}
+/* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
+   (tabel belum dibuat), diamkan saja dan anggap belum ada pengeluaran tercatat,
+   supaya fitur lain tetap jalan normal (lihat README untuk SQL migrasinya). */
+async function loadExpensesFromDB(){
+  const { data, error } = await sb.from('expenses').select('*').eq('user_id', shopOwnerId).order('tanggal', { ascending:true });
+  if(error){ expenses = []; return; }
+  expenses = (data||[]).map(row => ({
+    id: row.id, tanggal: row.tanggal, kategori: row.kategori,
+    jumlah: Number(row.jumlah)||0, catatan: row.catatan||''
   }));
 }
 async function persistSettings(){
@@ -3107,14 +3176,15 @@ function selectContactSuggest(inputId, boxId, contactId){
 function switchTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket' };
+  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran' };
   document.getElementById(map[name]).classList.add('active');
   const tabBtn = document.querySelector('.tab[data-tab="'+name+'"]');
   if(tabBtn) tabBtn.classList.add('active');
   if(name==='riwayat') renderHistory();
   if(name==='laporan') renderReport();
   if(name==='paket') renderSubscriptions();
-  if(['baru','riwayat','paket','laporan'].includes(name)){
+  if(name==='pengeluaran') renderExpenseList();
+  if(['baru','riwayat','paket','laporan','pengeluaran'].includes(name)){
     try{ localStorage.setItem('nk_lastTab', name); }catch(e){}
   }
 }
@@ -3292,6 +3362,79 @@ async function deleteTransaction(id){
       showToast('Transaksi dikembalikan');
     }
   });
+}
+
+/* ===================== PENGELUARAN / PEMBUKUAN ===================== */
+async function submitExpense(){
+  const tanggal = document.getElementById('expTanggal').value || todayISO();
+  const kategori = document.getElementById('expKategori').value;
+  const jumlah = parseFloat(document.getElementById('expJumlah').value) || 0;
+  const catatan = document.getElementById('expCatatan').value.trim();
+  if(jumlah<=0){ showToast('Isi jumlah pengeluaran dulu'); return; }
+  const { data, error } = await sb.from('expenses').insert({
+    user_id: shopOwnerId, tanggal, kategori, jumlah, catatan
+  }).select().single();
+  if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dibuat di database'); return; }
+  expenses.push({ id:data.id, tanggal:data.tanggal, kategori:data.kategori, jumlah:Number(data.jumlah)||0, catatan:data.catatan||'' });
+  document.getElementById('expJumlah').value = '';
+  document.getElementById('expCatatan').value = '';
+  showToast('Pengeluaran dicatat');
+  renderExpenseList();
+}
+async function deleteExpense(id){
+  const exp = expenses.find(e=>e.id===id);
+  if(!exp) return;
+  if(!confirm('Hapus catatan pengeluaran ini?')) return;
+  const { error } = await sb.from('expenses').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus pengeluaran'); return; }
+  expenses = expenses.filter(e=>e.id!==id);
+  renderExpenseList();
+  showToast('Pengeluaran dihapus', {
+    label: 'Urungkan',
+    onClick: async ()=>{
+      const { data, error: err2 } = await sb.from('expenses').insert({
+        user_id: shopOwnerId, tanggal: exp.tanggal, kategori: exp.kategori, jumlah: exp.jumlah, catatan: exp.catatan
+      }).select().single();
+      if(err2){ showToast('Gagal mengembalikan pengeluaran'); return; }
+      expenses.push({ id:data.id, tanggal:data.tanggal, kategori:data.kategori, jumlah:Number(data.jumlah)||0, catatan:data.catatan||'' });
+      renderExpenseList();
+      showToast('Pengeluaran dikembalikan');
+    }
+  });
+}
+function renderExpenseList(){
+  const monthInput = document.getElementById('expFilterMonth');
+  if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
+  const ym = monthInput.value;
+  const list = expenses.filter(e=>e.tanggal && e.tanggal.slice(0,7)===ym);
+  const total = list.reduce((s,e)=>s+e.jumlah,0);
+  document.getElementById('expStTotal').textContent = rupiah(total);
+  document.getElementById('expStCount').textContent = list.length;
+
+  const el = document.getElementById('expenseList');
+  if(list.length===0){
+    el.innerHTML = `<div class="empty">
+      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+      <h3>Belum ada pengeluaran bulan ini</h3>
+      <p>Catat pengeluaran seperti listrik, gaji, atau sabun di form atas.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = list.slice().reverse().map(e=>`
+    <div class="trx-card">
+      <div class="trx-top">
+        <div>
+          <div class="trx-name">${escapeHTML(e.kategori)}</div>
+          <div class="kode">${fmtDate(e.tanggal)}</div>
+        </div>
+        <span class="trx-total" style="color:var(--warn);">-${rupiah(e.jumlah)}</span>
+      </div>
+      ${e.catatan ? `<div class="trx-meta">${escapeHTML(e.catatan)}</div>` : ''}
+      <div class="trx-actions">
+        <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">🗑️ Hapus</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 /* ===================== NOTA / RECEIPT ===================== */
@@ -3581,6 +3724,16 @@ function renderReport(){
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
   document.getElementById('stLunas').textContent = rupiah(totalLunas);
   document.getElementById('stBelum').textContent = rupiah(totalBelum);
+
+  // laba rugi = pemasukan (omzet) - pengeluaran, untuk bulan yang sama
+  const expList = expenses.filter(e=>e.tanggal && e.tanggal.slice(0,7)===ym);
+  const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
+  const labaRugi = totalOmzet - totalPengeluaran;
+  document.getElementById('lrPemasukan').textContent = rupiah(totalOmzet);
+  document.getElementById('lrPengeluaran').textContent = rupiah(totalPengeluaran);
+  const lrEl = document.getElementById('lrLabaRugi');
+  lrEl.textContent = (labaRugi<0 ? 'Rugi ' : 'Untung ') + rupiah(Math.abs(labaRugi));
+  lrEl.style.color = labaRugi<0 ? 'var(--warn)' : 'var(--success)';
 
   // chart per hari
   const [yy,mm] = ym.split('-').map(Number);
