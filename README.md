@@ -40,6 +40,21 @@ drum mesin cuci + gelembung, warna cocok dengan palet CSS app (`--suds`,
 final** — ganti kapan saja Anda punya logo resmi, tinggal timpa kedua
 berkas PNG itu (nama & ukurannya tetap sama).
 
+## Migrasi database manual yang perlu dijalankan
+
+Fitur **ganti logo toko** (Pengaturan → Logo Toko) butuh satu kolom baru di
+tabel `settings` yang belum ada di database — repo ini tidak punya sistem
+migrasi, jadi jalankan sendiri sekali di Supabase SQL Editor:
+
+```sql
+alter table settings add column if not exists logo_url text;
+```
+
+Sebelum kolom ini ada, tombol "Pilih Logo Baru" / "Pakai Logo Default" akan
+gagal dengan toast error (fitur lain di app tidak terpengaruh — Nama/Alamat/
+Telepon/Catatan Kaki Nota tetap tersimpan seperti biasa lewat kolom yang
+sudah ada).
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
