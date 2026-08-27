@@ -638,6 +638,7 @@
       <div class="total-line"><span>Total Tagihan</span><span id="sumTotal">Rp0</span></div>
       <div class="item-line" style="margin-top:8px;"><span>Sudah Dibayar (DP)</span><span id="sumDP">Rp0</span></div>
       <div class="item-line"><span>Sisa Bayar</span><span id="sumSisa">Rp0</span></div>
+      <div class="item-line" id="sumLebihBayarRow" style="display:none;color:var(--success);"><span>Kelebihan Bayar (saldo)</span><span id="sumLebihBayar">Rp0</span></div>
       <div class="r-status" id="subsPayBadge" style="margin-top:8px;"></div>
     </div>
 
@@ -2051,8 +2052,9 @@ async function refreshSubsDetail(){
   const extraTotal = extraList.reduce((sum,u)=>sum+u.subtotal,0);
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
   const sisaBayar = Math.max(totalTagihan - (s.dp||0), 0);
+  const lebihBayar = Math.max((s.dp||0) - totalTagihan, 0);
   const lunasNow = tempo ? (totalTagihan>0 && sisaBayar<=0) : s.statusBayar==='lunas';
-  s._calc = { excessKg, excessCost, extraTotal, totalTagihan, sisaBayar, excessRate, lunasNow };
+  s._calc = { excessKg, excessCost, extraTotal, totalTagihan, sisaBayar, lebihBayar, excessRate, lunasNow };
 
   document.getElementById('subsKuotaCard').style.display = tempo ? 'none' : 'block';
   document.getElementById('subsTempoCard').style.display = tempo ? 'block' : 'none';
@@ -2085,6 +2087,8 @@ async function refreshSubsDetail(){
   document.getElementById('sumTotal').textContent = rupiah(totalTagihan);
   document.getElementById('sumDP').textContent = rupiah(s.dp||0);
   document.getElementById('sumSisa').textContent = rupiah(sisaBayar);
+  document.getElementById('sumLebihBayarRow').style.display = lebihBayar>0 ? 'flex' : 'none';
+  document.getElementById('sumLebihBayar').textContent = rupiah(lebihBayar);
   document.getElementById('subsDPInput').value = s.dp||0;
 
   document.getElementById('subsPayBadge').innerHTML = `<span class="badge ${lunasNow?'badge-lunas':'badge-belum'}">${lunasNow?'LUNAS':'BELUM LUNAS'}</span>`;
@@ -2194,8 +2198,9 @@ async function markSubsLunas(){
   if(!s || !s._calc) return;
   const tempo = isTempo(s);
   if(tempo && s._calc.totalTagihan<=0){ showToast('Belum ada laundry yang tercatat untuk ditagih'); return; }
+  const carryOverPreview = tempo ? (s._calc.lebihBayar||0) : 0;
   const confirmMsg = tempo
-    ? 'Tandai seluruh tagihan Tempo pelanggan ini LUNAS? Rekap transaksi akan masuk ke Laporan & Riwayat Transaksi, lalu catatan kunjungan di sini direset untuk siklus bayar berikutnya.'
+    ? `Tandai seluruh tagihan Tempo pelanggan ini LUNAS? Rekap transaksi akan masuk ke Laporan & Riwayat Transaksi, lalu catatan kunjungan di sini direset untuk siklus bayar berikutnya.${carryOverPreview>0 ? ` Kelebihan bayar ${rupiah(carryOverPreview)} akan disimpan jadi saldo untuk laundry berikutnya (bukan dikembalikan tunai).` : ''}`
     : 'Tandai periode paket ini LUNAS? Tagihan akan otomatis masuk ke Laporan & Riwayat Transaksi.';
   if(!confirm(confirmMsg)) return;
   const calc = s._calc;
@@ -2222,15 +2227,18 @@ async function markSubsLunas(){
     status:data.status, catatan:data.catatan
   });
   if(tempo){
+    const carryOver = calc.lebihBayar||0;
     await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
     const { error: err2 } = await sb.from('subscriptions').update({
-      status_bayar:'belum', dp:0, lunas_at: today, transaction_id: data.id
+      status_bayar:'belum', dp: carryOver, lunas_at: today, transaction_id: data.id
     }).eq('id', s.id);
     if(err2){ showToast('Pembayaran tercatat, tapi gagal mereset catatan Tempo'); }
-    s.statusBayar = 'belum'; s.dp = 0; s.lunasAt = today; s.transactionId = data.id;
+    s.statusBayar = 'belum'; s.dp = carryOver; s.lunasAt = today; s.transactionId = data.id;
     s.tempoTotal = 0; s.tempoCount = 0;
     currentUsageList = [];
-    showToast('Pembayaran tercatat & masuk ke laporan omset. Siklus baru dimulai.');
+    showToast(carryOver>0
+      ? `Pembayaran tercatat. Kelebihan ${rupiah(carryOver)} disimpan jadi saldo untuk laundry berikutnya.`
+      : 'Pembayaran tercatat & masuk ke laporan omset. Siklus baru dimulai.');
   } else {
     const { error: err2 } = await sb.from('subscriptions').update({
       status_bayar:'lunas', dp: calc.totalTagihan, lunas_at: today, transaction_id: data.id
@@ -2243,7 +2251,7 @@ async function markSubsLunas(){
   renderSubscriptions();
 }
 function subsInvoiceTextWA(s){
-  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lunasNow:s.statusBayar==='lunas' };
+  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lebihBayar:Math.max((s.dp||0)-s.hargaPaket,0), lunasNow:s.statusBayar==='lunas' };
   const tempo = isTempo(s);
   const lines = [];
   lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
@@ -2280,6 +2288,7 @@ function subsInvoiceTextWA(s){
   lines.push(`*TOTAL TAGIHAN : ${rupiah(calc.totalTagihan)}*`);
   lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
   lines.push(`Sisa Bayar : ${rupiah(calc.sisaBayar)}`);
+  if(calc.lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(calc.lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
   lines.push(`Status     : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
@@ -2287,7 +2296,7 @@ function subsInvoiceTextWA(s){
   return lines.join('\n');
 }
 function buildSubsInvoicePDFLines(s){
-  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lunasNow:s.statusBayar==='lunas' };
+  const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lebihBayar:Math.max((s.dp||0)-s.hargaPaket,0), lunasNow:s.statusBayar==='lunas' };
   const tempo = isTempo(s);
   const L = [];
   const div = '--------------------------------';
@@ -2328,6 +2337,7 @@ function buildSubsInvoicePDFLines(s){
   L.push({t:`Total Tagihan  : ${rupiah(calc.totalTagihan)}`, b:true, s:9, indent:17});
   L.push({t:`Sudah Dibayar  : ${rupiah(s.dp||0)}`, s:9, indent:17});
   L.push({t:`Sisa Bayar     : ${rupiah(calc.sisaBayar)}`, s:9, indent:17});
+  if(calc.lebihBayar>0) L.push({t:`Kelebihan Bayar : ${rupiah(calc.lebihBayar)} (saldo laundry berikutnya)`, s:8, indent:17});
   L.push({t:`Status         : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`, s:9, indent:17});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
@@ -2474,6 +2484,7 @@ function tempoUsageNotaTextWA(usage, s){
   const extras = extrasSampai(usage);
   const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const lines = [];
   lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
   lines.push('-------------------------------');
@@ -2492,6 +2503,7 @@ function tempoUsageNotaTextWA(usage, s){
   lines.push(`*Total Tagihan Berjalan : ${rupiah(totalHarga)}*`);
   lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
   lines.push(`Sisa Bayar    : ${rupiah(sisaBayar)}`);
+  if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
   lines.push('_dibuat oleh tinggirantech@gmail.com © 2026_');
@@ -2551,6 +2563,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   const extras = extrasSampai(usage);
   const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const L = [];
   const div = '--------------------------------';
   L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
@@ -2572,6 +2585,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
   L.push({t:`Sudah Dibayar          : ${rupiah(s.dp||0)}`, s:9});
   L.push({t:`Sisa Bayar             : ${rupiah(sisaBayar)}`, s:9});
+  if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
   L.push({t: 'developed by tinggirantech@gmail.com © 2026', c:true, s:6});
