@@ -2344,7 +2344,7 @@ function buildSubsInvoicePDFLines(s){
     L.push({t: div, s:9});
     L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
     extras.forEach((u,i)=>{
-      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
     });
   } else {
     L.push({t:`Paket      : ${s.paketNama}`, s:9, indent:13});
@@ -2356,7 +2356,7 @@ function buildSubsInvoicePDFLines(s){
     currentUsageList.filter(u=>u.type==='layanan_tambahan')
       .slice().sort((a,b)=> a.tanggal<b.tanggal?-1:(a.tanggal>b.tanggal?1:0))
       .forEach((u,i)=>{
-        L.push({t:`${padNo(i+1)}. ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+        L.push({t:`${padNo(i+1)}. ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
       });
   }
   L.push({t: div, s:9});
@@ -2605,7 +2605,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t: div, s:9});
   L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
   extras.forEach((u,i)=>{
-    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8});
+    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
   });
   L.push({t: div, s:9});
   L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
@@ -2640,13 +2640,13 @@ function buildUsageNotaPDFLines(usage, s){
   L.push({t: div, s:9});
   L.push({t:'RIWAYAT TIMBANGAN PAKET INI', b:true, s:9});
   upTo.forEach((u,i)=>{
-    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`, s:8});
+    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`, s:8, indent:4});
   });
   if(extras.length>0){
     L.push({t: div, s:9});
     L.push({t:'LAYANAN TAMBAHAN (di luar paket)', b:true, s:9});
     extras.forEach((u,i)=>{
-      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:0});
+      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
     });
   }
   L.push({t: div, s:9});
