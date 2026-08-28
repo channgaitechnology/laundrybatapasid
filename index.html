@@ -486,11 +486,15 @@
   <!-- ===== VIEW: PAPAN KERJA ===== -->
   <section class="view" id="view-papan">
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px;">
-        <h2 style="margin:0;">Papan Kerja</h2>
-        <button class="btn btn-accent btn-sm" style="width:auto;flex:0 0 auto;" onclick="downloadWorkBoardImage()">📥 Unduh JPG</button>
-      </div>
+      <h2 style="margin:0 0 2px;">Papan Kerja</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:8px 0 0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis). Transaksi dengan tanggal masuk sebelum 25 Agustus 2026 tidak ditampilkan di sini (nota lama, dianggap sudah selesai semua).</p>
+      <div class="section-title" style="margin-top:16px;">Unduh Papan Kerja (JPG)</div>
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Pilih rentang tanggal untuk melihat papan kerja lama sekalipun — defaultnya sudah dari nota pertama kali diinput sampai hari ini.</p>
+      <div class="row2">
+        <div><label for="papanUnduhDari">Dari Tanggal</label><input id="papanUnduhDari" type="date"></div>
+        <div><label for="papanUnduhSampai">Sampai Tanggal</label><input id="papanUnduhSampai" type="date"></div>
+      </div>
+      <button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="downloadWorkBoardImage()">📥 Unduh JPG</button>
     </div>
     <div class="work-board-grid" id="workBoardGrid"></div>
   </section>
@@ -4353,6 +4357,39 @@ function workBoardDate(t){ return t.estimasi || t.tanggal; }
    sebelum itu dan sudah pasti selesai/diambil lama, jadi sengaja tidak usah
    ikut muncul di papan biar tidak mengotori tampilan kerjaan yang aktif. */
 const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
+/* Menyatukan SEMUA sumber kerjaan (transaksi reguler, layanan tambahan
+   Bulanan/Tempo, timbangan kg polos) jadi satu daftar seragam TANPA
+   filter apa pun. Dipakai oleh papan kerja aktif (buildWorkItems, yang
+   lalu memfilter status "diambil" & cutoff tanggal) MAUPUN oleh unduhan
+   rentang tanggal (buildWorkItemsForRange, yang justru perlu melihat
+   SEMUA riwayat termasuk yang sudah diambil/lama, supaya papan kerja
+   lama tetap bisa dilihat lewat unduhan). */
+function buildAllWorkItemsRaw(){
+  const trxItems = transactions.map(t=>({
+    id:t.id, source:'trx', nama:t.nama,
+    layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
+    harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
+    lunas:t.status==='lunas'
+  }));
+  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan').map(u=>{
+    const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+    return {
+      id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+      layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
+      lunas: sub ? sub.statusBayar==='lunas' : false
+    };
+  });
+  const beratItems = allWorkUsage.filter(u=>u.type==='pemakaian').map(u=>{
+    const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+    return {
+      id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+      layanan: sub ? sub.paketNama : 'Laundry Masuk (kg)', beratLabel:`${u.berat} kg`,
+      tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
+      lunas: sub ? sub.statusBayar==='lunas' : false
+    };
+  });
+  return trxItems.concat(usageItems, beratItems);
+}
 /* Papan Kerja menggabungkan tiga sumber data jadi satu daftar kerjaan
    seragam: transaksi reguler (transactions), kunjungan Paket Bulanan/Tempo
    bertipe layanan_tambahan, DAN timbangan kg polos Paket Bulanan (type
@@ -4361,36 +4398,30 @@ const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
    harga pasti (baru ditagih di akhir periode/kalau lebih kuota), jadi
    kartunya menampilkan berat (kg) sebagai ganti harga. */
 function buildWorkItems(){
-  const trxItems = transactions
-    .filter(t=>(t.workStatus||'belum')!=='diambil' && t.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
-    .map(t=>({
-      id:t.id, source:'trx', nama:t.nama,
-      layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
-      harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
-      lunas:t.status==='lunas'
-    }));
-  const usageItems = allWorkUsage
-    .filter(u=>u.type==='layanan_tambahan' && (u.workStatus||'belum')!=='diambil' && u.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
-    .map(u=>{
-      const sub = subscriptions.find(s=>s.id===u.subscriptionId);
-      return {
-        id:u.id, source:'usage', nama: sub ? sub.nama : '-',
-        layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
-        lunas: sub ? sub.statusBayar==='lunas' : false
-      };
-    });
-  const beratItems = allWorkUsage
-    .filter(u=>u.type==='pemakaian' && (u.workStatus||'belum')!=='diambil' && u.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
-    .map(u=>{
-      const sub = subscriptions.find(s=>s.id===u.subscriptionId);
-      return {
-        id:u.id, source:'usage', nama: sub ? sub.nama : '-',
-        layanan: sub ? sub.paketNama : 'Laundry Masuk (kg)', beratLabel:`${u.berat} kg`,
-        tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
-        lunas: sub ? sub.statusBayar==='lunas' : false
-      };
-    });
-  return trxItems.concat(usageItems, beratItems);
+  return buildAllWorkItemsRaw().filter(it=>(it.workStatus||'belum')!=='diambil' && it.tanggal >= PAPAN_KERJA_MULAI_TANGGAL);
+}
+/* Untuk unduhan JPG rentang tanggal: SEMUA kerjaan (termasuk yang sudah
+   diambil & yang lebih lama dari cutoff papan aktif) yang hari Estimasi
+   Selesai-nya (atau tanggal masuk kalau belum ada estimasi — sama seperti
+   papan aktif) jatuh di antara `dari` dan `sampai` (inklusif, format ISO
+   'YYYY-MM-DD'). */
+function buildWorkItemsForRange(dari, sampai){
+  return buildAllWorkItemsRaw().filter(it=>{
+    const d = workBoardDate(it);
+    return d >= dari && d <= sampai;
+  });
+}
+/* Tanggal transaksi/kerjaan paling lama yang tercatat di app — dipakai
+   sebagai default awal rentang unduh, supaya begitu dibuka langsung bisa
+   mengunduh papan kerja dari nota pertama kali diinput. */
+function earliestWorkDate(){
+  const dates = transactions.map(t=>t.tanggal).concat(allWorkUsage.map(u=>u.tanggal)).filter(Boolean);
+  return dates.length ? dates.reduce((min,d)=> d<min?d:min) : todayISO();
+}
+function groupWorkItemsByDate(items){
+  const map = {};
+  items.forEach(it=>{ const d = workBoardDate(it); (map[d] = map[d]||[]).push(it); });
+  return Object.keys(map).sort().map(d=>({ date:d, items:map[d] }));
 }
 async function setWorkStatus(id, status, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
@@ -4415,21 +4446,26 @@ async function markPickedUp(id, source){
 }
 /* Kartu hanya menampilkan 4 info sesuai permintaan: nama pelanggan, jenis
    layanan, tanggal selesai, dan harga — semua dibesarkan+bold supaya gampang
-   dibaca sekilas, kecuali harga yang dikecilkan (kurang penting dilihat). */
-function workBoardCardHTML(it){
-  const ws = it.workStatus || 'belum';
+   dibaca sekilas, kecuali harga yang dikecilkan (kurang penting dilihat).
+   Kata "Selesai" di depan tanggal supaya jelas ini tanggal target selesai,
+   bukan tanggal masuk. */
+function workBoardCardTopHTML(it){
   const tanggalInfo = it.estimasi
-    ? fmtDate(it.estimasi)
-    : `${fmtDate(it.tanggal)} (blm ada estimasi)`;
+    ? `Selesai ${fmtDate(it.estimasi)}`
+    : `Selesai ${fmtDate(it.tanggal)} (blm ada estimasi)`;
   const bayarInfo = it.lunas
     ? `<div class="work-lunas">Lunas</div>`
     : `<div class="work-harga">${it.beratLabel || rupiah(it.harga)}</div>`;
   return `
-    <div class="work-card">
       <div class="work-nama">${escapeHTML(it.nama)}</div>
       <div class="work-layanan">${escapeHTML(it.layanan)}</div>
       <div class="work-tanggal">${tanggalInfo}</div>
-      ${bayarInfo}
+      ${bayarInfo}`;
+}
+function workBoardCardHTML(it){
+  const ws = it.workStatus || 'belum';
+  return `
+    <div class="work-card">${workBoardCardTopHTML(it)}
       <div class="btn-row" style="gap:4px;">
         <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${it.id}','belum','${it.source}')">Belum</button>
         <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">Sedang</button>
@@ -4438,12 +4474,30 @@ function workBoardCardHTML(it){
       ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">📤 Sudah Diambil</button>` : ''}
     </div>`;
 }
+/* Versi statis kartu khusus untuk gambar yang diunduh — tombol status
+   interaktif diganti label teks datar (gambar diam, tombolnya percuma di
+   situ), dan status "diambil" (yang di papan aktif malah disembunyikan)
+   di sini justru ditampilkan sebagai label, karena unduhan rentang tanggal
+   memang dipakai untuk melihat riwayat papan kerja yang sudah lama/selesai. */
+function workBoardCardHTMLForExport(it){
+  const ws = it.workStatus || 'belum';
+  const statusLabel = { belum:'Belum Dikerjakan', sedang:'Sedang Dikerjakan', selesai:'Selesai Dikerjakan', diambil:'✓ Sudah Diambil' }[ws] || ws;
+  const pillClass = { belum:'on-belum', sedang:'on-sedang', selesai:'on-selesai', diambil:'on-selesai' }[ws] || '';
+  return `
+    <div class="work-card">${workBoardCardTopHTML(it)}
+      <div class="work-pill ${pillClass}" style="width:100%;text-align:center;margin-top:6px;">${statusLabel}</div>
+    </div>`;
+}
 /* Grid horizontal 7 kolom Senin->Ahad (di-scroll ke samping), meniru
    susunan papan tulis fisik persis: nama hari di header kotak paling atas,
    kartu-kartu kerjaan tersusun ke bawah di dalam kotak harinya. Kolom hari
    SELALU ditampilkan (walau kosong) supaya bentuk grid-nya tetap utuh
    seperti papan aslinya, bukan cuma hari yang ada kerjaannya saja. */
 function renderWorkBoard(){
+  const dariEl = document.getElementById('papanUnduhDari');
+  const sampaiEl = document.getElementById('papanUnduhSampai');
+  if(dariEl && !dariEl.value) dariEl.value = earliestWorkDate();
+  if(sampaiEl && !sampaiEl.value) sampaiEl.value = todayISO();
   const el = document.getElementById('workBoardGrid');
   const items = buildWorkItems();
   const todayName = indoDayName(todayISO());
@@ -4461,25 +4515,38 @@ function renderWorkBoard(){
     </div>`;
   }).join('');
 }
-/* html2canvas "memfoto" seluruh grid apa adanya (7 kolom penuh, bukan cuma
-   yang kelihatan di layar HP) — overflow dipaksa visible & lebar dipaksa
-   scrollWidth lewat onclone supaya kolom yang tersembunyi karena scroll
-   horizontal ikut tertangkap di gambar. */
+/* Unduh JPG rentang tanggal bebas — TIDAK memfoto papan aktif (#workBoardGrid,
+   yang cuma 7 kolom Senin-Ahad & menyembunyikan yang sudah diambil/lama),
+   tapi membangun grid sementara di luar layar (posisinya di luar viewport,
+   tetap ada di DOM supaya html2canvas bisa membacanya) berisi SEMUA kerjaan
+   di rentang tanggal yang diminta — dikelompokkan per TANGGAL KALENDER asli
+   (bukan cuma nama hari), diurutkan dari yang paling lama, supaya papan
+   kerja lama beneran bisa "dilihat lagi" persis seperti waktu itu. */
 async function downloadWorkBoardImage(){
-  const el = document.getElementById('workBoardGrid');
-  if(!el || buildWorkItems().length===0){ showToast('Papan Kerja kosong'); return; }
+  const dariEl = document.getElementById('papanUnduhDari');
+  const sampaiEl = document.getElementById('papanUnduhSampai');
+  const dari = dariEl ? dariEl.value : '';
+  const sampai = sampaiEl ? sampaiEl.value : '';
+  if(!dari || !sampai){ showToast('Isi rentang tanggal dulu'); return; }
+  if(dari > sampai){ showToast('Tanggal "Dari" harus sebelum "Sampai"'); return; }
+  const items = buildWorkItemsForRange(dari, sampai);
+  if(items.length===0){ showToast('Tidak ada kerjaan di rentang tanggal ini'); return; }
   if(typeof html2canvas==='undefined'){ showToast('Gagal memuat alat unduh gambar'); return; }
   showToast('Menyiapkan gambar Papan Kerja...');
+  const wrap = document.createElement('div');
+  wrap.className = 'work-board-grid';
+  wrap.style.cssText = 'position:absolute;left:-99999px;top:0;overflow:visible;';
+  wrap.innerHTML = groupWorkItemsByDate(items).map(g=>{
+    const body = g.items.map(workBoardCardHTMLForExport).join('');
+    return `<div class="work-day-col">
+      <div class="work-day-col-header">${indoDayName(g.date)}<small>${fmtDate(g.date)}</small></div>
+      <div class="work-day-col-body">${body}</div>
+    </div>`;
+  }).join('');
+  document.body.appendChild(wrap);
   try{
-    const canvas = await html2canvas(el, {
-      backgroundColor:'#EEF5F7', scale:2,
-      width: el.scrollWidth, height: el.scrollHeight, windowWidth: el.scrollWidth,
-      onclone:(clonedDoc)=>{
-        const clonedEl = clonedDoc.getElementById('workBoardGrid');
-        if(clonedEl){ clonedEl.style.overflow = 'visible'; clonedEl.style.width = el.scrollWidth + 'px'; }
-      }
-    });
-    const filename = `papan-kerja-${todayISO()}.jpg`;
+    const canvas = await html2canvas(wrap, { backgroundColor:'#EEF5F7', scale:2 });
+    const filename = `papan-kerja-${dari}_sampai_${sampai}.jpg`;
     const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
     if(!blob){ showToast('Gagal membuat gambar Papan Kerja'); return; }
     try{
@@ -4497,6 +4564,8 @@ async function downloadWorkBoardImage(){
     showToast('Gambar Papan Kerja diunduh');
   }catch(e){
     showToast('Gagal membuat gambar Papan Kerja');
+  }finally{
+    wrap.remove();
   }
 }
 
