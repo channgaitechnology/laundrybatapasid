@@ -771,6 +771,7 @@
     <p id="subsDetailPeriode" style="font-size:12.5px;color:var(--ink-soft);margin-top:-10px;margin-bottom:10px;">-</p>
     <div class="btn-row owner-only" style="margin-bottom:14px;">
       <button class="btn btn-outline btn-sm" onclick="editSubscription()">✏️ Edit Pelanggan</button>
+      <button class="btn btn-ghost btn-sm" onclick="openEditHistory('subscription', currentSubscriptionId, '🕘 Riwayat Edit Pelanggan')">🕘 Riwayat</button>
       <button class="btn btn-danger-ghost btn-sm" onclick="deleteSubscription()">🗑️ Hapus</button>
     </div>
     <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-bottom:16px;" id="subsKuotaCard">
@@ -1300,11 +1301,11 @@
   </div>
 </div>
 
-<!-- Riwayat perubahan transaksi (siapa mengedit apa, kapan) -->
+<!-- Riwayat perubahan (transaksi/pelanggan paket) — siapa mengedit apa, kapan -->
 <div class="modal-bg" id="editHistoryModal" style="z-index:107;">
   <div class="modal">
     <button class="modal-close" onclick="closeEditHistory()">✕</button>
-    <h3>🕘 Riwayat Edit</h3>
+    <h3 id="editHistoryModalTitle">🕘 Riwayat Edit</h3>
     <div id="editHistoryList" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
 </div>
@@ -2648,7 +2649,10 @@ async function createSubscription(){
     };
   }
 
+  let beforeSnapshot = null;
   if(editingSubscriptionId){
+    const before = subscriptions.find(s=>s.id===editingSubscriptionId);
+    beforeSnapshot = before ? {...before} : null;
     const { error } = await sb.from('subscriptions').update(payload).eq('id', editingSubscriptionId);
     if(error){ showToast('Gagal menyimpan perubahan'); return; }
     showToast('Data pelanggan paket diperbarui');
@@ -2661,9 +2665,14 @@ async function createSubscription(){
     showToast(tempo ? 'Pelanggan tempo ditambahkan' : 'Pelanggan paket ditambahkan');
     saveContactIfNew(nama, hp);
   }
+  const editedId = editingSubscriptionId;
   editingSubscriptionId = null;
   closeNewSubscription();
   await loadSubscriptionsFromDB();
+  if(beforeSnapshot){
+    const after = subscriptions.find(s=>s.id===editedId);
+    if(after) await logEditHistory('subscription', editedId, diffSubscriptionFields(beforeSnapshot, after));
+  }
   renderSubscriptions();
 }
 async function openSubsDetail(id){
@@ -4229,7 +4238,7 @@ async function submitTransaction(){
       outletId: data.outlet_id!=null ? String(data.outlet_id) : (idx>-1 ? transactions[idx].outletId : null)
     };
     if(idx>-1) transactions[idx] = trx;
-    if(beforeSnapshot) await logTransactionEdit(trx.id, diffTransactionFields(beforeSnapshot, trx));
+    if(beforeSnapshot) await logEditHistory('transaction', trx.id, diffTransactionFields(beforeSnapshot, trx));
     resetTransactionForm();
     showToast('Transaksi diperbarui');
     openReceipt(trx.id);
@@ -4305,11 +4314,15 @@ function cancelEditTransaction(){
   resetTransactionForm();
   showToast('Edit dibatalkan');
 }
-/* ===================== RIWAYAT EDIT TRANSAKSI ===================== */
-/* Bandingkan transaksi sebelum & sesudah diedit, field per field, supaya
-   riwayat edit cuma mencatat apa yang BENAR-BENAR berubah (bukan snapshot
-   penuh tiap kali disimpan). `items` & `total` dibandingkan terpisah karena
-   bentuknya array/turunan, bukan skalar seperti field lain. */
+/* ===================== RIWAYAT EDIT (transaksi & pelanggan paket) =====================
+   Satu tabel generik edit_log (entity_type + entity_id) dipakai bareng oleh
+   semua entitas yang bisa diedit & butuh akuntabilitas siapa-ubah-apa-kapan,
+   supaya tidak perlu bikin tabel+RLS terpisah tiap kali ada entitas baru.
+   Pengeluaran TIDAK punya riwayat edit karena memang tidak ada fitur edit
+   pengeluaran (cuma tambah/hapus). Katalog (layanan & pengeluaran) juga
+   sengaja tidak dilacak — itu daftar harga/template, bukan catatan
+   keuangan per pelanggan, jadi nilai akuntabilitasnya jauh lebih rendah
+   dibanding transaksi & pelanggan paket. */
 function diffTransactionFields(oldT, newT){
   const fields = [
     { key:'nama', label:'Nama Pelanggan' },
@@ -4321,12 +4334,7 @@ function diffTransactionFields(oldT, newT){
     { key:'status', label:'Status Bayar' },
     { key:'catatan', label:'Catatan' },
   ];
-  const changes = [];
-  fields.forEach(f=>{
-    const ov = oldT[f.key] ?? '';
-    const nv = newT[f.key] ?? '';
-    if(String(ov)!==String(nv)) changes.push({ field:f.key, label:f.label, from:String(ov)||'-', to:String(nv)||'-' });
-  });
+  const changes = diffScalarFields(oldT, newT, fields);
   const itemLabel = items => (items||[]).map(it=>`${it.nama} (${it.qty}${it.satuan})`).join(', ') || '-';
   const oldItemsKey = JSON.stringify((oldT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
   const newItemsKey = JSON.stringify((newT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
@@ -4334,17 +4342,45 @@ function diffTransactionFields(oldT, newT){
   if(Number(oldT.total)!==Number(newT.total)) changes.push({ field:'total', label:'Total', from:rupiah(oldT.total), to:rupiah(newT.total) });
   return changes;
 }
-/* Gagal menulis log TIDAK boleh membatalkan/menggagalkan edit transaksinya
-   sendiri — tabel transaction_edit_log baru (lihat README) & opsional,
-   jadi kalau belum dimigrasi, edit tetap jalan normal, cuma riwayatnya
-   yang tidak tercatat. */
-async function logTransactionEdit(transactionId, changes){
+/* Form Edit Pelanggan Paket cuma menyentuh identitas & harga paketnya
+   (bukan status bayar/DP — itu diubah lewat alur bayar/pemakaian terpisah). */
+function diffSubscriptionFields(oldS, newS){
+  const fields = [
+    { key:'nama', label:'Nama Pelanggan' },
+    { key:'hp', label:'No. HP' },
+    { key:'paketNama', label:'Paket' },
+    { key:'hargaPaket', label:'Harga Paket', fmt:rupiah },
+    { key:'hargaLebihKg', label:'Harga Lebih Kuota/kg', fmt:rupiah },
+    { key:'kuotaKg', label:'Kuota (kg)' },
+    { key:'tanggalMulai', label:'Tanggal Mulai' },
+    { key:'tanggalSelesai', label:'Tanggal Selesai' },
+  ];
+  return diffScalarFields(oldS, newS, fields);
+}
+/* Helper bersama: bandingkan field skalar satu-satu, opsional pakai `fmt`
+   untuk memformat nilai tampilan (mis. rupiah) tanpa mengubah perbandingannya. */
+function diffScalarFields(oldObj, newObj, fields){
+  const changes = [];
+  fields.forEach(f=>{
+    const ov = oldObj[f.key] ?? '';
+    const nv = newObj[f.key] ?? '';
+    if(String(ov)!==String(nv)){
+      const fmt = f.fmt || (v=>String(v)||'-');
+      changes.push({ field:f.key, label:f.label, from:fmt(ov), to:fmt(nv) });
+    }
+  });
+  return changes;
+}
+/* Gagal menulis log TIDAK boleh membatalkan/menggagalkan edit entitasnya
+   sendiri — tabel edit_log baru (lihat README) & opsional, jadi kalau
+   belum dimigrasi, edit tetap jalan normal, cuma riwayatnya tidak tercatat. */
+async function logEditHistory(entityType, entityId, changes){
   if(!changes || changes.length===0) return;
   const editorNama = currentRole==='owner' ? 'Pemilik' : (employeeName || 'Kasir');
   try{
-    await sb.from('transaction_edit_log').insert({
-      owner_id: shopOwnerId, transaction_id: transactionId, edited_by: currentUser ? currentUser.id : null,
-      editor_nama: editorNama, changes
+    await sb.from('edit_log').insert({
+      owner_id: shopOwnerId, entity_type: entityType, entity_id: String(entityId),
+      edited_by: currentUser ? currentUser.id : null, editor_nama: editorNama, changes
     });
   }catch(e){ /* diamkan — lihat komentar di atas */ }
 }
@@ -4354,18 +4390,20 @@ function fmtDateTime(iso){
   if(isNaN(d.getTime())) return '-';
   return d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
-async function openEditHistory(transactionId){
+async function openEditHistory(entityType, entityId, title){
   const modal = document.getElementById('editHistoryModal');
   const list = document.getElementById('editHistoryList');
+  const titleEl = document.getElementById('editHistoryModalTitle');
+  if(titleEl) titleEl.textContent = title || '🕘 Riwayat Edit';
   list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Memuat...</div>`;
   modal.classList.add('show');
-  const { data, error } = await sb.from('transaction_edit_log').select('*').eq('transaction_id', transactionId).order('edited_at', { ascending:false });
+  const { data, error } = await sb.from('edit_log').select('*').eq('entity_type', entityType).eq('entity_id', String(entityId)).order('edited_at', { ascending:false });
   if(error){
-    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Riwayat edit belum tersedia — tabel transaction_edit_log mungkin belum dimigrasi (lihat README).</div>`;
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Riwayat edit belum tersedia — tabel edit_log mungkin belum dimigrasi (lihat README).</div>`;
     return;
   }
   if(!data || data.length===0){
-    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Belum ada riwayat edit untuk transaksi ini.</div>`;
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Belum ada riwayat edit untuk data ini.</div>`;
     return;
   }
   list.innerHTML = data.map(row=>{
@@ -4970,7 +5008,7 @@ function renderHistory(){
       </div>
       <div class="trx-actions owner-only">
         <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')">✏️ Edit</button>
-        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('${t.id}')">🕘 Riwayat</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('transaction','${t.id}','🕘 Riwayat Edit Transaksi')">🕘 Riwayat</button>
         <button class="btn btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">🗑️ Hapus</button>
       </div>
     </div>
