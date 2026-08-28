@@ -150,6 +150,23 @@ pengeluaran baru akan gagal dengan toast error (fitur lain di app tidak
 terpengaruh); pengeluaran lama yang sudah tercatat tetap tampil (tanpa
 rincian qty/satuan/harga).
 
+Fitur **Papan Kerja** (tab baru, terbuka untuk Owner maupun kasir — mirip
+papan tulis fisik yang dikelompokkan per hari Senin-Ahad, otomatis terisi
+dari setiap transaksi yang diinput) butuh satu kolom baru di tabel
+`transactions`:
+
+```sql
+alter table transactions add column if not exists work_status text not null default 'belum';
+```
+
+Kolom ini menyimpan status pengerjaan tiap transaksi: `belum`, `sedang`,
+`selesai`, atau `diambil` (begitu ditandai `diambil`, kartunya hilang dari
+Papan Kerja — persis seperti melepas kertas dari papan tulis fisik, tapi
+data transaksinya sendiri tidak dihapus, tetap ada di Riwayat/Laporan).
+Sebelum kolom ini ada, tab Papan Kerja tetap terbuka tapi tombol ubah status
+akan gagal dengan toast error — transaksi tetap tersimpan normal, hanya
+fitur papan kerjanya yang belum aktif.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas

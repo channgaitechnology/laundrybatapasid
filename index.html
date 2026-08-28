@@ -187,6 +187,17 @@
   .badge-lunas{background:var(--success-bg);color:var(--success);}
   .badge-belum{background:var(--warn-bg);color:var(--warn);}
 
+  /* ---- Papan Kerja ---- */
+  .work-pill{flex:1;text-align:center;padding:6px 4px;border-radius:8px;font-size:11px;font-weight:700;
+    border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
+  .work-pill.on-belum{background:#ECECEC;border-color:#BBB;color:#555;}
+  .work-pill.on-sedang{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);}
+  .work-pill.on-selesai{background:var(--success-bg);border-color:var(--success);color:var(--success);}
+  .work-day-heading{display:flex;align-items:center;gap:8px;margin:18px 0 8px;}
+  .work-day-heading:first-child{margin-top:0;}
+  .work-day-heading h2{margin:0;font-size:15px;}
+  .work-day-today{background:var(--suds);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+
   /* ---- History list ---- */
   .search-bar{position:relative;margin-bottom:12px;}
   .search-bar input{padding-left:36px;margin-bottom:0;}
@@ -452,6 +463,15 @@
       <input id="searchInput" placeholder="Cari nama atau no. nota..." oninput="renderHistory()">
     </div>
     <div id="historyList"></div>
+  </section>
+
+  <!-- ===== VIEW: PAPAN KERJA ===== -->
+  <section class="view" id="view-papan">
+    <div class="card">
+      <h2 style="margin-bottom:2px;">Papan Kerja</h2>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput — tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis).</p>
+    </div>
+    <div id="workBoardList"></div>
   </section>
 
   <!-- ===== VIEW 4: LAPORAN ===== -->
@@ -800,6 +820,10 @@
   <button class="tab" data-tab="riwayat" onclick="switchTab('riwayat')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
     <span>Riwayat</span>
+  </button>
+  <button class="tab" data-tab="papan" onclick="switchTab('papan')">
+    <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v3h6V3M8 11l2.5 2.5L16 8"/></svg></div>
+    <span>Papan Kerja</span>
   </button>
   <button class="tab" data-tab="paket" onclick="switchTab('paket')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.5 7.3L12 12l-8.5-4.7M12 22V12"/><path d="M20.5 16.7L12 12l-8.5 4.7"/><path d="M12 2l8.5 4.7L12 12 3.5 6.7z"/></svg></div>
@@ -1815,7 +1839,7 @@ async function initUserData(){
   let lastTab = 'baru';
   try{
     const saved = localStorage.getItem('nk_lastTab');
-    if(saved && ['baru','riwayat','paket','laporan','pengeluaran'].includes(saved)) lastTab = saved;
+    if(saved && ['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(saved)) lastTab = saved;
   }catch(e){}
   try{
     await loadSettingsFromDB();
@@ -1846,7 +1870,7 @@ async function loadTransactionsFromDB(){
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||''
+    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum'
   }));
 }
 /* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
@@ -3483,7 +3507,7 @@ function selectContactSuggest(inputId, boxId, contactId){
 function switchTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran' };
+  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran', papan:'view-papan' };
   document.getElementById(map[name]).classList.add('active');
   const tabBtn = document.querySelector('.tab[data-tab="'+name+'"]');
   if(tabBtn) tabBtn.classList.add('active');
@@ -3491,7 +3515,8 @@ function switchTab(name){
   if(name==='laporan'){ renderReport(); renderLabaRugi(); renderPeringkatPelanggan(); }
   if(name==='paket') renderSubscriptions();
   if(name==='pengeluaran') renderExpenseList();
-  if(['baru','riwayat','paket','laporan','pengeluaran'].includes(name)){
+  if(name==='papan') renderWorkBoard();
+  if(['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(name)){
     try{ localStorage.setItem('nk_lastTab', name); }catch(e){}
   }
 }
@@ -3572,7 +3597,8 @@ async function submitTransaction(){
       id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
       tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
       diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-      status: data.status, catatan: data.catatan
+      status: data.status, catatan: data.catatan,
+      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum'
     };
     if(idx>-1) transactions[idx] = trx;
     resetTransactionForm();
@@ -3597,7 +3623,7 @@ async function submitTransaction(){
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
     tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
     diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-    status: data.status, catatan: data.catatan
+    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum'
   };
   transactions.push(trx);
   resetTransactionForm();
@@ -3657,13 +3683,13 @@ async function deleteTransaction(id){
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
         estimasi: trx.estimasi, items: trx.items, diskon: trx.diskon, total: trx.total, dp: trx.dp,
-        status: trx.status, catatan: trx.catatan
+        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan transaksi'); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-        status:data.status, catatan:data.catatan
+        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum'
       });
       renderHistory();
       showToast('Transaksi dikembalikan');
@@ -4238,6 +4264,75 @@ async function toggleLunas(id){
   t.dp = t.total;
   showToast('Transaksi ditandai lunas');
   renderHistory();
+}
+
+/* ===================== PAPAN KERJA ===================== */
+/* Mengikuti pola papan tulis fisik: dikelompokkan per hari (Senin-Ahad) dari
+   tanggal transaksi, bukan per minggu kalender — kartu menumpuk terus sampai
+   ditandai "Sudah Diambil" (dilepas dari papan), berapa pun lamanya. */
+const INDO_DAY_NAMES = ['Ahad','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+function indoDayName(tanggal){
+  if(!tanggal) return INDO_DAY_NAMES[0];
+  return INDO_DAY_NAMES[new Date(tanggal+'T00:00:00').getDay()];
+}
+async function setWorkStatus(id, status){
+  const t = transactions.find(x=>x.id===id);
+  if(!t) return;
+  const { error } = await sb.from('transactions').update({ work_status: status }).eq('id', id);
+  if(error){ showToast('Gagal memperbarui status kerja'); return; }
+  t.workStatus = status;
+  renderWorkBoard();
+}
+async function markPickedUp(id){
+  const t = transactions.find(x=>x.id===id);
+  if(!t) return;
+  const { error } = await sb.from('transactions').update({ work_status: 'diambil' }).eq('id', id);
+  if(error){ showToast('Gagal menandai sudah diambil'); return; }
+  t.workStatus = 'diambil';
+  showToast(`Nota ${t.kode} ditandai sudah diambil`);
+  renderWorkBoard();
+}
+function workBoardCardHTML(t){
+  const layanan = (t.items||[]).map(it=>it.nama).join(', ') || '-';
+  const ws = t.workStatus || 'belum';
+  return `
+    <div class="trx-card">
+      <div class="trx-top">
+        <div>
+          <div class="trx-name">${escapeHTML(t.nama)}</div>
+          <div class="kode">${t.kode} · ${escapeHTML(layanan)}</div>
+        </div>
+        <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum Lunas'}</span>
+      </div>
+      <div class="trx-total">${rupiah(t.total)}</div>
+      <div class="btn-row" style="margin-top:8px;gap:6px;">
+        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${t.id}','belum')">Belum</button>
+        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${t.id}','sedang')">Sedang</button>
+        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${t.id}','selesai')">Selesai</button>
+      </div>
+      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="markPickedUp('${t.id}')">📤 Sudah Diambil</button>` : ''}
+    </div>`;
+}
+function renderWorkBoard(){
+  const el = document.getElementById('workBoardList');
+  const active = transactions.filter(t=>(t.workStatus||'belum')!=='diambil');
+  if(active.length===0){
+    el.innerHTML = `<div class="empty">
+      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+      <h3>Papan kerja masih kosong</h3>
+      <p>Transaksi baru yang belum diambil pelanggan akan otomatis muncul di sini.</p>
+    </div>`;
+    return;
+  }
+  const todayName = indoDayName(todayISO());
+  const orderedDays = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Ahad'];
+  el.innerHTML = orderedDays.map(day=>{
+    const list = sortByTanggalAsc(active.filter(t=>indoDayName(t.tanggal)===day));
+    if(list.length===0) return '';
+    const todayBadge = day===todayName ? '<span class="work-day-today">Hari Ini</span>' : '';
+    return `<div class="work-day-heading"><h2>${day}</h2>${todayBadge}<span style="font-size:11.5px;color:var(--ink-soft);">${list.length} cucian</span></div>`
+      + list.map(workBoardCardHTML).join('');
+  }).join('');
 }
 
 /* ===================== LAPORAN BULANAN ===================== */
