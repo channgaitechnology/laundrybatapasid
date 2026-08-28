@@ -4521,7 +4521,9 @@ function renderWorkBoard(){
    tetap ada di DOM supaya html2canvas bisa membacanya) berisi SEMUA kerjaan
    di rentang tanggal yang diminta — dikelompokkan per TANGGAL KALENDER asli
    (bukan cuma nama hari), diurutkan dari yang paling lama, supaya papan
-   kerja lama beneran bisa "dilihat lagi" persis seperti waktu itu. */
+   kerja lama beneran bisa "dilihat lagi" persis seperti waktu itu. Rentang
+   lebih dari 7 hari dipecah jadi beberapa baris 7 kolom yang ditumpuk ke
+   bawah, bukan memanjang terus ke kanan. */
 async function downloadWorkBoardImage(){
   const dariEl = document.getElementById('papanUnduhDari');
   const sampaiEl = document.getElementById('papanUnduhSampai');
@@ -4533,15 +4535,24 @@ async function downloadWorkBoardImage(){
   if(items.length===0){ showToast('Tidak ada kerjaan di rentang tanggal ini'); return; }
   if(typeof html2canvas==='undefined'){ showToast('Gagal memuat alat unduh gambar'); return; }
   showToast('Menyiapkan gambar Papan Kerja...');
+  // Rentang lebih dari 7 hari TIDAK memanjang terus ke kanan — dipecah jadi
+  // beberapa baris berisi maksimal 7 kolom tanggal, ditumpuk ke bawah
+  // (persis seperti kalender berganti minggu), baris terakhir boleh kurang
+  // dari 7 kalau sisa harinya tidak genap.
+  const groups = groupWorkItemsByDate(items);
+  const rows = [];
+  for(let i=0;i<groups.length;i+=7) rows.push(groups.slice(i,i+7));
   const wrap = document.createElement('div');
-  wrap.className = 'work-board-grid';
-  wrap.style.cssText = 'position:absolute;left:-99999px;top:0;overflow:visible;';
-  wrap.innerHTML = groupWorkItemsByDate(items).map(g=>{
-    const body = g.items.map(workBoardCardHTMLForExport).join('');
-    return `<div class="work-day-col">
-      <div class="work-day-col-header">${indoDayName(g.date)}<small>${fmtDate(g.date)}</small></div>
-      <div class="work-day-col-body">${body}</div>
-    </div>`;
+  wrap.style.cssText = 'position:absolute;left:-99999px;top:0;display:flex;flex-direction:column;align-items:flex-start;gap:10px;';
+  wrap.innerHTML = rows.map(row=>{
+    const cols = row.map(g=>{
+      const body = g.items.map(workBoardCardHTMLForExport).join('');
+      return `<div class="work-day-col">
+        <div class="work-day-col-header">${indoDayName(g.date)}<small>${fmtDate(g.date)}</small></div>
+        <div class="work-day-col-body">${body}</div>
+      </div>`;
+    }).join('');
+    return `<div class="work-board-grid" style="overflow:visible;">${cols}</div>`;
   }).join('');
   document.body.appendChild(wrap);
   try{
