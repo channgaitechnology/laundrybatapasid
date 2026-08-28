@@ -469,10 +469,25 @@
     </div>
 
     <div class="card">
-      <h2>Laba Rugi Bulan Ini</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Laba Rugi</h2>
+        <button class="btn btn-accent btn-sm" style="width:auto;" onclick="downloadLabaRugiPDF()">Unduh PDF</button>
+      </div>
+      <label for="lrPeriodeType">Jenis Periode</label>
+      <select id="lrPeriodeType" onchange="toggleLrPeriodeFields()">
+        <option value="bulanan">Per Bulan</option>
+        <option value="tahunan">Per Tahun</option>
+      </select>
+      <div id="lrBulanField"><label for="lrBulan">Pilih Bulan</label><input id="lrBulan" type="month"></div>
+      <div id="lrTahunField" style="display:none;"><label for="lrTahun">Pilih Tahun</label><input id="lrTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;margin-bottom:12px;" onclick="renderLabaRugi()">Tampilkan</button>
+
       <div class="item-line"><span>Total Pemasukan (Omzet)</span><span id="lrPemasukan">Rp0</span></div>
       <div class="item-line"><span>Total Pengeluaran</span><span id="lrPengeluaran">Rp0</span></div>
-      <div class="total-line"><span>Laba / Rugi Bersih</span><span id="lrLabaRugi">Rp0</span></div>
+      <div class="total-line"><span>Pendapatan Bersih</span><span id="lrLabaRugi">Rp0</span></div>
+
+      <h2 style="font-size:13px;margin-top:14px;">Rincian Pengeluaran per Kategori</h2>
+      <div id="lrBreakdown"></div>
     </div>
 
     <div class="card">
@@ -529,6 +544,24 @@
         <div id="perResultList"></div>
       </div>
     </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Peringkat Pemasukan Pelanggan</h2>
+        <button class="btn btn-accent btn-sm" style="width:auto;" onclick="downloadPeringkatPelangganPDF()">Unduh PDF</button>
+      </div>
+      <label for="rankPeriodeType">Jenis Periode</label>
+      <select id="rankPeriodeType" onchange="toggleRankPeriodeFields()">
+        <option value="bulanan">Per Bulan</option>
+        <option value="tahunan">Per Tahun</option>
+        <option value="semua">Semua Waktu</option>
+      </select>
+      <div id="rankBulanField"><label for="rankBulan">Pilih Bulan</label><input id="rankBulan" type="month"></div>
+      <div id="rankTahunField" style="display:none;"><label for="rankTahun">Pilih Tahun</label><input id="rankTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;margin-bottom:12px;" onclick="renderPeringkatPelanggan()">Tampilkan</button>
+      <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 10px;">Diurutkan dari pelanggan dengan total pembayaran terbanyak.</p>
+      <div id="rankList"></div>
+    </div>
   </section>
 
   <!-- ===== VIEW 5: PAKET BULANAN ===== -->
@@ -562,36 +595,64 @@
   <!-- ===== VIEW 6: PENGELUARAN ===== -->
   <section class="view" id="view-pengeluaran">
     <div class="card">
-      <h2>Catat Pengeluaran</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+        <h2 style="margin:0;">Catat Pengeluaran</h2>
+        <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="openExpenseCatalog()">📋 Kelola Katalog</button>
+      </div>
+      <label for="expTanggal">Tanggal</label>
+      <input id="expTanggal" type="date">
+
+      <label for="expNama">Nama Barang / Jasa</label>
+      <div style="position:relative;">
+        <input id="expNama" placeholder="cth. Sabun Cair 5L (pilih dari saran)" oninput="showExpenseCatalogSuggest()" onfocus="showExpenseCatalogSuggest()" onblur="hideExpenseCatalogSuggestDelayed()" autocomplete="off">
+        <div id="expNamaSuggestBox" class="suggest-dropdown"></div>
+      </div>
+
       <div class="row2">
         <div>
-          <label for="expTanggal">Tanggal</label>
-          <input id="expTanggal" type="date">
+          <label for="expQty">Qty</label>
+          <input id="expQty" type="number" min="0" step="0.1" value="1" oninput="updateExpenseSubtotalPreview()">
         </div>
         <div>
-          <label for="expKategori">Kategori</label>
-          <select id="expKategori">
-            <option>Listrik</option>
-            <option>Air</option>
-            <option>Gaji Karyawan</option>
-            <option>Deterjen &amp; Perlengkapan</option>
-            <option>Sewa Tempat</option>
-            <option>Perawatan Mesin</option>
-            <option>Transportasi</option>
-            <option>Lain-lain</option>
+          <label for="expSatuan">Satuan</label>
+          <select id="expSatuan">
+            <option>kg</option>
+            <option>pcs</option>
+            <option>buah</option>
+            <option>kali</option>
+            <option>m²</option>
+            <option>liter</option>
+            <option>lainnya</option>
           </select>
         </div>
       </div>
-      <label for="expJumlah">Jumlah (Rp)</label>
-      <input id="expJumlah" type="number" min="0" placeholder="cth. 150000">
+      <label for="expHarga">Harga / Satuan (Rp)</label>
+      <input id="expHarga" type="number" min="0" placeholder="cth. 30000" oninput="updateExpenseSubtotalPreview()">
+      <div class="total-line"><span>Jumlah</span><span id="expJumlahPreview">Rp0</span></div>
+
+      <label for="expKategori">Kategori</label>
+      <div style="position:relative;">
+        <input id="expKategori" placeholder="cth. Listrik, Gaji Karyawan, ... (bisa tambah baru)" oninput="showExpKategoriSuggest()" onfocus="showExpKategoriSuggest()" onblur="hideExpKategoriSuggestDelayed()" autocomplete="off">
+        <div id="expKategoriSuggestBox" class="suggest-dropdown"></div>
+      </div>
+
       <label for="expCatatan">Catatan (opsional)</label>
       <input id="expCatatan" placeholder="cth. Bayar listrik bulan Agustus">
       <button class="btn btn-primary" style="margin-top:10px;" onclick="submitExpense()">+ Simpan Pengeluaran</button>
     </div>
 
     <div class="card">
-      <label for="expFilterMonth">Pilih Bulan</label>
-      <input id="expFilterMonth" type="month" onchange="renderExpenseList()">
+      <label for="expPeriodeType">Jenis Periode</label>
+      <select id="expPeriodeType" onchange="toggleExpPeriodeFields()">
+        <option value="bulanan">Per Bulan</option>
+        <option value="harian">Per Hari</option>
+        <option value="tahunan">Per Tahun</option>
+      </select>
+      <div id="expHariField" style="display:none;"><label for="expHari">Pilih Tanggal</label><input id="expHari" type="date"></div>
+      <div id="expBulanField"><label for="expBulan">Pilih Bulan</label><input id="expBulan" type="month"></div>
+      <div id="expTahunField" style="display:none;"><label for="expTahun">Pilih Tahun</label><input id="expTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;" onclick="renderExpenseList()">Tampilkan</button>
+
       <div class="stat-grid" style="margin-top:10px;">
         <div class="stat-card warn"><div class="label">Total Pengeluaran</div><div class="value" id="expStTotal">Rp0</div></div>
         <div class="stat-card"><div class="label">Jumlah Catatan</div><div class="value" id="expStCount">0</div></div>
@@ -599,7 +660,10 @@
     </div>
 
     <div class="card">
-      <h2>Riwayat Pengeluaran</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Riwayat Pengeluaran</h2>
+        <button class="btn btn-accent btn-sm" style="width:auto;" onclick="downloadExpensePDF()">Unduh PDF</button>
+      </div>
       <div id="expenseList"></div>
     </div>
   </section>
@@ -937,6 +1001,37 @@
   </div>
 </div>
 
+<!-- Expense catalog modal -->
+<div class="modal-bg" id="expenseCatalogModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeExpenseCatalog()">✕</button>
+    <h3>Katalog Barang/Jasa Pengeluaran</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:14px;">Muncul sebagai saran otomatis saat mencatat pengeluaran.</p>
+    <label for="expCatNama">Nama Barang / Jasa</label>
+    <input id="expCatNama" placeholder="cth. Sabun Cair 5L / Token Listrik">
+    <div class="row2">
+      <div>
+        <label for="expCatSatuan">Satuan</label>
+        <select id="expCatSatuan">
+          <option>kg</option>
+          <option>pcs</option>
+          <option>buah</option>
+          <option>kali</option>
+          <option>m²</option>
+          <option>liter</option>
+          <option>lainnya</option>
+        </select>
+      </div>
+      <div><label for="expCatHarga">Harga per Satuan</label><input id="expCatHarga" type="number" min="0" placeholder="Rp"></div>
+    </div>
+    <div class="btn-row" style="margin-bottom:16px;">
+      <button class="btn btn-primary btn-sm" onclick="addOrUpdateExpenseCatalogItem()" id="expCatSubmitBtn">+ Tambah ke Katalog</button>
+      <button class="btn btn-outline btn-sm" style="display:none;flex:0.6;" id="expCatCancelBtn" onclick="resetExpenseCatalogForm()">Batal</button>
+    </div>
+    <div id="expenseCatalogList"></div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 <div id="printArea"></div>
 
@@ -1133,6 +1228,11 @@ var serviceCatalog = [];
 var editingCatalogId = null;
 var subscriptions = [];
 var expenses = [];
+var expenseCatalog = [];
+var editingExpenseCatalogId = null;
+var expenseReportCache = null;
+var labaRugiCache = null;
+var peringkatPelangganCache = null;
 var currentSubscriptionId = null;
 var currentUsageList = [];
 var editingTransactionId = null;
@@ -1702,6 +1802,7 @@ async function initUserData(){
     await loadSubscriptionsFromDB();
     await loadContactsFromDB();
     await loadExpensesFromDB();
+    await loadExpenseCatalogFromDB();
     applySettingsToUI();
     renderAll();
   }catch(e){
@@ -1733,9 +1834,19 @@ async function loadExpensesFromDB(){
   const { data, error } = await sb.from('expenses').select('*').eq('user_id', shopOwnerId).order('tanggal', { ascending:true });
   if(error){ expenses = []; return; }
   expenses = (data||[]).map(row => ({
-    id: row.id, tanggal: row.tanggal, kategori: row.kategori,
-    jumlah: Number(row.jumlah)||0, catatan: row.catatan||''
+    id: row.id, tanggal: row.tanggal, nama: row.nama || row.kategori || '-',
+    qty: row.qty!=null ? Number(row.qty) : null, satuan: row.satuan || '',
+    harga: row.harga!=null ? Number(row.harga) : null,
+    jumlah: Number(row.jumlah)||0, kategori: row.kategori || 'Lain-lain', catatan: row.catatan||''
   }));
+}
+/* Tabel expense_catalog (opsional, untuk saran otomatis/autocomplete saat catat
+   pengeluaran) — sama seperti loadExpensesFromDB(), diamkan kalau tabelnya
+   belum ada supaya fitur lain tetap jalan normal. */
+async function loadExpenseCatalogFromDB(){
+  const { data, error } = await sb.from('expense_catalog').select('*').eq('user_id', shopOwnerId).order('nama', { ascending:true });
+  if(error){ expenseCatalog = []; return; }
+  expenseCatalog = (data||[]).map(r => ({ id:r.id, nama:r.nama, satuan:r.satuan||'pcs', harga:Number(r.harga)||0 }));
 }
 async function persistSettings(){
   const { error } = await sb.from('settings').upsert({
@@ -2595,6 +2706,10 @@ function fmtDate(iso){
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+function sortByTanggalAsc(list){
+  return list.slice().sort((a,b)=> a.tanggal<b.tanggal?-1 : a.tanggal>b.tanggal?1 : 0);
+}
+const DEFAULT_EXPENSE_CATEGORIES = ['Listrik','Air','Gaji Karyawan','Deterjen & Perlengkapan','Sewa Tempat','Perawatan Mesin','Transportasi','Lain-lain'];
 /* action opsional: { label, onClick, duration } — menampilkan tombol di toast
    (mis. "Urungkan") yang menjalankan onClick() kalau ditekan sebelum toast hilang. */
 function showToast(msg, action){
@@ -3181,7 +3296,7 @@ function switchTab(name){
   const tabBtn = document.querySelector('.tab[data-tab="'+name+'"]');
   if(tabBtn) tabBtn.classList.add('active');
   if(name==='riwayat') renderHistory();
-  if(name==='laporan') renderReport();
+  if(name==='laporan'){ renderReport(); renderLabaRugi(); renderPeringkatPelanggan(); }
   if(name==='paket') renderSubscriptions();
   if(name==='pengeluaran') renderExpenseList();
   if(['baru','riwayat','paket','laporan','pengeluaran'].includes(name)){
@@ -3365,19 +3480,144 @@ async function deleteTransaction(id){
 }
 
 /* ===================== PENGELUARAN / PEMBUKUAN ===================== */
+function showExpenseCatalogSuggest(){
+  const val = document.getElementById('expNama').value.trim().toLowerCase();
+  const box = document.getElementById('expNamaSuggestBox');
+  const options = expenseCatalog.filter(s=>!val || s.nama.toLowerCase().includes(val));
+  if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = options.map(s=>`
+    <div class="suggest-item" onmousedown="event.preventDefault();selectExpenseCatalogSuggest('${s.id}')">
+      ${escapeHTML(s.nama)}<small>${s.satuan} · ${rupiah(s.harga)}</small>
+    </div>`).join('');
+  box.classList.add('show');
+}
+function hideExpenseCatalogSuggestDelayed(){
+  setTimeout(()=>{ const box=document.getElementById('expNamaSuggestBox'); if(box) box.classList.remove('show'); }, 150);
+}
+function selectExpenseCatalogSuggest(id){
+  const match = expenseCatalog.find(s=>String(s.id)===String(id));
+  if(!match) return;
+  document.getElementById('expNama').value = match.nama;
+  document.getElementById('expHarga').value = match.harga;
+  document.getElementById('expSatuan').value = match.satuan;
+  document.getElementById('expNamaSuggestBox').classList.remove('show');
+  updateExpenseSubtotalPreview();
+}
+function updateExpenseSubtotalPreview(){
+  const qty = parseFloat(document.getElementById('expQty').value) || 0;
+  const harga = parseFloat(document.getElementById('expHarga').value) || 0;
+  document.getElementById('expJumlahPreview').textContent = rupiah(qty*harga);
+}
+function distinctExpenseCategories(){
+  const set = new Set(DEFAULT_EXPENSE_CATEGORIES);
+  expenses.forEach(e=>{ if(e.kategori) set.add(e.kategori); });
+  return Array.from(set);
+}
+function showExpKategoriSuggest(){
+  const val = document.getElementById('expKategori').value.trim().toLowerCase();
+  const box = document.getElementById('expKategoriSuggestBox');
+  const options = distinctExpenseCategories().filter(k=>!val || k.toLowerCase().includes(val));
+  if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = options.map(k=>`<div class="suggest-item" onmousedown="event.preventDefault();selectExpKategoriSuggest('${k.replace(/'/g,"\\'")}')">${escapeHTML(k)}</div>`).join('');
+  box.classList.add('show');
+}
+function hideExpKategoriSuggestDelayed(){
+  setTimeout(()=>{ const box=document.getElementById('expKategoriSuggestBox'); if(box) box.classList.remove('show'); }, 150);
+}
+function selectExpKategoriSuggest(k){
+  document.getElementById('expKategori').value = k;
+  document.getElementById('expKategoriSuggestBox').classList.remove('show');
+}
+
+/* ---- Katalog Barang/Jasa Pengeluaran (saran otomatis, mirip Katalog Layanan) ---- */
+function openExpenseCatalog(){
+  resetExpenseCatalogForm();
+  renderExpenseCatalogList();
+  document.getElementById('expenseCatalogModal').classList.add('show');
+}
+function closeExpenseCatalog(){ document.getElementById('expenseCatalogModal').classList.remove('show'); }
+function resetExpenseCatalogForm(){
+  editingExpenseCatalogId = null;
+  document.getElementById('expCatNama').value = '';
+  document.getElementById('expCatSatuan').value = 'pcs';
+  document.getElementById('expCatHarga').value = '';
+  document.getElementById('expCatSubmitBtn').textContent = '+ Tambah ke Katalog';
+  document.getElementById('expCatCancelBtn').style.display = 'none';
+}
+function editExpenseCatalogItem(id){
+  const item = expenseCatalog.find(s=>s.id===id);
+  if(!item) return;
+  editingExpenseCatalogId = id;
+  document.getElementById('expCatNama').value = item.nama;
+  document.getElementById('expCatSatuan').value = item.satuan;
+  document.getElementById('expCatHarga').value = item.harga;
+  document.getElementById('expCatSubmitBtn').textContent = 'Simpan Perubahan';
+  document.getElementById('expCatCancelBtn').style.display = 'inline-flex';
+}
+async function addOrUpdateExpenseCatalogItem(){
+  const nama = document.getElementById('expCatNama').value.trim();
+  if(!nama){ showToast('Nama barang/jasa wajib diisi'); return; }
+  const satuan = document.getElementById('expCatSatuan').value;
+  const harga = parseFloat(document.getElementById('expCatHarga').value) || 0;
+  if(editingExpenseCatalogId){
+    const { error } = await sb.from('expense_catalog').update({ nama, satuan, harga }).eq('id', editingExpenseCatalogId);
+    if(error){ showToast('Gagal menyimpan perubahan — pastikan tabel expense_catalog sudah dibuat'); return; }
+    showToast('Katalog diperbarui');
+  } else {
+    const { error } = await sb.from('expense_catalog').insert({ user_id: shopOwnerId, nama, satuan, harga });
+    if(error){ showToast('Gagal menambah katalog — pastikan tabel expense_catalog sudah dibuat'); return; }
+    showToast('Ditambahkan ke katalog');
+  }
+  await loadExpenseCatalogFromDB();
+  resetExpenseCatalogForm();
+  renderExpenseCatalogList();
+}
+async function deleteExpenseCatalogItem(id){
+  const { error } = await sb.from('expense_catalog').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus'); return; }
+  await loadExpenseCatalogFromDB();
+  renderExpenseCatalogList();
+  showToast('Dihapus dari katalog');
+}
+function renderExpenseCatalogList(){
+  const el = document.getElementById('expenseCatalogList');
+  if(expenseCatalog.length===0){
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">Katalog masih kosong. Tambahkan barang/jasa di atas.</div>`;
+    return;
+  }
+  el.innerHTML = expenseCatalog.map(s=>`
+    <div class="item-line" style="align-items:center;">
+      <span>${escapeHTML(s.nama)} <span style="color:var(--ink-soft);">(${s.satuan})</span></span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        ${rupiah(s.harga)}
+        <button onclick="editExpenseCatalogItem('${s.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">Edit</button>
+        <button onclick="deleteExpenseCatalogItem('${s.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
+      </span>
+    </div>`).join('');
+}
+
+/* ---- Catat & hapus pengeluaran (nota per item, mirip Transaksi Baru) ---- */
 async function submitExpense(){
   const tanggal = document.getElementById('expTanggal').value || todayISO();
-  const kategori = document.getElementById('expKategori').value;
-  const jumlah = parseFloat(document.getElementById('expJumlah').value) || 0;
+  const nama = document.getElementById('expNama').value.trim();
+  const qty = parseFloat(document.getElementById('expQty').value) || 0;
+  const satuan = document.getElementById('expSatuan').value;
+  const harga = parseFloat(document.getElementById('expHarga').value) || 0;
+  const kategori = document.getElementById('expKategori').value.trim() || 'Lain-lain';
   const catatan = document.getElementById('expCatatan').value.trim();
-  if(jumlah<=0){ showToast('Isi jumlah pengeluaran dulu'); return; }
+  const jumlah = qty*harga;
+  if(!nama){ showToast('Isi nama barang/jasa yang dibeli'); return; }
+  if(jumlah<=0){ showToast('Isi qty dan harga dengan benar'); return; }
   const { data, error } = await sb.from('expenses').insert({
-    user_id: shopOwnerId, tanggal, kategori, jumlah, catatan
+    user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan
   }).select().single();
-  if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dibuat di database'); return; }
-  expenses.push({ id:data.id, tanggal:data.tanggal, kategori:data.kategori, jumlah:Number(data.jumlah)||0, catatan:data.catatan||'' });
-  document.getElementById('expJumlah').value = '';
+  if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'); return; }
+  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
+  document.getElementById('expNama').value = '';
+  document.getElementById('expQty').value = '1';
+  document.getElementById('expHarga').value = '';
   document.getElementById('expCatatan').value = '';
+  updateExpenseSubtotalPreview();
   showToast('Pengeluaran dicatat');
   renderExpenseList();
 }
@@ -3393,48 +3633,149 @@ async function deleteExpense(id){
     label: 'Urungkan',
     onClick: async ()=>{
       const { data, error: err2 } = await sb.from('expenses').insert({
-        user_id: shopOwnerId, tanggal: exp.tanggal, kategori: exp.kategori, jumlah: exp.jumlah, catatan: exp.catatan
+        user_id: shopOwnerId, tanggal: exp.tanggal, nama: exp.nama, qty: exp.qty, satuan: exp.satuan,
+        harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan pengeluaran'); return; }
-      expenses.push({ id:data.id, tanggal:data.tanggal, kategori:data.kategori, jumlah:Number(data.jumlah)||0, catatan:data.catatan||'' });
+      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
       renderExpenseList();
       showToast('Pengeluaran dikembalikan');
     }
   });
 }
-function renderExpenseList(){
-  const monthInput = document.getElementById('expFilterMonth');
-  if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
-  const ym = monthInput.value;
-  const list = expenses.filter(e=>e.tanggal && e.tanggal.slice(0,7)===ym);
-  const total = list.reduce((s,e)=>s+e.jumlah,0);
-  document.getElementById('expStTotal').textContent = rupiah(total);
-  document.getElementById('expStCount').textContent = list.length;
 
+/* ---- Periode Harian/Bulanan/Tahunan + laporan rincian pengeluaran ---- */
+function toggleExpPeriodeFields(){
+  const type = document.getElementById('expPeriodeType').value;
+  document.getElementById('expHariField').style.display = type==='harian' ? 'block' : 'none';
+  document.getElementById('expBulanField').style.display = type==='bulanan' ? 'block' : 'none';
+  document.getElementById('expTahunField').style.display = type==='tahunan' ? 'block' : 'none';
+}
+function getExpPeriodeRange(){
+  const type = document.getElementById('expPeriodeType').value;
+  if(type==='harian'){
+    const tgl = document.getElementById('expHari').value;
+    if(!tgl) return null;
+    return { dari: tgl, sampai: tgl, label: fmtDate(tgl) };
+  }
+  if(type==='bulanan'){
+    const ym = document.getElementById('expBulan').value;
+    if(!ym) return null;
+    const [yy,mm] = ym.split('-').map(Number);
+    const lastDay = new Date(yy, mm, 0).getDate();
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+  }
+  if(type==='tahunan'){
+    const yy = document.getElementById('expTahun').value;
+    if(!yy) return null;
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+  }
+  return null;
+}
+function renderExpenseList(){
+  if(!document.getElementById('expBulan').value) document.getElementById('expBulan').value = todayISO().slice(0,7);
+  if(!document.getElementById('expHari').value) document.getElementById('expHari').value = todayISO();
+  const range = getExpPeriodeRange();
   const el = document.getElementById('expenseList');
-  if(list.length===0){
-    el.innerHTML = `<div class="empty">
-      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Belum ada pengeluaran bulan ini</h3>
-      <p>Catat pengeluaran seperti listrik, gaji, atau sabun di form atas.</p>
-    </div>`;
+  if(!range){
+    document.getElementById('expStTotal').textContent = rupiah(0);
+    document.getElementById('expStCount').textContent = '0';
+    el.innerHTML = `<div class="empty"><h3>Lengkapi periode dulu</h3></div>`;
+    expenseReportCache = null;
     return;
   }
-  el.innerHTML = list.slice().reverse().map(e=>`
-    <div class="trx-card">
-      <div class="trx-top">
-        <div>
-          <div class="trx-name">${escapeHTML(e.kategori)}</div>
-          <div class="kode">${fmtDate(e.tanggal)}</div>
+  const listAsc = sortByTanggalAsc(expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
+  const total = listAsc.reduce((s,e)=>s+e.jumlah,0);
+  document.getElementById('expStTotal').textContent = rupiah(total);
+  document.getElementById('expStCount').textContent = listAsc.length;
+
+  if(listAsc.length===0){
+    el.innerHTML = `<div class="empty">
+      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+      <h3>Belum ada pengeluaran periode ini</h3>
+      <p>Catat pengeluaran seperti listrik, gaji, atau sabun di form atas.</p>
+    </div>`;
+  } else {
+    el.innerHTML = listAsc.slice().reverse().map(e=>`
+      <div class="trx-card">
+        <div class="trx-top">
+          <div>
+            <div class="trx-name">${escapeHTML(e.nama||e.kategori)}</div>
+            <div class="kode">${fmtDate(e.tanggal)} · ${escapeHTML(e.kategori)}</div>
+          </div>
+          <span class="trx-total" style="color:var(--warn);">-${rupiah(e.jumlah)}</span>
         </div>
-        <span class="trx-total" style="color:var(--warn);">-${rupiah(e.jumlah)}</span>
+        ${e.qty ? `<div class="trx-meta">${e.qty} ${escapeHTML(e.satuan||'')} x ${rupiah(e.harga||0)}</div>` : ''}
+        ${e.catatan ? `<div class="trx-meta">${escapeHTML(e.catatan)}</div>` : ''}
+        <div class="trx-actions">
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">🗑️ Hapus</button>
+        </div>
       </div>
-      ${e.catatan ? `<div class="trx-meta">${escapeHTML(e.catatan)}</div>` : ''}
-      <div class="trx-actions">
-        <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">🗑️ Hapus</button>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+  expenseReportCache = { range, list: listAsc, total };
+}
+function downloadExpensePDF(){
+  if(!isSubscriptionActive()){ showPaywallModal(); return; }
+  if(!expenseReportCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  const { range, list, total } = expenseReportCache;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const colX = { tgl:14, nama:40, kategori:112, qty:150, total:196 };
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  if(settings.address) doc.text(settings.address, 14, 22);
+  doc.setFontSize(11);
+  doc.text('Laporan Rincian Pengeluaran', 14, 30);
+  doc.setFontSize(9.5);
+  doc.text(`Periode: ${range.label}`, 14, 36);
+
+  let y = 46;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('Tanggal', colX.tgl, y);
+  doc.text('Nama Barang/Jasa', colX.nama, y);
+  doc.text('Kategori', colX.kategori, y);
+  doc.text('Qty', colX.qty, y);
+  doc.text('Jumlah', colX.total, y, { align:'right' });
+  y += 2.5;
+  doc.setLineWidth(0.4);
+  doc.line(14, y, 196, y);
+  y += 6;
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+  if(list.length===0){
+    doc.text('Tidak ada pengeluaran pada periode ini.', 14, y);
+    y += 6;
+  }
+  list.forEach(e=>{
+    if(y > 280){ doc.addPage(); y = 20; }
+    doc.text(fmtDate(e.tanggal), colX.tgl, y);
+    const nama = e.nama || '-';
+    doc.text(nama.length>30 ? nama.slice(0,30)+'…' : nama, colX.nama, y);
+    const kategori = e.kategori || '-';
+    doc.text(kategori.length>16 ? kategori.slice(0,16)+'…' : kategori, colX.kategori, y);
+    doc.text(e.qty ? `${e.qty} ${e.satuan||''}` : '-', colX.qty, y);
+    doc.text(rupiah(e.jumlah), colX.total, y, { align:'right' });
+    if(e.catatan){
+      y += 4.5;
+      doc.setFontSize(7.5); doc.setTextColor(120);
+      doc.text(e.catatan.length>70 ? e.catatan.slice(0,70)+'…' : e.catatan, colX.nama, y);
+      doc.setFontSize(8.5); doc.setTextColor(0);
+    }
+    y += 6.5;
+  });
+
+  y += 3;
+  doc.setLineWidth(0.6);
+  doc.line(14, y, 196, y);
+  y += 7;
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.text('Total Pengeluaran', colX.kategori, y);
+  doc.text(rupiah(total), colX.total, y, { align:'right' });
+
+  doc.save(`Pengeluaran-${range.label.replace(/\s+/g,'-')}.pdf`);
 }
 
 /* ===================== NOTA / RECEIPT ===================== */
@@ -3547,7 +3888,7 @@ function downloadReportPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
   const monthInput = document.getElementById('reportMonth');
   const ym = monthInput.value || todayISO().slice(0,7);
-  const list = transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
+  const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -3725,16 +4066,6 @@ function renderReport(){
   document.getElementById('stLunas').textContent = rupiah(totalLunas);
   document.getElementById('stBelum').textContent = rupiah(totalBelum);
 
-  // laba rugi = pemasukan (omzet) - pengeluaran, untuk bulan yang sama
-  const expList = expenses.filter(e=>e.tanggal && e.tanggal.slice(0,7)===ym);
-  const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
-  const labaRugi = totalOmzet - totalPengeluaran;
-  document.getElementById('lrPemasukan').textContent = rupiah(totalOmzet);
-  document.getElementById('lrPengeluaran').textContent = rupiah(totalPengeluaran);
-  const lrEl = document.getElementById('lrLabaRugi');
-  lrEl.textContent = (labaRugi<0 ? 'Rugi ' : 'Untung ') + rupiah(Math.abs(labaRugi));
-  lrEl.style.color = labaRugi<0 ? 'var(--warn)' : 'var(--success)';
-
   // chart per hari
   const [yy,mm] = ym.split('-').map(Number);
   const daysInMonth = new Date(yy, mm, 0).getDate();
@@ -3763,7 +4094,7 @@ function renderReport(){
       <p>Pilih bulan lain atau mulai catat transaksi baru.</p>
     </div>`;
   } else {
-    reportList.innerHTML = list.slice().reverse().map(t=>`
+    reportList.innerHTML = sortByTanggalAsc(list).map(t=>`
       <div class="item-line" style="align-items:center;">
         <span>${fmtDate(t.tanggal)} — ${escapeHTML(t.nama)} <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${t.status==='lunas'?'Lunas':'Belum'}</span></span>
         <span>${rupiah(t.total)}</span>
@@ -3774,7 +4105,7 @@ function renderReport(){
 function printReport(){
   const monthInput = document.getElementById('reportMonth');
   const ym = monthInput.value;
-  const list = transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
+  const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const rows = list.map(t=>`
     <tr>
@@ -3933,6 +4264,206 @@ function downloadPerPelangganPDF(){
   doc.text(rupiah(totalOmzet), colX.total, y, { align:'right' });
 
   doc.save(`Laporan-${nama.replace(/[^a-zA-Z0-9]/g,'_')}-${range.dari}_${range.sampai}.pdf`);
+}
+
+/* ===================== LABA RUGI (per bulan / per tahun) ===================== */
+function toggleLrPeriodeFields(){
+  const type = document.getElementById('lrPeriodeType').value;
+  document.getElementById('lrBulanField').style.display = type==='bulanan' ? 'block' : 'none';
+  document.getElementById('lrTahunField').style.display = type==='tahunan' ? 'block' : 'none';
+}
+function getLrPeriodeRange(){
+  const type = document.getElementById('lrPeriodeType').value;
+  if(type==='bulanan'){
+    const ym = document.getElementById('lrBulan').value;
+    if(!ym) return null;
+    const [yy,mm] = ym.split('-').map(Number);
+    const lastDay = new Date(yy, mm, 0).getDate();
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+  }
+  if(type==='tahunan'){
+    const yy = document.getElementById('lrTahun').value;
+    if(!yy) return null;
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+  }
+  return null;
+}
+function renderLabaRugi(){
+  if(!document.getElementById('lrBulan').value) document.getElementById('lrBulan').value = todayISO().slice(0,7);
+  const range = getLrPeriodeRange();
+  const breakdownEl = document.getElementById('lrBreakdown');
+  if(!range){
+    document.getElementById('lrPemasukan').textContent = rupiah(0);
+    document.getElementById('lrPengeluaran').textContent = rupiah(0);
+    document.getElementById('lrLabaRugi').textContent = rupiah(0);
+    breakdownEl.innerHTML = '';
+    labaRugiCache = null;
+    return;
+  }
+  const trxList = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const expList = expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
+  const totalOmzet = trxList.reduce((s,t)=>s+t.total,0);
+  const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
+  const pendapatanBersih = totalOmzet - totalPengeluaran;
+
+  document.getElementById('lrPemasukan').textContent = rupiah(totalOmzet);
+  document.getElementById('lrPengeluaran').textContent = rupiah(totalPengeluaran);
+  const lrEl = document.getElementById('lrLabaRugi');
+  lrEl.textContent = (pendapatanBersih<0 ? 'Rugi ' : 'Untung ') + rupiah(Math.abs(pendapatanBersih));
+  lrEl.style.color = pendapatanBersih<0 ? 'var(--warn)' : 'var(--success)';
+
+  const byKategori = {};
+  expList.forEach(e=>{ byKategori[e.kategori] = (byKategori[e.kategori]||0) + e.jumlah; });
+  const kategoriRows = Object.entries(byKategori).sort((a,b)=>b[1]-a[1]);
+  if(kategoriRows.length===0){
+    breakdownEl.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Tidak ada pengeluaran di periode ini</div>`;
+  } else {
+    breakdownEl.innerHTML = kategoriRows.map(([kat,tot])=>`
+      <div class="item-line"><span>${escapeHTML(kat)}</span><span>${rupiah(tot)}</span></div>
+    `).join('');
+  }
+  labaRugiCache = { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows };
+}
+function downloadLabaRugiPDF(){
+  if(!isSubscriptionActive()){ showPaywallModal(); return; }
+  if(!labaRugiCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  const { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows } = labaRugiCache;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  if(settings.address) doc.text(settings.address, 14, 22);
+  doc.setFontSize(11);
+  doc.text('Laporan Laba Rugi', 14, 30);
+  doc.setFontSize(9.5);
+  doc.text(`Periode: ${range.label}`, 14, 36);
+
+  let y = 48;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  doc.text('Total Pemasukan (Omzet)', 14, y);
+  doc.text(rupiah(totalOmzet), 196, y, { align:'right' }); y += 8;
+  doc.text('Total Pengeluaran', 14, y);
+  doc.text(rupiah(totalPengeluaran), 196, y, { align:'right' }); y += 4;
+  doc.setLineWidth(0.4); doc.line(14, y, 196, y); y += 8;
+  doc.setFont('helvetica','bold'); doc.setFontSize(12);
+  doc.text('Pendapatan Bersih', 14, y);
+  doc.text((pendapatanBersih<0?'-':'')+rupiah(Math.abs(pendapatanBersih)), 196, y, { align:'right' });
+  y += 14;
+
+  doc.setFontSize(11);
+  doc.text('Rincian Pengeluaran per Kategori', 14, y); y += 8;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+  if(kategoriRows.length===0){
+    doc.text('Tidak ada pengeluaran di periode ini.', 14, y); y += 6;
+  }
+  kategoriRows.forEach(([kat,tot])=>{
+    if(y > 280){ doc.addPage(); y = 20; }
+    doc.text(kat, 14, y);
+    doc.text(rupiah(tot), 196, y, { align:'right' });
+    y += 6.5;
+  });
+
+  doc.save(`Laba-Rugi-${range.label.replace(/\s+/g,'-')}.pdf`);
+}
+
+/* ===================== PERINGKAT PEMASUKAN PELANGGAN ===================== */
+function toggleRankPeriodeFields(){
+  const type = document.getElementById('rankPeriodeType').value;
+  document.getElementById('rankBulanField').style.display = type==='bulanan' ? 'block' : 'none';
+  document.getElementById('rankTahunField').style.display = type==='tahunan' ? 'block' : 'none';
+}
+function getRankPeriodeRange(){
+  const type = document.getElementById('rankPeriodeType').value;
+  if(type==='semua') return { dari:'0000-01-01', sampai:'9999-12-31', label:'Semua Waktu' };
+  if(type==='bulanan'){
+    const ym = document.getElementById('rankBulan').value;
+    if(!ym) return null;
+    const [yy,mm] = ym.split('-').map(Number);
+    const lastDay = new Date(yy, mm, 0).getDate();
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+  }
+  if(type==='tahunan'){
+    const yy = document.getElementById('rankTahun').value;
+    if(!yy) return null;
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+  }
+  return null;
+}
+function renderPeringkatPelanggan(){
+  if(!document.getElementById('rankBulan').value) document.getElementById('rankBulan').value = todayISO().slice(0,7);
+  const range = getRankPeriodeRange();
+  const el = document.getElementById('rankList');
+  if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
+  const list = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const byNama = {};
+  list.forEach(t=>{
+    if(!byNama[t.nama]) byNama[t.nama] = { nama:t.nama, total:0, count:0 };
+    byNama[t.nama].total += t.total;
+    byNama[t.nama].count += 1;
+  });
+  const ranked = Object.values(byNama).sort((a,b)=>b.total-a.total);
+  if(ranked.length===0){
+    el.innerHTML = `<div class="empty">
+      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+      <h3>Tidak ada transaksi</h3>
+      <p>Tidak ada transaksi pada periode ini.</p>
+    </div>`;
+  } else {
+    el.innerHTML = ranked.map((r,i)=>`
+      <div class="item-line" style="align-items:center;">
+        <span>${i+1}. ${escapeHTML(r.nama)} <span style="color:var(--ink-soft);">(${r.count} transaksi)</span></span>
+        <span>${rupiah(r.total)}</span>
+      </div>
+    `).join('');
+  }
+  peringkatPelangganCache = { range, ranked };
+}
+function downloadPeringkatPelangganPDF(){
+  if(!isSubscriptionActive()){ showPaywallModal(); return; }
+  if(!peringkatPelangganCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  const { range, ranked } = peringkatPelangganCache;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const colX = { no:14, nama:26, count:140, total:196 };
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  if(settings.address) doc.text(settings.address, 14, 22);
+  doc.setFontSize(11);
+  doc.text('Peringkat Pemasukan Pelanggan', 14, 30);
+  doc.setFontSize(9.5);
+  doc.text(`Periode: ${range.label}`, 14, 36);
+
+  let y = 46;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+  doc.text('No', colX.no, y);
+  doc.text('Pelanggan', colX.nama, y);
+  doc.text('Jml Transaksi', colX.count, y);
+  doc.text('Total Bayar', colX.total, y, { align:'right' });
+  y += 2.5;
+  doc.setLineWidth(0.4);
+  doc.line(14, y, 196, y);
+  y += 6;
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  if(ranked.length===0){
+    doc.text('Tidak ada transaksi pada periode ini.', 14, y);
+    y += 6;
+  }
+  ranked.forEach((r,i)=>{
+    if(y > 280){ doc.addPage(); y = 20; }
+    doc.text(String(i+1), colX.no, y);
+    const namaTrunc = r.nama.length>40 ? r.nama.slice(0,40)+'…' : r.nama;
+    doc.text(namaTrunc, colX.nama, y);
+    doc.text(String(r.count), colX.count, y);
+    doc.text(rupiah(r.total), colX.total, y, { align:'right' });
+    y += 6.5;
+  });
+
+  doc.save(`Peringkat-Pelanggan-${range.label.replace(/\s+/g,'-')}.pdf`);
 }
 
 /* ===================== SETTINGS MODAL ===================== */
