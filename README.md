@@ -150,6 +150,44 @@ pengeluaran baru akan gagal dengan toast error (fitur lain di app tidak
 terpengaruh); pengeluaran lama yang sudah tercatat tetap tampil (tanpa
 rincian qty/satuan/harga).
 
+Fitur **Papan Kerja** (tab baru, terbuka untuk Owner maupun kasir — mirip
+papan tulis fisik yang dikelompokkan per hari Senin-Ahad, otomatis terisi
+dari setiap transaksi yang diinput) butuh satu kolom baru di tabel
+`transactions`:
+
+```sql
+alter table transactions add column if not exists work_status text not null default 'belum';
+```
+
+Kolom ini menyimpan status pengerjaan tiap transaksi: `belum`, `sedang`,
+`selesai`, atau `diambil` (begitu ditandai `diambil`, kartunya hilang dari
+Papan Kerja — persis seperti melepas kertas dari papan tulis fisik, tapi
+data transaksinya sendiri tidak dihapus, tetap ada di Riwayat/Laporan).
+Sebelum kolom ini ada, tab Papan Kerja tetap terbuka tapi tombol ubah status
+akan gagal dengan toast error — transaksi tetap tersimpan normal, hanya
+fitur papan kerjanya yang belum aktif.
+
+Supaya kerjaan **Paket Bulanan & Tempo** juga ikut muncul di Papan Kerja
+(sebelumnya cuma transaksi reguler), tabel `subscription_usage` butuh 2
+kolom tambahan yang sama:
+
+```sql
+alter table subscription_usage add column if not exists estimasi date;
+alter table subscription_usage add column if not exists work_status text not null default 'belum';
+```
+
+`estimasi` diisi lewat field "Estimasi Selesai" yang sekarang ada di form
+"Catat Laundry Masuk (kg)" dan "Tambah Layanan Lain" di halaman Paket
+Bulanan/Tempo. Hanya catatan bertipe layanan tambahan (bukan timbangan kg
+polos) yang muncul di Papan Kerja, karena timbangan kg tidak punya harga
+per-baris yang jelas untuk ditampilkan di kartunya. ⚠️ Beda dari migrasi
+lain di atas: sebelum kolom `estimasi` ini ada, mencatat laundry
+masuk/layanan tambahan di Paket Bulanan/Tempo akan **gagal total** dengan
+toast error (bukan cuma kolom estimasinya yang tidak tersimpan) — karena
+kode selalu mengirim kolom `estimasi` saat menyimpan. Jalankan migrasi ini
+**sebelum** memakai app versi terbaru supaya fitur Paket Bulanan/Tempo
+tidak terganggu.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas

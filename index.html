@@ -187,6 +187,34 @@
   .badge-lunas{background:var(--success-bg);color:var(--success);}
   .badge-belum{background:var(--warn-bg);color:var(--warn);}
 
+  /* ---- Papan Kerja: grid kalender horizontal, 7 kolom Senin->Ahad berjejer
+     kiri-ke-kanan (di-scroll ke samping di HP), meniru papan tulis fisik. ---- */
+  .work-board-grid{display:flex;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:2px 2px 10px;
+    scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
+  .work-day-col{flex:0 0 230px;width:230px;display:flex;flex-direction:column;scroll-snap-align:start;}
+  .work-day-col-header{background:var(--suds);color:#fff;text-align:center;font-weight:800;font-size:13px;
+    padding:8px 4px;border-radius:10px 10px 0 0;}
+  .work-day-col-header.is-today{background:var(--sun);}
+  .work-day-col-header small{display:block;font-weight:600;font-size:10px;opacity:0.9;margin-top:1px;}
+  .work-day-col-body{background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;
+    padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;}
+  .work-day-empty{font-size:11px;color:var(--ink-soft);text-align:center;padding:14px 0;}
+  /* Kartu kerjaan: hanya 4 info (nama, layanan, tanggal selesai, harga/lunas) —
+     semua dibesarkan & di-bold supaya gampang dibaca sekilas, kecuali harga
+     yang sengaja dikecilkan karena tidak sepenting info lainnya. Tiap info
+     dikasih warna beda supaya gampang dibedakan sekilas. */
+  .work-card{border:1px solid var(--line);border-radius:10px;padding:9px;background:#FAFDFE;}
+  .work-nama{font-size:20px;font-weight:800;color:var(--ink);line-height:1.2;margin-bottom:3px;}
+  .work-layanan{font-size:14px;font-weight:700;color:var(--suds-deep);line-height:1.25;margin-bottom:2px;}
+  .work-tanggal{font-size:13px;font-weight:700;color:var(--sun);margin-bottom:5px;}
+  .work-harga{font-size:11px;font-weight:700;color:var(--danger);margin-bottom:7px;}
+  .work-lunas{font-size:11px;font-weight:700;color:var(--success);margin-bottom:7px;}
+  .work-pill{flex:1;text-align:center;padding:5px 2px;border-radius:7px;font-size:9.5px;font-weight:700;
+    border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
+  .work-pill.on-belum{background:#ECECEC;border-color:#BBB;color:#555;}
+  .work-pill.on-sedang{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);}
+  .work-pill.on-selesai{background:var(--success-bg);border-color:var(--success);color:var(--success);}
+
   /* ---- History list ---- */
   .search-bar{position:relative;margin-bottom:12px;}
   .search-bar input{padding-left:36px;margin-bottom:0;}
@@ -452,6 +480,15 @@
       <input id="searchInput" placeholder="Cari nama atau no. nota..." oninput="renderHistory()">
     </div>
     <div id="historyList"></div>
+  </section>
+
+  <!-- ===== VIEW: PAPAN KERJA ===== -->
+  <section class="view" id="view-papan">
+    <div class="card">
+      <h2 style="margin-bottom:2px;">Papan Kerja</h2>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis). Transaksi dengan tanggal masuk sebelum 25 Agustus 2026 tidak ditampilkan di sini (nota lama, dianggap sudah selesai semua).</p>
+    </div>
+    <div class="work-board-grid" id="workBoardGrid"></div>
   </section>
 
   <!-- ===== VIEW 4: LAPORAN ===== -->
@@ -728,8 +765,10 @@
       <h2 style="font-size:14px;">Catat Laundry Masuk (kg)</h2>
       <div class="row2">
         <div><label for="usageTanggal">Tanggal</label><input id="usageTanggal" type="date"></div>
-        <div><label for="usageBerat">Berat (kg)</label><input id="usageBerat" type="number" min="0" step="0.1"></div>
+        <div><label for="usageEstimasi">Estimasi Selesai</label><input id="usageEstimasi" type="date"></div>
       </div>
+      <label for="usageBerat">Berat (kg)</label>
+      <input id="usageBerat" type="number" min="0" step="0.1">
       <label for="usageCatatan">Catatan (opsional)</label>
       <input id="usageCatatan" placeholder="cth. 2 karung">
       <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:18px;" onclick="addUsage()">+ Catat Laundry Masuk</button>
@@ -737,8 +776,10 @@
 
     <h2 style="font-size:14px;" id="extraSectionHeading">Tambah Layanan Lain (di luar paket)</h2>
     <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;" id="extraSectionHint">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
-    <label for="extraTanggal">Tanggal</label>
-    <input id="extraTanggal" type="date">
+    <div class="row2">
+      <div><label for="extraTanggal">Tanggal</label><input id="extraTanggal" type="date"></div>
+      <div><label for="extraEstimasi">Estimasi Selesai</label><input id="extraEstimasi" type="date"></div>
+    </div>
     <label for="extraLayanan">Nama Layanan</label>
     <div style="position:relative;">
       <input id="extraLayanan" placeholder="cth. Cuci + Setrika (pilih dari saran atau ketik manual)" oninput="showExtraLayananSuggest()" onfocus="showExtraLayananSuggest()" onblur="hideExtraLayananSuggestDelayed()" autocomplete="off">
@@ -800,6 +841,10 @@
   <button class="tab" data-tab="riwayat" onclick="switchTab('riwayat')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
     <span>Riwayat</span>
+  </button>
+  <button class="tab" data-tab="papan" onclick="switchTab('papan')">
+    <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v3h6V3M8 11l2.5 2.5L16 8"/></svg></div>
+    <span>Papan Kerja</span>
   </button>
   <button class="tab" data-tab="paket" onclick="switchTab('paket')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.5 7.3L12 12l-8.5-4.7M12 22V12"/><path d="M20.5 16.7L12 12l-8.5 4.7"/><path d="M12 2l8.5 4.7L12 12 3.5 6.7z"/></svg></div>
@@ -1815,13 +1860,14 @@ async function initUserData(){
   let lastTab = 'baru';
   try{
     const saved = localStorage.getItem('nk_lastTab');
-    if(saved && ['baru','riwayat','paket','laporan','pengeluaran'].includes(saved)) lastTab = saved;
+    if(saved && ['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(saved)) lastTab = saved;
   }catch(e){}
   try{
     await loadSettingsFromDB();
     await loadTransactionsFromDB();
     await loadCatalogFromDB();
     await loadSubscriptionsFromDB();
+    await loadAllWorkUsage();
     await loadContactsFromDB();
     await loadExpensesFromDB();
     await loadExpenseCatalogFromDB();
@@ -1846,7 +1892,7 @@ async function loadTransactionsFromDB(){
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||''
+    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum'
   }));
 }
 /* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
@@ -2125,6 +2171,23 @@ async function loadSubscriptionsFromDB(){
   }));
   await loadAllUsageTotals();
 }
+/* Semua catatan subscription_usage bertipe layanan_tambahan (Paket Bulanan
+   "layanan lain" + seluruh kunjungan Tempo) lintas SEMUA pelanggan paket —
+   dipakai Papan Kerja supaya kerjaan Paket Bulanan/Tempo ikut muncul di
+   papan, bukan cuma transaksi reguler. Timbangan kg polos (type "pemakaian")
+   tidak diikutkan karena tidak punya harga per-baris yang jelas untuk
+   ditampilkan di kartu papan kerja. */
+var allWorkUsage = [];
+async function loadAllWorkUsage(){
+  const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
+  if(error){ allWorkUsage = []; return; }
+  allWorkUsage = (data||[]).map(r=>({
+    id:r.id, subscriptionId:r.subscription_id, tanggal:r.tanggal, estimasi:r.estimasi||null,
+    type:r.type||'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
+    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
+    workStatus:r.work_status||'belum'
+  }));
+}
 async function loadAllUsageTotals(){
   if(subscriptions.length===0) return;
   const ids = subscriptions.map(s=>s.id);
@@ -2295,9 +2358,11 @@ async function openSubsDetail(id){
   if(!s) return;
   document.getElementById('subsDetailTitle').textContent = isTempo(s) ? `${s.nama} — Tempo (Bayar Nanti)` : `${s.nama} — ${s.paketNama}`;
   document.getElementById('usageTanggal').value = todayISO();
+  document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
   document.getElementById('extraTanggal').value = todayISO();
+  document.getElementById('extraEstimasi').value = '';
   document.getElementById('extraQty').value = '1';
   draftExtraItems = [];
   renderExtraDraftList();
@@ -2310,9 +2375,10 @@ async function refreshSubsDetail(){
   if(!s) return;
   const { data, error } = await sb.from('subscription_usage').select('*').eq('subscription_id', s.id).order('tanggal', { ascending:false });
   currentUsageList = error ? [] : (data||[]).map(r=>({
-    id:r.id, tanggal:r.tanggal, berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
+    id:r.id, tanggal:r.tanggal, estimasi:r.estimasi||null, berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
     type: r.type || 'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
-    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0
+    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
+    workStatus: r.work_status || 'belum'
   }));
 
   const tempo = isTempo(s);
@@ -2420,14 +2486,16 @@ async function addUsage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
   const tanggal = document.getElementById('usageTanggal').value || todayISO();
+  const estimasi = document.getElementById('usageEstimasi').value || null;
   const berat = parseFloat(document.getElementById('usageBerat').value) || 0;
   const catatan = document.getElementById('usageCatatan').value.trim();
   if(berat<=0){ showToast('Isi berat laundry (kg)'); return; }
 
   const { data: inserted, error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal, berat_kg: berat, catatan, type:'pemakaian'
+    subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi, berat_kg: berat, catatan, type:'pemakaian'
   }).select().single();
   if(error){ showToast('Gagal mencatat laundry masuk'); return; }
+  document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
   await refreshSubsDetail();
@@ -2475,9 +2543,10 @@ async function addExtraService(){
   if(qty<=0 || harga<=0){ showToast('Isi qty dan harga layanan'); return; }
   const subtotal = qty*harga;
   const tanggal = document.getElementById('extraTanggal').value || todayISO();
+  const estimasi = document.getElementById('extraEstimasi').value || null;
 
   if(isTempo(s)){
-    draftExtraItems.push({ tanggal, nama, qty, satuan, harga, subtotal });
+    draftExtraItems.push({ tanggal, estimasi, nama, qty, satuan, harga, subtotal });
     document.getElementById('extraLayanan').value = '';
     document.getElementById('extraQty').value = '1';
     document.getElementById('extraHarga').value = '';
@@ -2485,11 +2554,12 @@ async function addExtraService(){
     return;
   }
 
-  const { error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal,
+  const { data, error } = await sb.from('subscription_usage').insert({
+    subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi,
     type:'layanan_tambahan', layanan_nama: nama, qty, satuan, harga, subtotal
-  });
+  }).select().single();
   if(error){ showToast('Gagal menambah layanan'); return; }
+  allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
   document.getElementById('extraLayanan').value = '';
   document.getElementById('extraQty').value = '1';
   document.getElementById('extraHarga').value = '';
@@ -2520,11 +2590,12 @@ async function submitExtraServiceBatch(){
   const insertedIds = [];
   for(const it of draftExtraItems){
     const { data, error } = await sb.from('subscription_usage').insert({
-      subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal,
+      subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,
       type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal
     }).select().single();
     if(error){ showToast('Gagal menyimpan salah satu layanan, coba lagi'); return; }
     insertedIds.push(data.id);
+    allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
   }
   draftExtraItems = [];
   renderExtraDraftList();
@@ -2539,16 +2610,20 @@ async function deleteUsage(id){
   if(!confirm(`Hapus ${label} tanggal ${fmtDate(item.tanggal)}?`)) return;
   const { error } = await sb.from('subscription_usage').delete().eq('id', id);
   if(error){ showToast('Gagal menghapus catatan'); return; }
+  allWorkUsage = allWorkUsage.filter(u=>u.id!==id);
   const subId = currentSubscriptionId;
   await refreshSubsDetail();
   showToast('Catatan dihapus', {
     label: 'Urungkan',
     onClick: async ()=>{
       const payload = item.type==='layanan_tambahan'
-        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal }
-        : { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, berat_kg: item.berat, catatan: item.catatan, type:'pemakaian' };
-      const { error: err2 } = await sb.from('subscription_usage').insert(payload);
+        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal }
+        : { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, berat_kg: item.berat, catatan: item.catatan, type:'pemakaian' };
+      const { data, error: err2 } = await sb.from('subscription_usage').insert(payload).select().single();
       if(err2){ showToast('Gagal mengembalikan catatan'); return; }
+      if(data && data.type==='layanan_tambahan'){
+        allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+      }
       if(currentSubscriptionId===subId) await refreshSubsDetail();
       showToast('Catatan dikembalikan');
     }
@@ -2600,6 +2675,7 @@ async function markSubsLunas(){
   if(tempo){
     const carryOver = calc.lebihBayar||0;
     await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+    allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
     const { error: err2 } = await sb.from('subscriptions').update({
       status_bayar:'belum', dp: carryOver, lunas_at: today, transaction_id: data.id
     }).eq('id', s.id);
@@ -2770,6 +2846,7 @@ async function deleteSubscription(){
   if(!s) return;
   if(!confirm(`Hapus pelanggan paket "${s.nama}"? Semua riwayat pemakaian & layanan tambahan periode ini juga akan terhapus.`)) return;
   await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+  allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
   const { error } = await sb.from('subscriptions').delete().eq('id', s.id);
   if(error){ showToast('Gagal menghapus paket'); return; }
   subscriptions = subscriptions.filter(x=>x.id!==s.id);
@@ -3483,7 +3560,7 @@ function selectContactSuggest(inputId, boxId, contactId){
 function switchTab(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran' };
+  const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran', papan:'view-papan' };
   document.getElementById(map[name]).classList.add('active');
   const tabBtn = document.querySelector('.tab[data-tab="'+name+'"]');
   if(tabBtn) tabBtn.classList.add('active');
@@ -3491,7 +3568,8 @@ function switchTab(name){
   if(name==='laporan'){ renderReport(); renderLabaRugi(); renderPeringkatPelanggan(); }
   if(name==='paket') renderSubscriptions();
   if(name==='pengeluaran') renderExpenseList();
-  if(['baru','riwayat','paket','laporan','pengeluaran'].includes(name)){
+  if(name==='papan') renderWorkBoard();
+  if(['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(name)){
     try{ localStorage.setItem('nk_lastTab', name); }catch(e){}
   }
 }
@@ -3572,7 +3650,8 @@ async function submitTransaction(){
       id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
       tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
       diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-      status: data.status, catatan: data.catatan
+      status: data.status, catatan: data.catatan,
+      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum'
     };
     if(idx>-1) transactions[idx] = trx;
     resetTransactionForm();
@@ -3597,7 +3676,7 @@ async function submitTransaction(){
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
     tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
     diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-    status: data.status, catatan: data.catatan
+    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum'
   };
   transactions.push(trx);
   resetTransactionForm();
@@ -3657,13 +3736,13 @@ async function deleteTransaction(id){
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
         estimasi: trx.estimasi, items: trx.items, diskon: trx.diskon, total: trx.total, dp: trx.dp,
-        status: trx.status, catatan: trx.catatan
+        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan transaksi'); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-        status:data.status, catatan:data.catatan
+        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum'
       });
       renderHistory();
       showToast('Transaksi dikembalikan');
@@ -4238,6 +4317,123 @@ async function toggleLunas(id){
   t.dp = t.total;
   showToast('Transaksi ditandai lunas');
   renderHistory();
+}
+
+/* ===================== PAPAN KERJA ===================== */
+/* Mengikuti pola papan tulis fisik: dikelompokkan per hari (Senin-Ahad),
+   bukan per minggu kalender — kartu menumpuk terus sampai ditandai "Sudah
+   Diambil" (dilepas dari papan), berapa pun lamanya.
+   Hari yang dipakai untuk pengelompokan adalah HARI PERKIRAAN SELESAI
+   (field "Estimasi Selesai" saat input transaksi) — bukan hari masuk,
+   supaya cucian yang masuk Senin tapi baru selesai Rabu (misal butuh 2
+   hari kerja) muncul di kolom Rabu. Kalau estimasi belum diisi, dipakai
+   tanggal masuk sebagai fallback (paling akurat yang tersedia). */
+const INDO_DAY_NAMES = ['Ahad','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+function indoDayName(tanggal){
+  if(!tanggal) return INDO_DAY_NAMES[0];
+  return INDO_DAY_NAMES[new Date(tanggal+'T00:00:00').getDay()];
+}
+function workBoardDate(t){ return t.estimasi || t.tanggal; }
+/* Papan Kerja baru mulai dipakai 25 Agustus 2026 — banyak nota lama (manual,
+   belum sempat diinput, atau sudah tercatat sejak sebelumnya) yang tanggalnya
+   sebelum itu dan sudah pasti selesai/diambil lama, jadi sengaja tidak usah
+   ikut muncul di papan biar tidak mengotori tampilan kerjaan yang aktif. */
+const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
+/* Papan Kerja menggabungkan dua sumber data jadi satu daftar kerjaan
+   seragam: transaksi reguler (transactions) DAN kunjungan Paket
+   Bulanan/Tempo bertipe layanan_tambahan (allWorkUsage) — supaya kerjaan
+   dari ketiga jenis pelanggan ikut muncul di papan, bukan cuma transaksi
+   reguler. Timbangan kg polos Paket Bulanan (type "pemakaian") sengaja
+   tidak diikutkan karena tidak punya harga per-baris yang jelas. */
+function buildWorkItems(){
+  const trxItems = transactions
+    .filter(t=>(t.workStatus||'belum')!=='diambil' && t.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
+    .map(t=>({
+      id:t.id, source:'trx', nama:t.nama,
+      layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
+      harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
+      lunas:t.status==='lunas'
+    }));
+  const usageItems = allWorkUsage
+    .filter(u=>u.type==='layanan_tambahan' && (u.workStatus||'belum')!=='diambil' && u.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
+    .map(u=>{
+      const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+      return {
+        id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+        layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
+        lunas: sub ? sub.statusBayar==='lunas' : false
+      };
+    });
+  return trxItems.concat(usageItems);
+}
+async function setWorkStatus(id, status, source){
+  const table = source==='usage' ? 'subscription_usage' : 'transactions';
+  const list = source==='usage' ? allWorkUsage : transactions;
+  const item = list.find(x=>x.id===id);
+  if(!item) return;
+  const { error } = await sb.from(table).update({ work_status: status }).eq('id', id);
+  if(error){ showToast('Gagal memperbarui status kerja'); return; }
+  item.workStatus = status;
+  renderWorkBoard();
+}
+async function markPickedUp(id, source){
+  const table = source==='usage' ? 'subscription_usage' : 'transactions';
+  const list = source==='usage' ? allWorkUsage : transactions;
+  const item = list.find(x=>x.id===id);
+  if(!item) return;
+  const { error } = await sb.from(table).update({ work_status: 'diambil' }).eq('id', id);
+  if(error){ showToast('Gagal menandai sudah diambil'); return; }
+  item.workStatus = 'diambil';
+  showToast('Ditandai sudah diambil');
+  renderWorkBoard();
+}
+/* Kartu hanya menampilkan 4 info sesuai permintaan: nama pelanggan, jenis
+   layanan, tanggal selesai, dan harga — semua dibesarkan+bold supaya gampang
+   dibaca sekilas, kecuali harga yang dikecilkan (kurang penting dilihat). */
+function workBoardCardHTML(it){
+  const ws = it.workStatus || 'belum';
+  const tanggalInfo = it.estimasi
+    ? fmtDate(it.estimasi)
+    : `${fmtDate(it.tanggal)} (blm ada estimasi)`;
+  const bayarInfo = it.lunas
+    ? `<div class="work-lunas">Lunas</div>`
+    : `<div class="work-harga">${rupiah(it.harga)}</div>`;
+  return `
+    <div class="work-card">
+      <div class="work-nama">${escapeHTML(it.nama)}</div>
+      <div class="work-layanan">${escapeHTML(it.layanan)}</div>
+      <div class="work-tanggal">${tanggalInfo}</div>
+      ${bayarInfo}
+      <div class="btn-row" style="gap:4px;">
+        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${it.id}','belum','${it.source}')">Belum</button>
+        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">Sedang</button>
+        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${it.id}','selesai','${it.source}')">Selesai</button>
+      </div>
+      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">📤 Sudah Diambil</button>` : ''}
+    </div>`;
+}
+/* Grid horizontal 7 kolom Senin->Ahad (di-scroll ke samping), meniru
+   susunan papan tulis fisik persis: nama hari di header kotak paling atas,
+   kartu-kartu kerjaan tersusun ke bawah di dalam kotak harinya. Kolom hari
+   SELALU ditampilkan (walau kosong) supaya bentuk grid-nya tetap utuh
+   seperti papan aslinya, bukan cuma hari yang ada kerjaannya saja. */
+function renderWorkBoard(){
+  const el = document.getElementById('workBoardGrid');
+  const items = buildWorkItems();
+  const todayName = indoDayName(todayISO());
+  const orderedDays = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Ahad'];
+  el.innerHTML = orderedDays.map(day=>{
+    const list = items.filter(it=>indoDayName(workBoardDate(it))===day)
+      .slice().sort((a,b)=>{ const da=workBoardDate(a), db=workBoardDate(b); return da<db?-1:(da>db?1:0); });
+    const isToday = day===todayName;
+    const body = list.length===0
+      ? `<div class="work-day-empty">Belum ada</div>`
+      : list.map(workBoardCardHTML).join('');
+    return `<div class="work-day-col">
+      <div class="work-day-col-header ${isToday?'is-today':''}">${day}${isToday?'<small>Hari Ini</small>':''}</div>
+      <div class="work-day-col-body">${body}</div>
+    </div>`;
+  }).join('');
 }
 
 /* ===================== LAPORAN BULANAN ===================== */
