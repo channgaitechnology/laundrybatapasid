@@ -191,7 +191,7 @@
      kiri-ke-kanan (di-scroll ke samping di HP), meniru papan tulis fisik. ---- */
   .work-board-grid{display:flex;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:2px 2px 10px;
     scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
-  .work-day-col{flex:0 0 208px;width:208px;display:flex;flex-direction:column;scroll-snap-align:start;}
+  .work-day-col{flex:0 0 230px;width:230px;display:flex;flex-direction:column;scroll-snap-align:start;}
   .work-day-col-header{background:var(--suds);color:#fff;text-align:center;font-weight:800;font-size:13px;
     padding:8px 4px;border-radius:10px 10px 0 0;}
   .work-day-col-header.is-today{background:var(--sun);}
@@ -199,14 +199,14 @@
   .work-day-col-body{background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;
     padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;}
   .work-day-empty{font-size:11px;color:var(--ink-soft);text-align:center;padding:14px 0;}
-  .work-card{border:1px solid var(--line);border-radius:10px;padding:8px;background:#FAFDFE;}
-  .work-card .trx-name{font-size:13px;margin-bottom:1px;}
-  .work-card .kode{font-size:10px;}
-  .work-card .work-layanan{font-size:11px;color:var(--ink);margin:2px 0;}
-  .work-card .work-tanggal{font-size:10px;color:var(--ink-soft);margin-bottom:4px;}
-  .work-card .work-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
-  .work-card .work-total{font-size:13px;font-weight:800;color:var(--suds);}
-  .work-card .badge{font-size:9.5px;padding:2px 7px;}
+  /* Kartu kerjaan: hanya 4 info (nama, layanan, tanggal selesai, harga) —
+     semua dibesarkan & di-bold supaya gampang dibaca sekilas, kecuali harga
+     yang sengaja dikecilkan karena tidak sepenting info lainnya. */
+  .work-card{border:1px solid var(--line);border-radius:10px;padding:9px;background:#FAFDFE;}
+  .work-nama{font-size:16px;font-weight:800;color:var(--ink);line-height:1.2;margin-bottom:2px;}
+  .work-layanan{font-size:14px;font-weight:700;color:var(--ink);line-height:1.25;margin-bottom:2px;}
+  .work-tanggal{font-size:13px;font-weight:700;color:var(--suds);margin-bottom:5px;}
+  .work-harga{font-size:11px;font-weight:400;color:var(--ink-soft);margin-bottom:7px;}
   .work-pill{flex:1;text-align:center;padding:5px 2px;border-radius:7px;font-size:9.5px;font-weight:700;
     border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
   .work-pill.on-belum{background:#ECECEC;border-color:#BBB;color:#555;}
@@ -763,8 +763,10 @@
       <h2 style="font-size:14px;">Catat Laundry Masuk (kg)</h2>
       <div class="row2">
         <div><label for="usageTanggal">Tanggal</label><input id="usageTanggal" type="date"></div>
-        <div><label for="usageBerat">Berat (kg)</label><input id="usageBerat" type="number" min="0" step="0.1"></div>
+        <div><label for="usageEstimasi">Estimasi Selesai</label><input id="usageEstimasi" type="date"></div>
       </div>
+      <label for="usageBerat">Berat (kg)</label>
+      <input id="usageBerat" type="number" min="0" step="0.1">
       <label for="usageCatatan">Catatan (opsional)</label>
       <input id="usageCatatan" placeholder="cth. 2 karung">
       <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:18px;" onclick="addUsage()">+ Catat Laundry Masuk</button>
@@ -772,8 +774,10 @@
 
     <h2 style="font-size:14px;" id="extraSectionHeading">Tambah Layanan Lain (di luar paket)</h2>
     <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;" id="extraSectionHint">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
-    <label for="extraTanggal">Tanggal</label>
-    <input id="extraTanggal" type="date">
+    <div class="row2">
+      <div><label for="extraTanggal">Tanggal</label><input id="extraTanggal" type="date"></div>
+      <div><label for="extraEstimasi">Estimasi Selesai</label><input id="extraEstimasi" type="date"></div>
+    </div>
     <label for="extraLayanan">Nama Layanan</label>
     <div style="position:relative;">
       <input id="extraLayanan" placeholder="cth. Cuci + Setrika (pilih dari saran atau ketik manual)" oninput="showExtraLayananSuggest()" onfocus="showExtraLayananSuggest()" onblur="hideExtraLayananSuggestDelayed()" autocomplete="off">
@@ -1861,6 +1865,7 @@ async function initUserData(){
     await loadTransactionsFromDB();
     await loadCatalogFromDB();
     await loadSubscriptionsFromDB();
+    await loadAllWorkUsage();
     await loadContactsFromDB();
     await loadExpensesFromDB();
     await loadExpenseCatalogFromDB();
@@ -2164,6 +2169,23 @@ async function loadSubscriptionsFromDB(){
   }));
   await loadAllUsageTotals();
 }
+/* Semua catatan subscription_usage bertipe layanan_tambahan (Paket Bulanan
+   "layanan lain" + seluruh kunjungan Tempo) lintas SEMUA pelanggan paket —
+   dipakai Papan Kerja supaya kerjaan Paket Bulanan/Tempo ikut muncul di
+   papan, bukan cuma transaksi reguler. Timbangan kg polos (type "pemakaian")
+   tidak diikutkan karena tidak punya harga per-baris yang jelas untuk
+   ditampilkan di kartu papan kerja. */
+var allWorkUsage = [];
+async function loadAllWorkUsage(){
+  const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
+  if(error){ allWorkUsage = []; return; }
+  allWorkUsage = (data||[]).map(r=>({
+    id:r.id, subscriptionId:r.subscription_id, tanggal:r.tanggal, estimasi:r.estimasi||null,
+    type:r.type||'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
+    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
+    workStatus:r.work_status||'belum'
+  }));
+}
 async function loadAllUsageTotals(){
   if(subscriptions.length===0) return;
   const ids = subscriptions.map(s=>s.id);
@@ -2334,9 +2356,11 @@ async function openSubsDetail(id){
   if(!s) return;
   document.getElementById('subsDetailTitle').textContent = isTempo(s) ? `${s.nama} — Tempo (Bayar Nanti)` : `${s.nama} — ${s.paketNama}`;
   document.getElementById('usageTanggal').value = todayISO();
+  document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
   document.getElementById('extraTanggal').value = todayISO();
+  document.getElementById('extraEstimasi').value = '';
   document.getElementById('extraQty').value = '1';
   draftExtraItems = [];
   renderExtraDraftList();
@@ -2349,9 +2373,10 @@ async function refreshSubsDetail(){
   if(!s) return;
   const { data, error } = await sb.from('subscription_usage').select('*').eq('subscription_id', s.id).order('tanggal', { ascending:false });
   currentUsageList = error ? [] : (data||[]).map(r=>({
-    id:r.id, tanggal:r.tanggal, berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
+    id:r.id, tanggal:r.tanggal, estimasi:r.estimasi||null, berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
     type: r.type || 'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
-    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0
+    satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
+    workStatus: r.work_status || 'belum'
   }));
 
   const tempo = isTempo(s);
@@ -2459,14 +2484,16 @@ async function addUsage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
   const tanggal = document.getElementById('usageTanggal').value || todayISO();
+  const estimasi = document.getElementById('usageEstimasi').value || null;
   const berat = parseFloat(document.getElementById('usageBerat').value) || 0;
   const catatan = document.getElementById('usageCatatan').value.trim();
   if(berat<=0){ showToast('Isi berat laundry (kg)'); return; }
 
   const { data: inserted, error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal, berat_kg: berat, catatan, type:'pemakaian'
+    subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi, berat_kg: berat, catatan, type:'pemakaian'
   }).select().single();
   if(error){ showToast('Gagal mencatat laundry masuk'); return; }
+  document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
   await refreshSubsDetail();
@@ -2514,9 +2541,10 @@ async function addExtraService(){
   if(qty<=0 || harga<=0){ showToast('Isi qty dan harga layanan'); return; }
   const subtotal = qty*harga;
   const tanggal = document.getElementById('extraTanggal').value || todayISO();
+  const estimasi = document.getElementById('extraEstimasi').value || null;
 
   if(isTempo(s)){
-    draftExtraItems.push({ tanggal, nama, qty, satuan, harga, subtotal });
+    draftExtraItems.push({ tanggal, estimasi, nama, qty, satuan, harga, subtotal });
     document.getElementById('extraLayanan').value = '';
     document.getElementById('extraQty').value = '1';
     document.getElementById('extraHarga').value = '';
@@ -2524,11 +2552,12 @@ async function addExtraService(){
     return;
   }
 
-  const { error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal,
+  const { data, error } = await sb.from('subscription_usage').insert({
+    subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi,
     type:'layanan_tambahan', layanan_nama: nama, qty, satuan, harga, subtotal
-  });
+  }).select().single();
   if(error){ showToast('Gagal menambah layanan'); return; }
+  allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
   document.getElementById('extraLayanan').value = '';
   document.getElementById('extraQty').value = '1';
   document.getElementById('extraHarga').value = '';
@@ -2559,11 +2588,12 @@ async function submitExtraServiceBatch(){
   const insertedIds = [];
   for(const it of draftExtraItems){
     const { data, error } = await sb.from('subscription_usage').insert({
-      subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal,
+      subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,
       type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal
     }).select().single();
     if(error){ showToast('Gagal menyimpan salah satu layanan, coba lagi'); return; }
     insertedIds.push(data.id);
+    allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
   }
   draftExtraItems = [];
   renderExtraDraftList();
@@ -2578,16 +2608,20 @@ async function deleteUsage(id){
   if(!confirm(`Hapus ${label} tanggal ${fmtDate(item.tanggal)}?`)) return;
   const { error } = await sb.from('subscription_usage').delete().eq('id', id);
   if(error){ showToast('Gagal menghapus catatan'); return; }
+  allWorkUsage = allWorkUsage.filter(u=>u.id!==id);
   const subId = currentSubscriptionId;
   await refreshSubsDetail();
   showToast('Catatan dihapus', {
     label: 'Urungkan',
     onClick: async ()=>{
       const payload = item.type==='layanan_tambahan'
-        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal }
-        : { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, berat_kg: item.berat, catatan: item.catatan, type:'pemakaian' };
-      const { error: err2 } = await sb.from('subscription_usage').insert(payload);
+        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal }
+        : { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, berat_kg: item.berat, catatan: item.catatan, type:'pemakaian' };
+      const { data, error: err2 } = await sb.from('subscription_usage').insert(payload).select().single();
       if(err2){ showToast('Gagal mengembalikan catatan'); return; }
+      if(data && data.type==='layanan_tambahan'){
+        allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+      }
       if(currentSubscriptionId===subId) await refreshSubsDetail();
       showToast('Catatan dikembalikan');
     }
@@ -2639,6 +2673,7 @@ async function markSubsLunas(){
   if(tempo){
     const carryOver = calc.lebihBayar||0;
     await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+    allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
     const { error: err2 } = await sb.from('subscriptions').update({
       status_bayar:'belum', dp: carryOver, lunas_at: today, transaction_id: data.id
     }).eq('id', s.id);
@@ -2809,6 +2844,7 @@ async function deleteSubscription(){
   if(!s) return;
   if(!confirm(`Hapus pelanggan paket "${s.nama}"? Semua riwayat pemakaian & layanan tambahan periode ini juga akan terhapus.`)) return;
   await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+  allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
   const { error } = await sb.from('subscriptions').delete().eq('id', s.id);
   if(error){ showToast('Gagal menghapus paket'); return; }
   subscriptions = subscriptions.filter(x=>x.id!==s.id);
@@ -4296,45 +4332,72 @@ function indoDayName(tanggal){
   return INDO_DAY_NAMES[new Date(tanggal+'T00:00:00').getDay()];
 }
 function workBoardDate(t){ return t.estimasi || t.tanggal; }
-async function setWorkStatus(id, status){
-  const t = transactions.find(x=>x.id===id);
-  if(!t) return;
-  const { error } = await sb.from('transactions').update({ work_status: status }).eq('id', id);
+/* Papan Kerja menggabungkan dua sumber data jadi satu daftar kerjaan
+   seragam: transaksi reguler (transactions) DAN kunjungan Paket
+   Bulanan/Tempo bertipe layanan_tambahan (allWorkUsage) — supaya kerjaan
+   dari ketiga jenis pelanggan ikut muncul di papan, bukan cuma transaksi
+   reguler. Timbangan kg polos Paket Bulanan (type "pemakaian") sengaja
+   tidak diikutkan karena tidak punya harga per-baris yang jelas. */
+function buildWorkItems(){
+  const trxItems = transactions
+    .filter(t=>(t.workStatus||'belum')!=='diambil')
+    .map(t=>({
+      id:t.id, source:'trx', nama:t.nama,
+      layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
+      harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum'
+    }));
+  const usageItems = allWorkUsage
+    .filter(u=>u.type==='layanan_tambahan' && (u.workStatus||'belum')!=='diambil')
+    .map(u=>{
+      const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+      return {
+        id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+        layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum'
+      };
+    });
+  return trxItems.concat(usageItems);
+}
+async function setWorkStatus(id, status, source){
+  const table = source==='usage' ? 'subscription_usage' : 'transactions';
+  const list = source==='usage' ? allWorkUsage : transactions;
+  const item = list.find(x=>x.id===id);
+  if(!item) return;
+  const { error } = await sb.from(table).update({ work_status: status }).eq('id', id);
   if(error){ showToast('Gagal memperbarui status kerja'); return; }
-  t.workStatus = status;
+  item.workStatus = status;
   renderWorkBoard();
 }
-async function markPickedUp(id){
-  const t = transactions.find(x=>x.id===id);
-  if(!t) return;
-  const { error } = await sb.from('transactions').update({ work_status: 'diambil' }).eq('id', id);
+async function markPickedUp(id, source){
+  const table = source==='usage' ? 'subscription_usage' : 'transactions';
+  const list = source==='usage' ? allWorkUsage : transactions;
+  const item = list.find(x=>x.id===id);
+  if(!item) return;
+  const { error } = await sb.from(table).update({ work_status: 'diambil' }).eq('id', id);
   if(error){ showToast('Gagal menandai sudah diambil'); return; }
-  t.workStatus = 'diambil';
-  showToast(`Nota ${t.kode} ditandai sudah diambil`);
+  item.workStatus = 'diambil';
+  showToast('Ditandai sudah diambil');
   renderWorkBoard();
 }
-function workBoardCardHTML(t){
-  const layanan = (t.items||[]).map(it=>it.nama).join(', ') || '-';
-  const ws = t.workStatus || 'belum';
-  const tanggalInfo = t.estimasi
-    ? `Selesai: ${fmtDate(t.estimasi)}`
-    : `Masuk: ${fmtDate(t.tanggal)} (blm ada estimasi)`;
+/* Kartu hanya menampilkan 4 info sesuai permintaan: nama pelanggan, jenis
+   layanan, tanggal selesai, dan harga — semua dibesarkan+bold supaya gampang
+   dibaca sekilas, kecuali harga yang dikecilkan (kurang penting dilihat). */
+function workBoardCardHTML(it){
+  const ws = it.workStatus || 'belum';
+  const tanggalInfo = it.estimasi
+    ? fmtDate(it.estimasi)
+    : `${fmtDate(it.tanggal)} (blm ada estimasi)`;
   return `
     <div class="work-card">
-      <div class="trx-name">${escapeHTML(t.nama)}</div>
-      <div class="kode">${t.kode}</div>
-      <div class="work-layanan">${escapeHTML(layanan)}</div>
+      <div class="work-nama">${escapeHTML(it.nama)}</div>
+      <div class="work-layanan">${escapeHTML(it.layanan)}</div>
       <div class="work-tanggal">${tanggalInfo}</div>
-      <div class="work-total-row">
-        <span class="work-total">${rupiah(t.total)}</span>
-        <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum'}</span>
-      </div>
+      <div class="work-harga">${rupiah(it.harga)}</div>
       <div class="btn-row" style="gap:4px;">
-        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${t.id}','belum')">Belum</button>
-        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${t.id}','sedang')">Sedang</button>
-        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${t.id}','selesai')">Selesai</button>
+        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${it.id}','belum','${it.source}')">Belum</button>
+        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">Sedang</button>
+        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${it.id}','selesai','${it.source}')">Selesai</button>
       </div>
-      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${t.id}')">📤 Sudah Diambil</button>` : ''}
+      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">📤 Sudah Diambil</button>` : ''}
     </div>`;
 }
 /* Grid horizontal 7 kolom Senin->Ahad (di-scroll ke samping), meniru
@@ -4344,11 +4407,11 @@ function workBoardCardHTML(t){
    seperti papan aslinya, bukan cuma hari yang ada kerjaannya saja. */
 function renderWorkBoard(){
   const el = document.getElementById('workBoardGrid');
-  const active = transactions.filter(t=>(t.workStatus||'belum')!=='diambil');
+  const items = buildWorkItems();
   const todayName = indoDayName(todayISO());
   const orderedDays = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Ahad'];
   el.innerHTML = orderedDays.map(day=>{
-    const list = active.filter(t=>indoDayName(workBoardDate(t))===day)
+    const list = items.filter(it=>indoDayName(workBoardDate(it))===day)
       .slice().sort((a,b)=>{ const da=workBoardDate(a), db=workBoardDate(b); return da<db?-1:(da>db?1:0); });
     const isToday = day===todayName;
     const body = list.length===0
