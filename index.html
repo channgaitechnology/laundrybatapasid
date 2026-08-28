@@ -2133,6 +2133,19 @@ function onReportOutletFilterChange(){
   renderReport(); renderLabaRugi(); renderPeringkatPelanggan();
   if(perReportCache) renderPerPelangganReport();
 }
+/* Dipakai semua fungsi nota (WA/PDF/JPG) supaya otomatis pakai alamat & telepon
+   outlet yang terkait transaksi/paket-nya, bukan selalu identitas toko global.
+   Kalau outlet tidak diisi alamat/telepon sendiri (atau transaksinya tanpa
+   outlet), otomatis balik ke Pengaturan → Nama/Alamat/Telepon Toko. */
+function notaHeaderInfo(outletId){
+  const o = outletId ? outlets.find(x=>String(x.id)===String(outletId)) : null;
+  return {
+    nama: settings.shopName || 'Laundry Batapas.id',
+    subtitle: o ? o.nama : '',
+    alamat: (o && o.alamat) ? o.alamat : (settings.address||''),
+    telp: (o && o.telp) ? o.telp : (settings.phone||'')
+  };
+}
 async function persistSettings(){
   const { error } = await sb.from('settings').upsert({
     user_id: shopOwnerId, shop_name: settings.shopName, address: settings.address,
@@ -2930,7 +2943,11 @@ function subsInvoiceTextWA(s){
   const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lebihBayar:Math.max((s.dp||0)-s.hargaPaket,0), lunasNow:s.statusBayar==='lunas' };
   const tempo = isTempo(s);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push(`Pelanggan  : ${s.nama}`);
   if(tempo){
@@ -2981,9 +2998,11 @@ function buildSubsInvoicePDFLines(s){
   const tempo = isTempo(s);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t: tempo ? 'REKAP TAGIHAN TEMPO' : 'TAGIHAN PAKET BULANAN', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3205,7 +3224,11 @@ function tempoUsageNotaTextWA(usage, s){
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI - TEMPO*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3241,7 +3264,11 @@ function tempoBatchUsageNotaTextWA(newItems, s){
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI - TEMPO*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3277,7 +3304,11 @@ function usageNotaTextWA(usage, s){
   const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
   const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai(usage, s, terpakaiUpTo);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3338,9 +3369,11 @@ function buildTempoUsageNotaPDFLines(usage, s){
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3375,9 +3408,11 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3414,9 +3449,11 @@ function buildUsageNotaPDFLines(usage, s){
   const sisaKg = Math.max(s.kuotaKg - terpakaiUpTo, 0);
   const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
   const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai(usage, s, terpakaiUpTo);
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -4300,12 +4337,14 @@ function buildReceiptHTML(trx){
       <div class="r-item-detail">${it.qty} ${it.satuan} x ${rupiah(it.harga)}</div>
     </div>`).join('');
   const sisa = trx.total - (trx.dp||0);
+  const hdr = notaHeaderInfo(trx.outletId);
   return `
     <div class="r-shop">
       <img src="${shopLogoSrc()}" alt="Logo" style="width:56px;height:56px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">
-      <b>${escapeHTML(settings.shopName || 'Laundry Batapas.id')}</b>
-      <div>${escapeHTML(settings.address||'')}</div>
-      <div>${escapeHTML(settings.phone||'')}</div>
+      <b>${escapeHTML(hdr.nama)}</b>
+      ${hdr.subtitle ? `<div>${escapeHTML(hdr.subtitle)}</div>` : ''}
+      <div>${escapeHTML(hdr.alamat)}</div>
+      <div>${escapeHTML(hdr.telp)}</div>
     </div>
     <div class="r-divider"></div>
     <div class="r-row"><span>No. Nota</span><span>${trx.kode}</span></div>
@@ -4358,9 +4397,11 @@ function printCurrentReceipt(){
 function buildReceiptPDFLines(trx){
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(trx.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:`No. Nota   : ${trx.kode}`, s:9, indent:13});
   L.push({t:`Tanggal    : ${fmtDate(trx.tanggal)}`, s:9, indent:13});
@@ -4456,8 +4497,11 @@ function downloadReportPDF(){
 
 function receiptTextForWA(trx){
   let lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
-  if(settings.address) lines.push(settings.address);
+  const hdr = notaHeaderInfo(trx.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push(`No. Nota   : ${trx.kode}`);
   lines.push(`Tanggal    : ${fmtDate(trx.tanggal)}`);

@@ -246,15 +246,18 @@ outlet itu — cuma melepas kaitannya. Catatan Paket Bulanan/Tempo di
 `subscription_usage` sendiri tidak punya kolom `outlet_id` — tidak
 perlu, karena selalu mengikuti outlet pelanggan/paketnya).
 
-⚠️ Nota (WA/PDF/JPG) untuk sekarang masih pakai satu Nama/Alamat/Telepon
-toko dari Pengaturan → belum otomatis memakai alamat/telepon outlet
-masing-masing. Kalau dibutuhkan, ini bisa ditambahkan sebagai iterasi
-berikutnya.
+Nota (WA/PDF/JPG) sekarang otomatis memakai alamat & telepon outlet
+masing-masing (lewat `notaHeaderInfo()`) — kalau outlet transaksi/paketnya
+punya alamat/telepon sendiri, itu yang dipakai; kalau tidak (atau
+transaksinya tanpa outlet), otomatis balik ke Nama/Alamat/Telepon toko
+global dari Pengaturan. Nama outlet juga muncul sebagai subjudul di
+bawah nama toko pada nota, supaya pelanggan tahu dilayani dari cabang
+mana. Laporan (Laporan Omset, Laba Rugi, dsb.) tetap pakai identitas
+toko global karena sifatnya rekap internal, bukan dokumen ke pelanggan.
 
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [ ] Tinjauan `/tim-studio` menyeluruh belum pernah dilakukan untuk proyek ini — kode sebesar ini dalam satu file belum pernah direview dari sisi arsitektur/keamanan/UX
-- [ ] Multi-Outlet: nota (WA/PDF/JPG) belum otomatis pakai alamat/telepon outlet masing-masing, masih satu identitas toko global dari Pengaturan
 - [ ] Multi-Outlet: karyawan/kasir belum bisa dibatasi ke outlet tertentu — semua kasir toko masih bisa akses & pindah ke semua outlet
