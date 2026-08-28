@@ -188,7 +188,7 @@
   .badge-lunas{background:var(--success-bg);color:var(--success);}
   .badge-belum{background:var(--warn-bg);color:var(--warn);}
 
-  /* ---- Papan Laundry: grid kalender horizontal, 7 kolom Senin->Ahad berjejer
+  /* ---- Daftar Pekerjaan: grid kalender horizontal, 7 kolom Senin->Ahad berjejer
      kiri-ke-kanan (di-scroll ke samping di HP), meniru papan tulis fisik. ---- */
   .work-board-grid{display:flex;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:2px 2px 10px;
     scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
@@ -483,13 +483,13 @@
     <div id="historyList"></div>
   </section>
 
-  <!-- ===== VIEW: PAPAN LAUNDRY ===== -->
+  <!-- ===== VIEW: DAFTAR PEKERJAAN ===== -->
   <section class="view" id="view-papan">
     <div class="card">
-      <h2 style="margin:0 0 2px;">Papan Laundry</h2>
+      <h2 style="margin:0 0 2px;">Daftar Pekerjaan</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:8px 0 0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis). Transaksi dengan tanggal masuk sebelum 25 Agustus 2026 tidak ditampilkan di sini (nota lama, dianggap sudah selesai semua).</p>
-      <div class="section-title" style="margin-top:16px;">Unduh Papan Laundry (JPG)</div>
-      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Pilih rentang tanggal untuk melihat papan laundry yang sudah lama sekalipun — defaultnya sudah dari nota pertama kali diinput sampai hari ini. Cucian bertanggal sebelum 25 Agustus 2026 otomatis ditulis "Selesai Dikerjakan" dan "Lunas" di gambar (dianggap sudah beres semua).</p>
+      <div class="section-title" style="margin-top:16px;">Unduh Daftar Pekerjaan (JPG)</div>
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Pilih rentang tanggal untuk melihat daftar pekerjaan yang sudah lama sekalipun — defaultnya sudah dari nota pertama kali diinput sampai hari ini. Cucian bertanggal sebelum 25 Agustus 2026 otomatis ditulis "Selesai Dikerjakan" dan "Lunas" di gambar (dianggap sudah beres semua).</p>
       <div class="row2">
         <div><label for="papanUnduhDari">Dari Tanggal</label><input id="papanUnduhDari" type="date"></div>
         <div><label for="papanUnduhSampai">Sampai Tanggal</label><input id="papanUnduhSampai" type="date"></div>
@@ -852,7 +852,7 @@
   </button>
   <button class="tab" data-tab="papan" onclick="switchTab('papan')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v3h6V3M8 11l2.5 2.5L16 8"/></svg></div>
-    <span>Papan Laundry</span>
+    <span>Daftar Pekerjaan</span>
   </button>
   <button class="tab" data-tab="paket" onclick="switchTab('paket')">
     <div class="tab-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.5 7.3L12 12l-8.5-4.7M12 22V12"/><path d="M20.5 16.7L12 12l-8.5 4.7"/><path d="M12 2l8.5 4.7L12 12 3.5 6.7z"/></svg></div>
@@ -2181,10 +2181,10 @@ async function loadSubscriptionsFromDB(){
 }
 /* Semua catatan subscription_usage bertipe layanan_tambahan (Paket Bulanan
    "layanan lain" + seluruh kunjungan Tempo) lintas SEMUA pelanggan paket —
-   dipakai Papan Laundry supaya kerjaan Paket Bulanan/Tempo ikut muncul di
+   dipakai Daftar Pekerjaan supaya kerjaan Paket Bulanan/Tempo ikut muncul di
    papan, bukan cuma transaksi reguler. Timbangan kg polos (type "pemakaian")
    tidak diikutkan karena tidak punya harga per-baris yang jelas untuk
-   ditampilkan di kartu papan laundry. */
+   ditampilkan di kartu Daftar Pekerjaan. */
 var allWorkUsage = [];
 async function loadAllWorkUsage(){
   const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
@@ -4352,17 +4352,17 @@ function indoDayName(tanggal){
   return INDO_DAY_NAMES[new Date(tanggal+'T00:00:00').getDay()];
 }
 function workBoardDate(t){ return t.estimasi || t.tanggal; }
-/* Papan Laundry baru mulai dipakai 25 Agustus 2026 — banyak nota lama (manual,
+/* Daftar Pekerjaan baru mulai dipakai 25 Agustus 2026 — banyak nota lama (manual,
    belum sempat diinput, atau sudah tercatat sejak sebelumnya) yang tanggalnya
    sebelum itu dan sudah pasti selesai/diambil lama, jadi sengaja tidak usah
    ikut muncul di papan biar tidak mengotori tampilan kerjaan yang aktif. */
 const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
 /* Menyatukan SEMUA sumber kerjaan (transaksi reguler, layanan tambahan
    Bulanan/Tempo, timbangan kg polos) jadi satu daftar seragam TANPA
-   filter apa pun. Dipakai oleh papan laundry aktif (buildWorkItems, yang
+   filter apa pun. Dipakai oleh daftar pekerjaan aktif (buildWorkItems, yang
    lalu memfilter status "diambil" & cutoff tanggal) MAUPUN oleh unduhan
    rentang tanggal (buildWorkItemsForRange, yang justru perlu melihat
-   SEMUA riwayat termasuk yang sudah diambil/lama, supaya papan laundry
+   SEMUA riwayat termasuk yang sudah diambil/lama, supaya daftar pekerjaan
    lama tetap bisa dilihat lewat unduhan). */
 function buildAllWorkItemsRaw(){
   const trxItems = transactions.map(t=>({
@@ -4390,7 +4390,7 @@ function buildAllWorkItemsRaw(){
   });
   return trxItems.concat(usageItems, beratItems);
 }
-/* Papan Laundry menggabungkan tiga sumber data jadi satu daftar kerjaan
+/* Daftar Pekerjaan menggabungkan tiga sumber data jadi satu daftar kerjaan
    seragam: transaksi reguler (transactions), kunjungan Paket Bulanan/Tempo
    bertipe layanan_tambahan, DAN timbangan kg polos Paket Bulanan (type
    "pemakaian") — supaya SEMUA laundry yang masuk ikut muncul di papan,
@@ -4413,7 +4413,7 @@ function buildWorkItemsForRange(dari, sampai){
 }
 /* Tanggal transaksi/kerjaan paling lama yang tercatat di app — dipakai
    sebagai default awal rentang unduh, supaya begitu dibuka langsung bisa
-   mengunduh papan laundry dari nota pertama kali diinput. */
+   mengunduh daftar pekerjaan dari nota pertama kali diinput. */
 function earliestWorkDate(){
   const dates = transactions.map(t=>t.tanggal).concat(allWorkUsage.map(u=>u.tanggal)).filter(Boolean);
   return dates.length ? dates.reduce((min,d)=> d<min?d:min) : todayISO();
@@ -4478,7 +4478,7 @@ function workBoardCardHTML(it){
    interaktif diganti label teks datar (gambar diam, tombolnya percuma di
    situ), dan status "diambil" (yang di papan aktif malah disembunyikan)
    di sini justru ditampilkan sebagai label, karena unduhan rentang tanggal
-   memang dipakai untuk melihat riwayat papan laundry yang sudah lama/selesai.
+   memang dipakai untuk melihat riwayat daftar pekerjaan yang sudah lama/selesai.
    Cucian bertanggal masuk sebelum cutoff papan aktif (PAPAN_KERJA_MULAI_TANGGAL)
    otomatis ditulis minimal "Selesai Dikerjakan" + "Lunas", tanpa peduli
    status/lunas yang sebenarnya tersimpan — nota selama itu dianggap sudah
@@ -4542,7 +4542,7 @@ async function downloadWorkBoardImage(){
   const items = buildWorkItemsForRange(dari, sampai);
   if(items.length===0){ showToast('Tidak ada cucian di rentang tanggal ini'); return; }
   if(typeof html2canvas==='undefined'){ showToast('Gagal memuat alat unduh gambar'); return; }
-  showToast('Menyiapkan gambar Papan Laundry...');
+  showToast('Menyiapkan gambar Daftar Pekerjaan...');
   // Rentang lebih dari 7 hari TIDAK memanjang terus ke kanan — dipecah jadi
   // beberapa baris berisi maksimal 7 kolom tanggal, ditumpuk ke bawah
   // (persis seperti kalender berganti minggu), baris terakhir boleh kurang
@@ -4565,13 +4565,13 @@ async function downloadWorkBoardImage(){
   document.body.appendChild(wrap);
   try{
     const canvas = await html2canvas(wrap, { backgroundColor:'#EEF5F7', scale:2 });
-    const filename = `papan-laundry-${dari}_sampai_${sampai}.jpg`;
+    const filename = `daftar-pekerjaan-${dari}_sampai_${sampai}.jpg`;
     const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if(!blob){ showToast('Gagal membuat gambar Papan Laundry'); return; }
+    if(!blob){ showToast('Gagal membuat gambar Daftar Pekerjaan'); return; }
     try{
       const file = new File([blob], filename, { type:'image/jpeg' });
       if(navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], title: filename, text:'Papan Laundry' });
+        await navigator.share({ files:[file], title: filename, text:'Daftar Pekerjaan' });
         return;
       }
     }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
@@ -4580,9 +4580,9 @@ async function downloadWorkBoardImage(){
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=> URL.revokeObjectURL(url), 5000);
-    showToast('Gambar Papan Laundry diunduh');
+    showToast('Gambar Daftar Pekerjaan diunduh');
   }catch(e){
-    showToast('Gagal membuat gambar Papan Laundry');
+    showToast('Gagal membuat gambar Daftar Pekerjaan');
   }finally{
     wrap.remove();
   }
