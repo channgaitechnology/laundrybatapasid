@@ -435,6 +435,53 @@ penuh tiap kali disimpan, supaya riwayatnya ringkas dan gampang dibaca.
   rendah dibanding transaksi & pelanggan paket. Bisa ditambahkan kalau
   ternyata dibutuhkan.
 
+### Footer Nota (Kredit Pengembang) — Bisa Diedit
+
+Baris "dikembangkan oleh Tinggiran Tech Studio / Bikin Apps & Website
+Kilat / WA & email" yang muncul di bawah SEMUA nota (WA text, PDF, JPG,
+HTML) sekarang bisa diedit lewat Pengaturan → Admin Platform → "Footer
+Nota" (khusus akun `ADMIN_EMAIL`) — penting kalau app ini dipakai atau
+dijual ulang oleh pihak lain, supaya tidak perlu mengubah kode untuk
+ganti kredit pengembangnya. Ini **satu nilai global untuk semua toko**
+yang pakai instance app ini, bukan pengaturan per-toko (beda dari
+Nama/Alamat/Telepon Toko yang memang per-toko).
+
+Butuh tabel baru — jalankan sekali di Supabase SQL Editor:
+
+```sql
+create table if not exists app_branding (
+  id bigint primary key,
+  dev_nama text not null,
+  dev_tagline text,
+  dev_wa text,
+  dev_email text
+);
+
+alter table app_branding enable row level security;
+
+create policy "Semua user login bisa baca footer nota"
+on app_branding for select
+using (auth.role() = 'authenticated');
+
+create policy "Semua user login bisa ubah footer nota"
+on app_branding for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+```
+
+⚠️ RLS di atas sengaja permisif (siapa saja yang login bisa ubah lewat
+API langsung) — proteksinya murni di level UI (form "Footer Nota" cuma
+tampil untuk `ADMIN_EMAIL`), sama seperti model kepercayaan yang sudah
+dipakai `registration_codes`/`payment_requests` di app ini. Risikonya
+rendah (satu baris teks footer, bukan data keuangan), tapi kalau mau
+lebih ketat, tulis ulang policy `for all` di atas supaya cuma mengizinkan
+`auth.uid()` milik akun admin tertentu.
+
+Aman dijalankan kapan saja — kalau tabelnya belum ada, `loadAppBranding()`
+diam-diam gagal dan tetap pakai nilai default (persis sama seperti
+sebelumnya, "Tinggiran Tech Studio"), jadi tidak ada perubahan tampilan
+sampai admin benar-benar mengisi & menyimpan form-nya.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
