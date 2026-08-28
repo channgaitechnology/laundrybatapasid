@@ -945,6 +945,14 @@
     <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
 
+    <div class="section-title" style="margin-top:22px;">Printer Bluetooth</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Sambungkan printer thermal Bluetooth (58mm/80mm) untuk cetak nota langsung, tanpa lewat WhatsApp. Tombol "Cetak Bluetooth" muncul di setiap layar kirim nota — begitu ditekan pertama kali, HP/laptop akan minta kamu memilih printernya.</p>
+    <div id="btPrinterStatus" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Belum tersambung</div>
+    <div class="row2">
+      <button type="button" class="btn btn-outline btn-sm" onclick="connectBluetoothPrinter()">🖨️ Sambungkan Printer</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="disconnectBluetoothPrinter()">Putus Sambungan</button>
+    </div>
+
     <div class="section-title" style="margin-top:22px;">Karyawan / Kasir</div>
     <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
@@ -1266,7 +1274,8 @@
     <p id="usageNotaHint" style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" onclick="printUsageNotaBluetooth()">🖨️ Cetak Bluetooth</button>
   </div>
 </div>
 
@@ -1277,7 +1286,8 @@
     <h3>Kirim Nota</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" onclick="printReceiptBluetooth()">🖨️ Cetak Bluetooth</button>
   </div>
 </div>
 
@@ -1288,7 +1298,8 @@
     <h3>Kirim Nota Tagihan</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" onclick="printSubsInvoiceBluetooth()">🖨️ Cetak Bluetooth</button>
   </div>
 </div>
 
@@ -3703,6 +3714,183 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
   showToast('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.');
 }
+/* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
+   Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)
+   untuk mengirim nota langsung ke printer thermal 58mm/80mm lewat ESC/POS raw
+   text, tanpa app tambahan. Sama seperti buildNotaCanvas(), sumbernya array
+   `lines` yang sama dipakai versi PDF/JPG (t/c/b/s per baris) — supaya semua
+   format nota (WA, PDF, JPG, Bluetooth) selalu konsisten kontennya. */
+var btPrinterDevice = null;
+var btPrinterServer = null;
+var btPrinterChar = null;
+/* UUID service yang umum dipakai printer thermal Bluetooth murah (BLE UART-like:
+   ISSC/Microchip transparent UART, dan beberapa varian generic printer service).
+   Web Bluetooth cuma boleh mengakses service yang disebut di sini — printer
+   dengan UUID lain tidak akan ketemu karakteristik tulisnya. */
+var BT_PRINTER_SERVICE_UUIDS = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+];
+function isBluetoothPrintSupported(){
+  return !!(navigator.bluetooth && navigator.bluetooth.requestDevice);
+}
+function renderBtPrinterStatus(){
+  const el = document.getElementById('btPrinterStatus');
+  if(!el) return;
+  if(btPrinterDevice && btPrinterServer && btPrinterServer.connected){
+    el.textContent = `Tersambung: ${btPrinterDevice.name || '(tanpa nama)'}`;
+  } else if(!isBluetoothPrintSupported()){
+    el.textContent = 'Browser ini belum mendukung Bluetooth Web — pakai Chrome di Android/laptop';
+  } else {
+    el.textContent = 'Belum tersambung';
+  }
+}
+/* Printer thermal murah umumnya cuma bisa cetak ASCII/CP437, jadi emoji &
+   simbol unicode di nota (—, •, ✓, 🟢, 📧, dst.) diganti/dibuang dulu supaya
+   tidak keluar sebagai karakter acak di kertas. */
+function sanitizeForThermal(s){
+  if(!s) return '';
+  return String(s)
+    .replace(/[—–]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/•/g, '-')
+    .replace(/✓/g, 'v')
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}️]/gu, '')
+    .replace(/[^\x00-\x7E]/g, '')
+    .trim();
+}
+function concatBytes(chunks){
+  let total = 0;
+  chunks.forEach(c=>{ total += c.length; });
+  const out = new Uint8Array(total);
+  let offset = 0;
+  chunks.forEach(c=>{ out.set(c, offset); offset += c.length; });
+  return out;
+}
+/* Ubah array `lines` (format yang sama dipakai buildReceiptPDFLines() dkk.)
+   jadi perintah mentah ESC/POS: ESC @ (init), ESC a (rata tengah/kiri),
+   ESC E (tebal), GS ! (ukuran huruf), lalu teksnya + line feed per baris. */
+function escposBytesFromLines(lines){
+  const enc = new TextEncoder();
+  const chunks = [ new Uint8Array([0x1B,0x40]) ]; // ESC @ — reset printer
+  let curAlign = -1, curBold = -1, curSize = -1;
+  lines.forEach(line=>{
+    const align = line.c ? 1 : 0;
+    const bold = line.b ? 1 : 0;
+    const size = (line.s>=12) ? 0x11 : (line.s>=10 ? 0x01 : 0x00); // 0x11=lebar+tinggi 2x, 0x01=tinggi 2x, 0x00=normal
+    if(align!==curAlign){ chunks.push(new Uint8Array([0x1B,0x61,align])); curAlign=align; }
+    if(bold!==curBold){ chunks.push(new Uint8Array([0x1B,0x45,bold])); curBold=bold; }
+    if(size!==curSize){ chunks.push(new Uint8Array([0x1D,0x21,size])); curSize=size; }
+    chunks.push(enc.encode(sanitizeForThermal(line.t)));
+    chunks.push(new Uint8Array([0x0A]));
+  });
+  chunks.push(new Uint8Array([0x1B,0x45,0x00])); // tebal off
+  chunks.push(new Uint8Array([0x1D,0x21,0x00])); // ukuran normal
+  chunks.push(new Uint8Array([0x1B,0x61,0x00])); // rata kiri
+  chunks.push(new Uint8Array([0x0A,0x0A,0x0A])); // spasi buat sobek kertas
+  return concatBytes(chunks);
+}
+async function connectBluetoothPrinter(){
+  if(!isBluetoothPrintSupported()){
+    showToast('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop');
+    return false;
+  }
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: BT_PRINTER_SERVICE_UUIDS
+    });
+    const server = await device.gatt.connect();
+    let writeChar = null;
+    for(const uuid of BT_PRINTER_SERVICE_UUIDS){
+      try{
+        const service = await server.getPrimaryService(uuid);
+        const chars = await service.getCharacteristics();
+        writeChar = chars.find(c=>c.properties.write || c.properties.writeWithoutResponse) || null;
+        if(writeChar) break;
+      }catch(e){ /* printer ini tidak punya service ini, coba UUID berikutnya */ }
+    }
+    if(!writeChar){
+      showToast('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain');
+      try{ device.gatt.disconnect(); }catch(e){}
+      renderBtPrinterStatus();
+      return false;
+    }
+    btPrinterDevice = device; btPrinterServer = server; btPrinterChar = writeChar;
+    device.addEventListener('gattserverdisconnected', ()=>{
+      btPrinterServer = null; btPrinterChar = null;
+      renderBtPrinterStatus();
+    });
+    showToast(`Printer "${device.name||''}" tersambung`);
+    renderBtPrinterStatus();
+    return true;
+  }catch(e){
+    renderBtPrinterStatus();
+    if(e && e.name==='NotFoundError') return false; // dibatalkan user, tidak perlu toast error
+    showToast('Gagal menyambungkan printer: ' + (e && e.message ? e.message : 'coba lagi'));
+    return false;
+  }
+}
+function disconnectBluetoothPrinter(){
+  try{ if(btPrinterDevice && btPrinterDevice.gatt && btPrinterDevice.gatt.connected) btPrinterDevice.gatt.disconnect(); }catch(e){}
+  btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
+  renderBtPrinterStatus();
+}
+async function printLinesViaBluetooth(lines){
+  if(!btPrinterChar || !btPrinterServer || !btPrinterServer.connected){
+    const ok = await connectBluetoothPrinter();
+    if(!ok) return false;
+  }
+  try{
+    const bytes = escposBytesFromLines(lines);
+    const CHUNK = 180; // kirim per potongan kecil, sesuai batas paket BLE khas
+    for(let i=0;i<bytes.length;i+=CHUNK){
+      const chunk = bytes.slice(i, i+CHUNK);
+      if(btPrinterChar.properties.writeWithoutResponse){
+        await btPrinterChar.writeValueWithoutResponse(chunk);
+      } else {
+        await btPrinterChar.writeValue(chunk);
+      }
+      await new Promise(r=>setTimeout(r, 25));
+    }
+    showToast('Nota dikirim ke printer');
+    return true;
+  }catch(e){
+    showToast('Gagal mencetak — coba sambungkan ulang printernya');
+    btPrinterServer = null; btPrinterChar = null;
+    renderBtPrinterStatus();
+    return false;
+  }
+}
+async function printReceiptBluetooth(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  await printLinesViaBluetooth(buildReceiptPDFLines(trx));
+}
+async function printSubsInvoiceBluetooth(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  await printLinesViaBluetooth(buildSubsInvoicePDFLines(s));
+}
+async function printUsageNotaBluetooth(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+  }
+  await printLinesViaBluetooth(lines);
+}
 async function downloadUsageNotaImage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
@@ -5320,6 +5508,7 @@ function openSettings(){
   if(logoPreview) logoPreview.src = shopLogoSrc();
   renderContactsList();
   renderOutletManagerList();
+  renderBtPrinterStatus();
   if(currentRole==='owner') loadTeamList();
   document.getElementById('adminPlatformSection').style.display = (currentUser && currentUser.email===ADMIN_EMAIL) ? 'block' : 'none';
   if(currentUser && currentUser.email===ADMIN_EMAIL) loadAdminData();

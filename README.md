@@ -282,6 +282,35 @@ langsung. Kalau dibutuhkan proteksi yang lebih kuat, RLS `transactions`/
 `subscriptions`/`expenses` perlu ditulis ulang supaya ikut memeriksa
 `team_members.outlet_id` — belum dikerjakan di iterasi ini.
 
+### Cetak Bluetooth (printer thermal)
+
+Nota (transaksi biasa, invoice paket, nota timbangan) sekarang bisa dicetak
+langsung ke printer thermal Bluetooth 58mm/80mm lewat tombol "🖨️ Cetak
+Bluetooth" di setiap layar kirim nota, atau lewat Pengaturan → Printer
+Bluetooth. Pakai [Web Bluetooth API](https://developer.mozilla.org/docs/Web/API/Web_Bluetooth_API)
+(browser yang mengirim perintah ESC/POS mentah ke printer lewat BLE),
+jadi tidak perlu app tambahan.
+
+Batasan penting:
+
+- **Cuma jalan di Chrome/Edge Android atau Chrome/Edge desktop.** Safari
+  (termasuk semua browser di iPhone/iPad, karena semuanya pakai mesin
+  WebKit) TIDAK mendukung Web Bluetooth sama sekali — tombolnya akan
+  menampilkan pesan error, bukan crash.
+- Printer harus tersambung lewat Bluetooth Low Energy (BLE) dengan salah
+  satu service UUID umum yang sudah didaftarkan di `BT_PRINTER_SERVICE_UUIDS`
+  (index.html) — kebanyakan printer thermal murah 58mm pakai UART service
+  ISSC/Microchip (`49535343-fe7d-...`) atau varian generic printer service.
+  Printer yang cuma mendukung Bluetooth Classic/SPP (bukan BLE) tidak akan
+  terdeteksi Web Bluetooth API — kalau ada laporan printer tidak
+  ditemukan, tambahkan UUID service printer tersebut ke daftar itu.
+- Koneksi Bluetooth-nya per-tab browser — tidak otomatis tersambung lagi
+  setelah refresh halaman, harus pilih printer lagi lewat dialog Bluetooth
+  bawaan browser (perlu gestur user, tidak bisa otomatis).
+- Emoji dan simbol unicode di nota (—, •, ✓, 🟢, 📧) otomatis dibuang/
+  diganti ASCII sebelum dicetak (lewat `sanitizeForThermal()`) karena
+  kebanyakan printer thermal murah cuma mendukung ASCII/CP437.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
