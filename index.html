@@ -737,15 +737,35 @@
 
     <h2 style="font-size:14px;" id="extraSectionHeading">Tambah Layanan Lain (di luar paket)</h2>
     <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;" id="extraSectionHint">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
-    <label for="extraLayanan">Pilih Layanan</label>
-    <select id="extraLayanan" onchange="fillExtraServiceFromCatalog()"></select>
+    <label for="extraTanggal">Tanggal</label>
+    <input id="extraTanggal" type="date">
+    <label for="extraLayanan">Nama Layanan</label>
+    <div style="position:relative;">
+      <input id="extraLayanan" placeholder="cth. Cuci + Setrika (pilih dari saran atau ketik manual)" oninput="showExtraLayananSuggest()" onfocus="showExtraLayananSuggest()" onblur="hideExtraLayananSuggestDelayed()" autocomplete="off">
+      <div id="extraLayananSuggestBox" class="suggest-dropdown"></div>
+    </div>
     <div class="row2">
-      <div><label for="extraTanggal">Tanggal</label><input id="extraTanggal" type="date"></div>
       <div><label for="extraQty">Qty</label><input id="extraQty" type="number" min="0" step="0.1" value="1"></div>
+      <div>
+        <label for="extraSatuan">Satuan</label>
+        <select id="extraSatuan">
+          <option>kg</option>
+          <option>pcs</option>
+          <option>set</option>
+          <option>kali</option>
+          <option>m²</option>
+        </select>
+      </div>
     </div>
     <label for="extraHarga">Harga/satuan</label>
     <input id="extraHarga" type="number" min="0">
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:18px;" id="extraSectionSubmitBtn" onclick="addExtraService()">+ Tambah Layanan Ini</button>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:12px;" id="extraSectionSubmitBtn" onclick="addExtraService()">+ Tambah Layanan Ini</button>
+
+    <div id="extraDraftListWrap" style="display:none;">
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;">Layanan yang sudah ditambahkan (belum tersimpan):</p>
+      <div id="extraDraftList"></div>
+      <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px;margin-bottom:18px;" onclick="submitExtraServiceBatch()">💾 Simpan &amp; Buat Nota</button>
+    </div>
 
     <h2 style="font-size:14px;" id="usageListHeading">Riwayat Periode Ini</h2>
     <div id="usageList"></div>
@@ -1235,6 +1255,8 @@ var labaRugiCache = null;
 var peringkatPelangganCache = null;
 var currentSubscriptionId = null;
 var currentUsageList = [];
+var draftExtraItems = [];
+var currentBatchUsageIds = null;
 var editingTransactionId = null;
 var editingSubscriptionId = null;
 var savedContacts = [];
@@ -2277,6 +2299,8 @@ async function openSubsDetail(id){
   document.getElementById('usageCatatan').value = '';
   document.getElementById('extraTanggal').value = todayISO();
   document.getElementById('extraQty').value = '1';
+  draftExtraItems = [];
+  renderExtraDraftList();
   await refreshSubsDetail();
   document.getElementById('subsDetailModal').classList.add('show');
 }
@@ -2311,9 +2335,9 @@ async function refreshSubsDetail(){
   document.getElementById('subsUsageKgSection').style.display = tempo ? 'none' : 'block';
   document.getElementById('extraSectionHeading').textContent = tempo ? 'Catat Laundry Masuk' : 'Tambah Layanan Lain (di luar paket)';
   document.getElementById('extraSectionHint').textContent = tempo
-    ? 'Pilih layanan reguler dari katalog & harganya — tercatat di nota, ditagih kapan pelanggan siap bayar.'
-    : 'cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.';
-  document.getElementById('extraSectionSubmitBtn').textContent = tempo ? '+ Catat Laundry Masuk' : '+ Tambah Layanan Ini';
+    ? 'Pilih dari saran katalog atau ketik nama layanan sendiri — bisa tambah beberapa layanan sekaligus sebelum disimpan jadi satu nota.'
+    : 'cth. ekspres — pilih dari saran katalog atau ketik manual, ditagih bersama saat lunas.';
+  document.getElementById('extraSectionSubmitBtn').textContent = tempo ? '+ Tambah Layanan' : '+ Tambah Layanan Ini';
   document.getElementById('usageListHeading').textContent = tempo ? 'Rekap Riwayat Transaksi (Belum Ditagih)' : 'Riwayat Periode Ini';
   document.getElementById('sumHargaPaketRow').style.display = tempo ? 'none' : 'flex';
   document.getElementById('sumExtraLabel').textContent = tempo ? 'Total Kunjungan' : 'Layanan Tambahan';
@@ -2344,7 +2368,6 @@ async function refreshSubsDetail(){
   document.getElementById('subsPayBadge').innerHTML = `<span class="badge ${lunasNow?'badge-lunas':'badge-belum'}">${lunasNow?'LUNAS':'BELUM LUNAS'}</span>`;
   document.getElementById('btnMarkLunas').style.display = (tempo ? totalTagihan<=0 : s.statusBayar==='lunas') ? 'none' : 'flex';
 
-  populateExtraLayananSelect();
   renderUsageList();
 }
 /* Nomor urut 2 digit (01, 02, ...) dari tanggal tertua ke termuda. */
@@ -2411,43 +2434,103 @@ async function addUsage(){
   showToast('Laundry masuk tercatat');
   if(inserted) openUsageNotaOptions(inserted.id);
 }
-function populateExtraLayananSelect(){
-  const sel = document.getElementById('extraLayanan');
-  const list = serviceCatalog.filter(s=>s.type!=='paket');
-  if(list.length===0){ sel.innerHTML = '<option value="">Belum ada layanan reguler di katalog</option>'; return; }
-  sel.innerHTML = list.map(s=>`<option value="${s.id}">${escapeHTML(s.nama)} (${s.satuan})</option>`).join('');
-  fillExtraServiceFromCatalog();
+/* Layanan boleh dipilih dari katalog (autocomplete) ATAU diketik manual bebas —
+   tidak wajib ada di katalog, beda dari <select> lama yang memaksa pilih katalog. */
+function showExtraLayananSuggest(){
+  const val = document.getElementById('extraLayanan').value.trim().toLowerCase();
+  const box = document.getElementById('extraLayananSuggestBox');
+  const options = serviceCatalog.filter(s=>s.type!=='paket' && (!val || s.nama.toLowerCase().includes(val)));
+  if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = options.map(s=>`
+    <div class="suggest-item" onmousedown="event.preventDefault();selectExtraLayananSuggest('${s.id}')">
+      ${escapeHTML(s.nama)}<small>${s.satuan} · ${rupiah(s.harga)}</small>
+    </div>`).join('');
+  box.classList.add('show');
 }
-function fillExtraServiceFromCatalog(){
-  const id = document.getElementById('extraLayanan').value;
-  const item = serviceCatalog.find(s=>String(s.id)===String(id));
-  if(item) document.getElementById('extraHarga').value = item.harga;
+function hideExtraLayananSuggestDelayed(){
+  setTimeout(()=>{ const box=document.getElementById('extraLayananSuggestBox'); if(box) box.classList.remove('show'); }, 150);
 }
+function selectExtraLayananSuggest(id){
+  const match = serviceCatalog.find(s=>String(s.id)===String(id));
+  if(!match) return;
+  document.getElementById('extraLayanan').value = match.nama;
+  document.getElementById('extraHarga').value = match.harga;
+  document.getElementById('extraSatuan').value = match.satuan;
+  document.getElementById('extraLayananSuggestBox').classList.remove('show');
+}
+/* Untuk Tempo: "+ Tambah Layanan Ini" hanya menambah ke daftar draft (belum
+   tersimpan ke database) supaya bisa input banyak layanan sekaligus dalam satu
+   kunjungan, persis seperti Layanan di Transaksi Baru — baru benar-benar
+   tersimpan + jadi satu nota gabungan saat "Simpan & Buat Nota" ditekan.
+   Untuk Paket Bulanan, perilaku lama dipertahankan: tersimpan langsung sekali
+   tambah, tanpa nota otomatis. */
 async function addExtraService(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
-  const id = document.getElementById('extraLayanan').value;
-  const item = serviceCatalog.find(x=>String(x.id)===String(id));
-  if(!item){ showToast('Pilih layanan dari katalog dulu'); return; }
-  const tanggal = document.getElementById('extraTanggal').value || todayISO();
+  const nama = document.getElementById('extraLayanan').value.trim();
+  const satuan = document.getElementById('extraSatuan').value;
   const qty = parseFloat(document.getElementById('extraQty').value) || 0;
   const harga = parseFloat(document.getElementById('extraHarga').value) || 0;
+  if(!nama){ showToast('Isi nama layanan dulu'); return; }
   if(qty<=0 || harga<=0){ showToast('Isi qty dan harga layanan'); return; }
   const subtotal = qty*harga;
-  const { data: inserted, error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal,
-    type:'layanan_tambahan', layanan_nama: item.nama, qty, satuan: item.satuan, harga, subtotal
-  }).select().single();
-  if(error){ showToast('Gagal menambah layanan'); return; }
-  document.getElementById('extraQty').value = '1';
-  document.getElementById('extraTanggal').value = todayISO();
-  await refreshSubsDetail();
+  const tanggal = document.getElementById('extraTanggal').value || todayISO();
+
   if(isTempo(s)){
-    showToast('Laundry masuk tercatat');
-    if(inserted) openUsageNotaOptions(inserted.id);
-  } else {
-    showToast('Layanan tambahan dicatat');
+    draftExtraItems.push({ tanggal, nama, qty, satuan, harga, subtotal });
+    document.getElementById('extraLayanan').value = '';
+    document.getElementById('extraQty').value = '1';
+    document.getElementById('extraHarga').value = '';
+    renderExtraDraftList();
+    return;
   }
+
+  const { error } = await sb.from('subscription_usage').insert({
+    subscription_id: s.id, user_id: shopOwnerId, tanggal,
+    type:'layanan_tambahan', layanan_nama: nama, qty, satuan, harga, subtotal
+  });
+  if(error){ showToast('Gagal menambah layanan'); return; }
+  document.getElementById('extraLayanan').value = '';
+  document.getElementById('extraQty').value = '1';
+  document.getElementById('extraHarga').value = '';
+  await refreshSubsDetail();
+  showToast('Layanan tambahan dicatat');
+}
+function renderExtraDraftList(){
+  const wrap = document.getElementById('extraDraftListWrap');
+  const el = document.getElementById('extraDraftList');
+  if(draftExtraItems.length===0){ wrap.style.display = 'none'; el.innerHTML=''; return; }
+  wrap.style.display = 'block';
+  el.innerHTML = draftExtraItems.map((it,i)=>`
+    <div class="item-line" style="align-items:center;">
+      <span>${escapeHTML(it.nama)} (${it.qty} ${escapeHTML(it.satuan)})</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        ${rupiah(it.subtotal)}
+        <button onclick="removeExtraDraftItem(${i})" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
+      </span>
+    </div>`).join('');
+}
+function removeExtraDraftItem(idx){
+  draftExtraItems.splice(idx,1);
+  renderExtraDraftList();
+}
+async function submitExtraServiceBatch(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s || draftExtraItems.length===0){ showToast('Tambahkan minimal 1 layanan dulu'); return; }
+  const insertedIds = [];
+  for(const it of draftExtraItems){
+    const { data, error } = await sb.from('subscription_usage').insert({
+      subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal,
+      type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal
+    }).select().single();
+    if(error){ showToast('Gagal menyimpan salah satu layanan, coba lagi'); return; }
+    insertedIds.push(data.id);
+  }
+  draftExtraItems = [];
+  renderExtraDraftList();
+  await refreshSubsDetail();
+  showToast('Layanan tercatat');
+  openBatchUsageNotaOptions(insertedIds);
 }
 async function deleteUsage(id){
   const item = currentUsageList.find(u=>u.id===id);
@@ -2762,6 +2845,7 @@ function openWA(phone, text, target){
 var currentUsageNotaId = null;
 function openUsageNotaOptions(usageId){
   currentUsageNotaId = usageId;
+  currentBatchUsageIds = null;
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   const tempo = s && isTempo(s);
   document.getElementById('usageNotaTitle').textContent = tempo ? 'Kirim Nota Transaksi' : 'Kirim Nota Timbangan';
@@ -2771,9 +2855,21 @@ function openUsageNotaOptions(usageId){
   const modal = document.getElementById('usageNotaModal');
   if(modal) modal.classList.add('show');
 }
+/* Sama seperti openUsageNotaOptions() tapi untuk beberapa subscription_usage
+   (layanan tambahan Tempo) yang baru saja disimpan sekaligus lewat
+   submitExtraServiceBatch() — semua ditampilkan sebagai satu nota gabungan. */
+function openBatchUsageNotaOptions(usageIds){
+  currentBatchUsageIds = usageIds;
+  currentUsageNotaId = null;
+  document.getElementById('usageNotaTitle').textContent = 'Kirim Nota Transaksi';
+  document.getElementById('usageNotaHint').textContent = 'Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.';
+  const modal = document.getElementById('usageNotaModal');
+  if(modal) modal.classList.add('show');
+}
 function closeUsageNotaOptions(){
   const modal = document.getElementById('usageNotaModal');
   if(modal) modal.classList.remove('show');
+  currentBatchUsageIds = null;
 }
 function sortedPemakaian(){
   return currentUsageList.filter(u=>u.type==='pemakaian').slice().sort((a,b)=> a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0));
@@ -2811,6 +2907,44 @@ function tempoUsageNotaTextWA(usage, s){
   lines.push('-------------------------------');
   lines.push('*Timbangan Sekarang*');
   lines.push(`*${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}*`);
+  lines.push('-------------------------------');
+  lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
+  extras.forEach((u,i)=>{
+    lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+  });
+  lines.push('-------------------------------');
+  lines.push(`*Total Tagihan Berjalan : ${rupiah(totalHarga)}*`);
+  lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
+  lines.push(`Sisa Bayar    : ${rupiah(sisaBayar)}`);
+  if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
+  lines.push('-------------------------------');
+  lines.push(settings.note || 'Terima kasih');
+  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
+  lines.push('_Bikin Apps & Website Kilat_');
+  lines.push('🟢 WhatsApp: 081293228520');
+  lines.push('📧 tinggirantech@gmail.com');
+  return lines.join('\n');
+}
+/* Versi batch dari tempoUsageNotaTextWA() — dipakai saat beberapa layanan
+   ditambahkan sekaligus lewat submitExtraServiceBatch() sebelum disimpan jadi
+   satu nota, jadi "Timbangan Sekarang" berisi beberapa baris, bukan cuma satu. */
+function tempoBatchUsageNotaTextWA(newItems, s){
+  const lastDate = newItems.reduce((max,u)=> u.tanggal>max?u.tanggal:max, newItems[0].tanggal);
+  const extras = extrasSampai({ tanggal: lastDate });
+  const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
+  const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
+  const lines = [];
+  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  lines.push('-------------------------------');
+  lines.push('*CATATAN TRANSAKSI - TEMPO*');
+  lines.push(`Pelanggan  : ${s.nama}`);
+  lines.push('Jenis      : Tempo (Bayar Nanti)');
+  lines.push('-------------------------------');
+  lines.push('*Timbangan Sekarang*');
+  newItems.forEach(u=>{
+    lines.push(`*${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}*`);
+  });
   lines.push('-------------------------------');
   lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
   extras.forEach((u,i)=>{
@@ -2876,10 +3010,19 @@ function usageNotaTextWA(usage, s){
 }
 function sendUsageNotaWA(target){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
-  const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
-  if(!s || !usage) return;
+  if(!s) return;
   if(!s.hp){ showToast('No. WhatsApp pelanggan belum diisi'); return; }
-  openWA(normalizePhone(s.hp), usageNotaTextWA(usage, s), target);
+  let text;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    text = tempoBatchUsageNotaTextWA(newItems, s);
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    text = usageNotaTextWA(usage, s);
+  }
+  openWA(normalizePhone(s.hp), text, target);
   closeUsageNotaOptions();
 }
 function buildTempoUsageNotaPDFLines(usage, s){
@@ -2899,6 +3042,45 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t: div, s:9});
   L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
   L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:11});
+  L.push({t: div, s:9});
+  L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
+  extras.forEach((u,i)=>{
+    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
+  });
+  L.push({t: div, s:9});
+  L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
+  L.push({t:`Sudah Dibayar          : ${rupiah(s.dp||0)}`, s:9});
+  L.push({t:`Sisa Bayar             : ${rupiah(sisaBayar)}`, s:9});
+  if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
+  L.push({t: div, s:9});
+  L.push({t: settings.note || 'Terima kasih', c:true, s:8});
+  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
+  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
+  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
+  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  return L;
+}
+/* Versi batch dari buildTempoUsageNotaPDFLines() — lihat tempoBatchUsageNotaTextWA(). */
+function buildTempoBatchUsageNotaPDFLines(newItems, s){
+  const lastDate = newItems.reduce((max,u)=> u.tanggal>max?u.tanggal:max, newItems[0].tanggal);
+  const extras = extrasSampai({ tanggal: lastDate });
+  const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
+  const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
+  const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
+  const L = [];
+  const div = '--------------------------------';
+  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
+  if(settings.address) L.push({t: settings.address, c:true, s:8});
+  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  L.push({t: div, s:9});
+  L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
+  L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
+  L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
+  L.push({t: div, s:9});
+  L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+  newItems.forEach(u=>{
+    L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, b:true, s:11});
+  });
   L.push({t: div, s:9});
   L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
   extras.forEach((u,i)=>{
@@ -3150,11 +3332,21 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
 }
 async function downloadUsageNotaImage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
-  const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
-  if(!s || !usage) return;
-  const lines = buildUsageNotaPDFLines(usage, s);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
   const tempo = isTempo(s);
-  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${usage.tanggal}-${(s.nama||'pelanggan').replace(/\s+/g,'-')}`;
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||'pelanggan').replace(/\s+/g,'-')}`;
   await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? 'Nota transaksi laundry' : 'Nota timbangan laundry'} - ${s.nama}`);
   closeUsageNotaOptions();
 }
