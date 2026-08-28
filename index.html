@@ -1300,6 +1300,15 @@
   </div>
 </div>
 
+<!-- Riwayat perubahan transaksi (siapa mengedit apa, kapan) -->
+<div class="modal-bg" id="editHistoryModal" style="z-index:107;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditHistory()">✕</button>
+    <h3>🕘 Riwayat Edit</h3>
+    <div id="editHistoryList" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <!-- Pilihan kirim nota tagihan paket bulanan: WA / WA Business / JPG -->
 <div class="modal-bg" id="subsInvoiceShareModal" style="z-index:107;">
   <div class="modal">
@@ -4203,6 +4212,8 @@ async function submitTransaction(){
   const finalDp = status==='lunas' ? Math.max(dp, total) : dp;
 
   if(editingTransactionId){
+    const before = transactions.find(t=>t.id===editingTransactionId);
+    const beforeSnapshot = before ? {...before} : null;
     const { data, error } = await sb.from('transactions').update({
       nama, hp, tanggal, estimasi: estimasi || null,
       items: draftItems.slice(), diskon, total, dp: finalDp, status, catatan
@@ -4218,6 +4229,7 @@ async function submitTransaction(){
       outletId: data.outlet_id!=null ? String(data.outlet_id) : (idx>-1 ? transactions[idx].outletId : null)
     };
     if(idx>-1) transactions[idx] = trx;
+    if(beforeSnapshot) await logTransactionEdit(trx.id, diffTransactionFields(beforeSnapshot, trx));
     resetTransactionForm();
     showToast('Transaksi diperbarui');
     openReceipt(trx.id);
@@ -4293,6 +4305,79 @@ function cancelEditTransaction(){
   resetTransactionForm();
   showToast('Edit dibatalkan');
 }
+/* ===================== RIWAYAT EDIT TRANSAKSI ===================== */
+/* Bandingkan transaksi sebelum & sesudah diedit, field per field, supaya
+   riwayat edit cuma mencatat apa yang BENAR-BENAR berubah (bukan snapshot
+   penuh tiap kali disimpan). `items` & `total` dibandingkan terpisah karena
+   bentuknya array/turunan, bukan skalar seperti field lain. */
+function diffTransactionFields(oldT, newT){
+  const fields = [
+    { key:'nama', label:'Nama Pelanggan' },
+    { key:'hp', label:'No. HP' },
+    { key:'tanggal', label:'Tanggal' },
+    { key:'estimasi', label:'Estimasi Selesai' },
+    { key:'diskon', label:'Diskon' },
+    { key:'dp', label:'Uang Muka' },
+    { key:'status', label:'Status Bayar' },
+    { key:'catatan', label:'Catatan' },
+  ];
+  const changes = [];
+  fields.forEach(f=>{
+    const ov = oldT[f.key] ?? '';
+    const nv = newT[f.key] ?? '';
+    if(String(ov)!==String(nv)) changes.push({ field:f.key, label:f.label, from:String(ov)||'-', to:String(nv)||'-' });
+  });
+  const itemLabel = items => (items||[]).map(it=>`${it.nama} (${it.qty}${it.satuan})`).join(', ') || '-';
+  const oldItemsKey = JSON.stringify((oldT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
+  const newItemsKey = JSON.stringify((newT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
+  if(oldItemsKey!==newItemsKey) changes.push({ field:'items', label:'Daftar Layanan', from:itemLabel(oldT.items), to:itemLabel(newT.items) });
+  if(Number(oldT.total)!==Number(newT.total)) changes.push({ field:'total', label:'Total', from:rupiah(oldT.total), to:rupiah(newT.total) });
+  return changes;
+}
+/* Gagal menulis log TIDAK boleh membatalkan/menggagalkan edit transaksinya
+   sendiri — tabel transaction_edit_log baru (lihat README) & opsional,
+   jadi kalau belum dimigrasi, edit tetap jalan normal, cuma riwayatnya
+   yang tidak tercatat. */
+async function logTransactionEdit(transactionId, changes){
+  if(!changes || changes.length===0) return;
+  const editorNama = currentRole==='owner' ? 'Pemilik' : (employeeName || 'Kasir');
+  try{
+    await sb.from('transaction_edit_log').insert({
+      owner_id: shopOwnerId, transaction_id: transactionId, edited_by: currentUser ? currentUser.id : null,
+      editor_nama: editorNama, changes
+    });
+  }catch(e){ /* diamkan — lihat komentar di atas */ }
+}
+function fmtDateTime(iso){
+  if(!iso) return '-';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '-';
+  return d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+async function openEditHistory(transactionId){
+  const modal = document.getElementById('editHistoryModal');
+  const list = document.getElementById('editHistoryList');
+  list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Memuat...</div>`;
+  modal.classList.add('show');
+  const { data, error } = await sb.from('transaction_edit_log').select('*').eq('transaction_id', transactionId).order('edited_at', { ascending:false });
+  if(error){
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Riwayat edit belum tersedia — tabel transaction_edit_log mungkin belum dimigrasi (lihat README).</div>`;
+    return;
+  }
+  if(!data || data.length===0){
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Belum ada riwayat edit untuk transaksi ini.</div>`;
+    return;
+  }
+  list.innerHTML = data.map(row=>{
+    const changes = row.changes || [];
+    const changesHTML = changes.map(c=>`<div style="font-size:12px;padding:3px 0;"><b>${escapeHTML(c.label)}</b>: <span style="color:var(--danger);text-decoration:line-through;">${escapeHTML(c.from)}</span> → <span style="color:var(--success);">${escapeHTML(c.to)}</span></div>`).join('');
+    return `<div style="border-bottom:1px solid var(--line);padding:10px 0;">
+      <div style="font-size:12.5px;font-weight:700;">${escapeHTML(row.editor_nama||'—')} <span style="font-weight:400;color:var(--ink-soft);">· ${fmtDateTime(row.edited_at)}</span></div>
+      ${changesHTML}
+    </div>`;
+  }).join('');
+}
+function closeEditHistory(){ document.getElementById('editHistoryModal').classList.remove('show'); }
 async function deleteTransaction(id){
   const trx = transactions.find(t=>t.id===id);
   if(!trx) return;
@@ -4885,6 +4970,7 @@ function renderHistory(){
       </div>
       <div class="trx-actions owner-only">
         <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')">✏️ Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('${t.id}')">🕘 Riwayat</button>
         <button class="btn btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">🗑️ Hapus</button>
       </div>
     </div>
