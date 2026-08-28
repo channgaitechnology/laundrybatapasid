@@ -96,6 +96,23 @@
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .row3{display:grid;grid-template-columns:1.4fr 0.8fr 1fr;gap:8px;}
 
+  /* ---- Pengaturan: grid kategori (kotak berlogo) + panel per-kategori ---- */
+  .settings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px;}
+  .settings-tile{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+    background:#fcfdfe;border:1.5px solid var(--line);border-radius:16px;padding:16px 6px;
+    color:var(--ink);text-align:center;
+  }
+  .settings-tile:active{background:var(--mist);border-color:var(--suds);}
+  .settings-tile-emoji{font-size:26px;line-height:1;}
+  .settings-tile-label{font-size:11px;font-weight:700;line-height:1.25;}
+  .settings-sub-back{
+    display:flex;align-items:center;gap:4px;background:none;border:none;
+    color:var(--suds);font-weight:700;font-size:13.5px;padding:0;margin-bottom:10px;
+  }
+  .settings-sub-panel{display:none;}
+  .settings-sub-panel.active{display:block;}
+
   button{font-family:'Inter',sans-serif;cursor:pointer;}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -886,108 +903,159 @@
   </button>
 </div>
 
-<!-- Settings modal -->
+<!-- Settings modal — layar utama menampilkan grid kategori (kotak berlogo), tiap kategori punya
+     panel terpisah yang cuma muncul setelah diketuk (lihat openSettingsSub()/closeSettingsSub()) —
+     supaya tidak jadi satu halaman super panjang berisi SEMUA pengaturan sekaligus. -->
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
     <button class="modal-close" onclick="closeSettings()">✕</button>
-    <h3>Pengaturan Toko</h3>
-    <div class="card owner-only" id="settingsSubCard" style="box-shadow:none;border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;">
-      <div class="item-line" style="margin-bottom:6px;"><b style="font-size:13px;">Langganan Aplikasi</b><span id="settingsSubStatus" style="font-size:12.5px;color:var(--ink-soft);">memuat...</span></div>
-      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="showPaywallModal()">Kelola / Perpanjang Langganan</button>
-    </div>
 
-    <div class="section-title" style="margin-top:4px;">Logo Toko</div>
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
-      <img id="logoPreviewImg" alt="Logo toko" style="width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;border:1.5px solid var(--line);">
-      <div style="flex:1;">
-        <input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoFileChange(event)">
-        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:6px;" onclick="document.getElementById('logoFileInput').click()">🖼️ Pilih Logo Baru</button>
-        <button type="button" class="btn btn-ghost btn-sm" style="width:100%;" onclick="resetShopLogo()">Pakai Logo Default</button>
+    <div id="settingsHome">
+      <h3>Pengaturan Toko</h3>
+      <div class="settings-grid">
+        <button type="button" class="settings-tile owner-only" onclick="openSettingsSub('langganan')">
+          <span class="settings-tile-emoji">💳</span><span class="settings-tile-label">Langganan</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('profil')">
+          <span class="settings-tile-emoji">🏪</span><span class="settings-tile-label">Profil Toko</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('notifikasi')">
+          <span class="settings-tile-emoji">🔔</span><span class="settings-tile-label">Notifikasi</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('keamanan')">
+          <span class="settings-tile-emoji">🔒</span><span class="settings-tile-label">Keamanan Akun</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('kontak')">
+          <span class="settings-tile-emoji">📇</span><span class="settings-tile-label">Kontak Pelanggan</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('outlet')">
+          <span class="settings-tile-emoji">🏬</span><span class="settings-tile-label">Outlet / Cabang</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('printer')">
+          <span class="settings-tile-emoji">🖨️</span><span class="settings-tile-label">Printer Bluetooth</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('karyawan')">
+          <span class="settings-tile-emoji">👥</span><span class="settings-tile-label">Karyawan / Kasir</span>
+        </button>
+        <button type="button" class="settings-tile" id="settingsTileAdmin" style="display:none;" onclick="openSettingsSub('admin')">
+          <span class="settings-tile-emoji">🔐</span><span class="settings-tile-label">Admin Platform</span>
+        </button>
       </div>
     </div>
-    <p style="font-size:11.5px;color:var(--ink-soft);margin:-2px 0 16px;">Logo ini dipakai di header aplikasi dan semua nota (JPG/PDF & tampilan di app) setelah kamu login — bukan logo di layar masuk/daftar.</p>
 
-    <label for="setNama">Nama Toko</label>
-    <input id="setNama" placeholder="cth. Laundry Bersih Jaya">
-    <label for="setAlamat">Alamat</label>
-    <input id="setAlamat" placeholder="cth. Jl. Merdeka No. 10, Samarinda">
-    <label for="setHP">No. Telepon Toko</label>
-    <input id="setHP" placeholder="cth. 0812xxxxxxx">
-    <label for="setCatatan">Catatan Kaki Nota</label>
-    <textarea id="setCatatan" rows="2" placeholder="cth. Terima kasih telah menggunakan jasa kami">Terima kasih telah menggunakan jasa laundry kami</textarea>
-    <button class="btn btn-primary" onclick="saveSettingsForm()">Simpan Pengaturan</button>
+    <div id="settingsSubView" style="display:none;">
+      <button type="button" class="settings-sub-back" onclick="closeSettingsSub()">← Kembali</button>
+      <h3 id="settingsSubTitle">-</h3>
 
-    <div class="section-title" style="margin-top:22px;">Notifikasi WA Otomatis</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.</p>
-    <div class="item-line" style="align-items:center;">
-      <span>Kirim notifikasi WA otomatis saat Selesai</span>
-      <input type="checkbox" id="setAutoNotifySelesai" style="width:20px;height:20px;" onchange="toggleAutoNotifySelesai(this.checked)">
-    </div>
+      <div class="settings-sub-panel" id="settingsSub-langganan">
+        <div class="card" id="settingsSubCard" style="box-shadow:none;border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;">
+          <div class="item-line" style="margin-bottom:6px;"><b style="font-size:13px;">Langganan Aplikasi</b><span id="settingsSubStatus" style="font-size:12.5px;color:var(--ink-soft);">memuat...</span></div>
+          <button class="btn btn-outline btn-sm" style="width:100%;" onclick="showPaywallModal()">Kelola / Perpanjang Langganan</button>
+        </div>
+      </div>
 
-    <div class="section-title" style="margin-top:22px;">Akun</div>
-    <label for="setEmailBaru">Ganti Email</label>
-    <div style="display:flex;gap:8px;">
-      <input id="setEmailBaru" type="email" placeholder="email baru" style="flex:1;">
-      <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountEmail()">Ganti</button>
-    </div>
-    <label for="setPasswordBaru">Ganti Password</label>
-    <div style="display:flex;gap:8px;">
-      <input id="setPasswordBaru" type="password" placeholder="password baru (min. 6 karakter)" style="flex:1;">
-      <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountPassword()">Ganti</button>
-    </div>
-    <div id="accountMsg" style="font-size:12.5px;margin:-4px 0 4px;"></div>
+      <div class="settings-sub-panel" id="settingsSub-profil">
+        <div class="section-title" style="margin-top:4px;">Logo Toko</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
+          <img id="logoPreviewImg" alt="Logo toko" style="width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;border:1.5px solid var(--line);">
+          <div style="flex:1;">
+            <input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoFileChange(event)">
+            <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:6px;" onclick="document.getElementById('logoFileInput').click()">🖼️ Pilih Logo Baru</button>
+            <button type="button" class="btn btn-ghost btn-sm" style="width:100%;" onclick="resetShopLogo()">Pakai Logo Default</button>
+          </div>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-soft);margin:-2px 0 16px;">Logo ini dipakai di header aplikasi dan semua nota (JPG/PDF & tampilan di app) setelah kamu login — bukan logo di layar masuk/daftar.</p>
 
-    <div class="section-title" style="margin-top:22px;">Kontak Pelanggan</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Kontak yang diimpor dipakai untuk saran nama otomatis saat input transaksi & paket bulanan.</p>
-    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="importContactsFromPhone()">📇 Impor Kontak dari HP</button>
-    <div id="contactsList" style="max-height:220px;overflow-y:auto;"></div>
+        <label for="setNama">Nama Toko</label>
+        <input id="setNama" placeholder="cth. Laundry Bersih Jaya">
+        <label for="setAlamat">Alamat</label>
+        <input id="setAlamat" placeholder="cth. Jl. Merdeka No. 10, Samarinda">
+        <label for="setHP">No. Telepon Toko</label>
+        <input id="setHP" placeholder="cth. 0812xxxxxxx">
+        <label for="setCatatan">Catatan Kaki Nota</label>
+        <textarea id="setCatatan" rows="2" placeholder="cth. Terima kasih telah menggunakan jasa kami">Terima kasih telah menggunakan jasa laundry kami</textarea>
+        <button class="btn btn-primary" onclick="saveSettingsForm()">Simpan Pengaturan</button>
+      </div>
 
-    <div class="section-title" style="margin-top:22px;">Outlet / Cabang</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Punya lebih dari satu lokasi toko? Tambahkan outletnya di sini — begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko untuk pilih lokasi mana yang sedang dikerjakan. Transaksi, Paket, dan Pengeluaran otomatis tercatat & terfilter sesuai outlet aktif.</p>
-    <div id="outletManagerList" style="margin-bottom:10px;"></div>
-    <div class="row2">
-      <div><label for="outletNama">Nama Outlet</label><input id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
-      <div><label for="outletTelp">No. Telepon</label><input id="outletTelp" placeholder="cth. 0812xxxxxxx"></div>
-    </div>
-    <label for="outletAlamat">Alamat</label>
-    <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
-    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
+      <div class="settings-sub-panel" id="settingsSub-notifikasi">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.</p>
+        <div class="item-line" style="align-items:center;">
+          <span>Kirim notifikasi WA otomatis saat Selesai</span>
+          <input type="checkbox" id="setAutoNotifySelesai" style="width:20px;height:20px;" onchange="toggleAutoNotifySelesai(this.checked)">
+        </div>
+      </div>
 
-    <div class="section-title" style="margin-top:22px;">Printer Bluetooth</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Sambungkan printer thermal Bluetooth (58mm/80mm) untuk cetak nota langsung, tanpa lewat WhatsApp. Tombol "Cetak Bluetooth" muncul di setiap layar kirim nota — begitu ditekan pertama kali, HP/laptop akan minta kamu memilih printernya.</p>
-    <div id="btPrinterStatus" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Belum tersambung</div>
-    <div class="row2">
-      <button type="button" class="btn btn-outline btn-sm" onclick="connectBluetoothPrinter()">🖨️ Sambungkan Printer</button>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="disconnectBluetoothPrinter()">Putus Sambungan</button>
-    </div>
+      <div class="settings-sub-panel" id="settingsSub-keamanan">
+        <label for="setEmailBaru">Ganti Email</label>
+        <div style="display:flex;gap:8px;">
+          <input id="setEmailBaru" type="email" placeholder="email baru" style="flex:1;">
+          <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountEmail()">Ganti</button>
+        </div>
+        <label for="setPasswordBaru">Ganti Password</label>
+        <div style="display:flex;gap:8px;">
+          <input id="setPasswordBaru" type="password" placeholder="password baru (min. 6 karakter)" style="flex:1;">
+          <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountPassword()">Ganti</button>
+        </div>
+        <div id="accountMsg" style="font-size:12.5px;margin:-4px 0 4px;"></div>
+      </div>
 
-    <div class="section-title" style="margin-top:22px;">Karyawan / Kasir</div>
-    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
-    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
-    <div id="teamList" style="max-height:220px;overflow-y:auto;"></div>
+      <div class="settings-sub-panel" id="settingsSub-kontak">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Kontak yang diimpor dipakai untuk saran nama otomatis saat input transaksi & paket bulanan.</p>
+        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="importContactsFromPhone()">📇 Impor Kontak dari HP</button>
+        <div id="contactsList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
 
-    <div id="adminPlatformSection" style="display:none;">
-      <div class="section-title" style="margin-top:22px;">🔐 Admin Platform</div>
-      <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Panel ini cuma kelihatan untukmu, pemilik platform.</p>
+      <div class="settings-sub-panel" id="settingsSub-outlet">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Punya lebih dari satu lokasi toko? Tambahkan outletnya di sini — begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko untuk pilih lokasi mana yang sedang dikerjakan. Transaksi, Paket, dan Pengeluaran otomatis tercatat & terfilter sesuai outlet aktif.</p>
+        <div id="outletManagerList" style="margin-bottom:10px;"></div>
+        <div class="row2">
+          <div><label for="outletNama">Nama Outlet</label><input id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
+          <div><label for="outletTelp">No. Telepon</label><input id="outletTelp" placeholder="cth. 0812xxxxxxx"></div>
+        </div>
+        <label for="outletAlamat">Alamat</label>
+        <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
+        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
+      </div>
 
-      <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
-      <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
+      <div class="settings-sub-panel" id="settingsSub-printer">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Sambungkan printer thermal Bluetooth (58mm/80mm) untuk cetak nota langsung, tanpa lewat WhatsApp. Tombol "Cetak Bluetooth" muncul di setiap layar kirim nota — begitu ditekan pertama kali, HP/laptop akan minta kamu memilih printernya.</p>
+        <div id="btPrinterStatus" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Belum tersambung</div>
+        <div class="row2">
+          <button type="button" class="btn btn-outline btn-sm" onclick="connectBluetoothPrinter()">🖨️ Sambungkan Printer</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="disconnectBluetoothPrinter()">Putus Sambungan</button>
+        </div>
+      </div>
 
-      <b style="font-size:13px;">Kode Pendaftaran</b>
-      <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin:6px 0 10px;" onclick="createManualCode()">➕ Buat Kode Manual</button>
-      <div id="regCodeList" style="max-height:220px;overflow-y:auto;"></div>
+      <div class="settings-sub-panel" id="settingsSub-karyawan">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
+        <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
+        <div id="teamList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
 
-      <b style="font-size:13px;">Footer Nota (kredit pengembang)</b>
-      <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Baris "dikembangkan oleh..." yang muncul di bawah SEMUA nota (semua toko yang pakai instance app ini) — bukan per-toko. Ubah kalau app ini dipakai/dijual ulang oleh pihak lain.</p>
-      <label for="brandNama">Nama Pengembang</label>
-      <input id="brandNama" placeholder="cth. Tinggiran Tech Studio">
-      <label for="brandTagline">Tagline</label>
-      <input id="brandTagline" placeholder="cth. Bikin Apps & Website Kilat">
-      <label for="brandWA">No. WhatsApp</label>
-      <input id="brandWA" placeholder="cth. 081293228520">
-      <label for="brandEmail">Email</label>
-      <input id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
-      <button type="button" class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="saveAppBranding()">Simpan Footer Nota</button>
+      <div class="settings-sub-panel" id="settingsSub-admin">
+        <div id="adminPlatformSection" style="display:none;">
+          <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Panel ini cuma kelihatan untukmu, pemilik platform.</p>
+
+          <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
+          <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
+
+          <b style="font-size:13px;">Kode Pendaftaran</b>
+          <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin:6px 0 10px;" onclick="createManualCode()">➕ Buat Kode Manual</button>
+          <div id="regCodeList" style="max-height:220px;overflow-y:auto;"></div>
+
+          <b style="font-size:13px;">Footer Nota (kredit pengembang)</b>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Baris "dikembangkan oleh..." yang muncul di bawah SEMUA nota (semua toko yang pakai instance app ini) — bukan per-toko. Ubah kalau app ini dipakai/dijual ulang oleh pihak lain.</p>
+          <label for="brandNama">Nama Pengembang</label>
+          <input id="brandNama" placeholder="cth. Tinggiran Tech Studio">
+          <label for="brandTagline">Tagline</label>
+          <input id="brandTagline" placeholder="cth. Bikin Apps & Website Kilat">
+          <label for="brandWA">No. WhatsApp</label>
+          <input id="brandWA" placeholder="cth. 081293228520">
+          <label for="brandEmail">Email</label>
+          <input id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
+          <button type="button" class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="saveAppBranding()">Simpan Footer Nota</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1110,11 +1178,10 @@
       <button class="tut-head" onclick="toggleTut(this)">8️⃣ Pengaturan Toko &amp; Karyawan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas)</li>
-          <li>Ganti <b>Logo Toko</b> dengan foto/logo asli — otomatis dipakai di header aplikasi dan semua nota (JPG/PDF) setelah login</li>
-          <li>Isi <b>Nama Toko</b>, <b>Alamat</b>, <b>No. Telepon</b>, dan <b>Catatan Kaki Nota</b>, lalu tekan <b>Simpan Pengaturan</b></li>
-          <li>Scroll ke <b>Kontak Pelanggan</b> untuk impor kontak dari HP supaya langsung muncul sebagai saran nama saat input transaksi & paket</li>
-          <li>Scroll ke <b>Karyawan/Kasir</b>, tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
+          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas) — muncul kotak-kotak kategori, ketuk salah satu untuk masuk ke pengaturannya, lalu <b>← Kembali</b> untuk pilih kategori lain</li>
+          <li>Ketuk kotak 🏪 <b>Profil Toko</b>: ganti <b>Logo Toko</b> dengan foto/logo asli (otomatis dipakai di header aplikasi & semua nota setelah login), isi <b>Nama Toko</b>, <b>Alamat</b>, <b>No. Telepon</b>, dan <b>Catatan Kaki Nota</b>, lalu tekan <b>Simpan Pengaturan</b></li>
+          <li>Ketuk kotak 📇 <b>Kontak Pelanggan</b> untuk impor kontak dari HP supaya langsung muncul sebagai saran nama saat input transaksi & paket</li>
+          <li>Ketuk kotak 👥 <b>Karyawan/Kasir</b>, tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
           <li>Karyawan buka aplikasi ini di HP-nya, daftar akun sendiri, lalu masukkan kode itu saat pertama login</li>
           <li>Kasir cuma bisa input transaksi & catat paket — tidak bisa lihat Laporan/Pengeluaran, ubah Katalog, atau Edit/Hapus data</li>
         </ol>
@@ -5782,11 +5849,35 @@ function openSettings(){
   renderOutletManagerList();
   renderBtPrinterStatus();
   if(currentRole==='owner') loadTeamList();
-  document.getElementById('adminPlatformSection').style.display = (currentUser && currentUser.email===ADMIN_EMAIL) ? 'block' : 'none';
-  if(currentUser && currentUser.email===ADMIN_EMAIL){ loadAdminData(); fillAppBrandingForm(); }
+  const isAdmin = !!(currentUser && currentUser.email===ADMIN_EMAIL);
+  document.getElementById('adminPlatformSection').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('settingsTileAdmin').style.display = isAdmin ? 'flex' : 'none';
+  if(isAdmin){ loadAdminData(); fillAppBrandingForm(); }
+  closeSettingsSub(); // selalu mulai dari grid kategori, bukan nyangkut di sub terakhir yang dibuka
   document.getElementById('settingsModal').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('show'); }
+/* Layar Pengaturan dua tingkat: grid kategori (kotak berlogo) dulu, baru
+   ketuk satu kotak untuk masuk ke panel pengaturan spesifiknya — supaya
+   tidak jadi satu halaman panjang berisi semua pengaturan sekaligus. */
+function openSettingsSub(id){
+  document.getElementById('settingsHome').style.display = 'none';
+  document.getElementById('settingsSubView').style.display = 'block';
+  document.querySelectorAll('.settings-sub-panel').forEach(p=>p.classList.remove('active'));
+  const panel = document.getElementById('settingsSub-'+id);
+  if(panel) panel.classList.add('active');
+  const titles = {
+    langganan:'💳 Langganan Aplikasi', profil:'🏪 Profil Toko', notifikasi:'🔔 Notifikasi',
+    keamanan:'🔒 Keamanan Akun', kontak:'📇 Kontak Pelanggan', outlet:'🏬 Outlet / Cabang',
+    printer:'🖨️ Printer Bluetooth', karyawan:'👥 Karyawan / Kasir', admin:'🔐 Admin Platform'
+  };
+  document.getElementById('settingsSubTitle').textContent = titles[id] || 'Pengaturan';
+  document.getElementById('settingsModal').querySelector('.modal').scrollTop = 0;
+}
+function closeSettingsSub(){
+  document.getElementById('settingsSubView').style.display = 'none';
+  document.getElementById('settingsHome').style.display = 'block';
+}
 async function saveSettingsForm(){
   settings.shopName = document.getElementById('setNama').value.trim() || 'Laundry Batapas.id';
   settings.address = document.getElementById('setAlamat').value.trim();
