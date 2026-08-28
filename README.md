@@ -324,6 +324,44 @@ Bluetooth-only. Alternatif tanpa printer AirPrint sama sekali: pakai
 "Unduh / Bagikan Nota (JPG)" yang sudah ada, lalu cetak lewat Share Sheet
 iOS → Print.
 
+### Notifikasi WA saat kerjaan Selesai
+
+Pengaturan → "Notifikasi WA Otomatis" punya satu toggle: "Kirim notifikasi
+WA otomatis saat Selesai". Butuh kolom baru di tabel `settings` — jalankan
+sekali di Supabase SQL Editor:
+
+```sql
+alter table settings add column if not exists auto_notify_selesai boolean;
+```
+
+Nullable & aman dijalankan kapan saja — kolomnya `null` untuk semua baris
+lama, diperlakukan sebagai `false` (mati) di kode, jadi toko yang sudah
+ada perilakunya tidak berubah sampai pemiliknya sendiri yang menyalakan
+togglenya. **Defaultnya MATI** (bukan opt-out) — mengingat app ini
+dipakai toko yang sudah berjalan, popup WA otomatis setiap kali status
+kerjaan diubah jadi "Selesai" bisa mengagetkan kalau tiba-tiba aktif
+tanpa diminta.
+
+- **Kalau toggle AKTIF**: begitu status kerjaan di kartu Daftar Tugas
+  diubah jadi "Selesai" (lewat `setWorkStatus()`), WhatsApp langsung
+  terbuka (`openWA()`, jalur wa.me yang sama dipakai fitur kirim nota
+  lain) dengan pesan "laundry Anda sudah selesai, siap diambil" yang
+  sudah terisi otomatis — nama toko/outlet & alamatnya ikut memakai
+  `notaHeaderInfo()` seperti nota lainnya.
+- **Kalau toggle MATI**: setiap kartu Daftar Tugas yang berstatus
+  "Selesai" menampilkan tombol manual "📣 Kirim Notifikasi" yang
+  melakukan hal yang persis sama, tinggal diketuk kapan saja kasir mau.
+- ⚠️ **Bukan pengiriman otomatis 100% tanpa sentuhan.** Ini web app biasa
+  lewat wa.me (bukan WhatsApp Business API resmi yang berbayar & perlu
+  verifikasi Meta) — jadi "otomatis" di sini artinya jendela WhatsApp
+  dengan pesan siap kirim langsung terbuka begitu status diubah, tapi
+  tombol "Kirim" terakhir di WhatsApp-nya tetap perlu satu ketukan
+  manusia. Tidak ada cara mengirim WA benar-benar diam-diam dari browser
+  tanpa infrastruktur WhatsApp Business API di server.
+- Pelanggan tanpa nomor WA tercatat (baik di transaksi biasa maupun
+  paket) otomatis dilewati dengan notifikasi toast, tidak memblokir
+  perubahan status kerjanya.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
