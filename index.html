@@ -469,7 +469,7 @@
   <section class="view" id="view-papan">
     <div class="card">
       <h2 style="margin-bottom:2px;">Papan Kerja</h2>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput — tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis).</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis).</p>
     </div>
     <div id="workBoardList"></div>
   </section>
@@ -4267,14 +4267,20 @@ async function toggleLunas(id){
 }
 
 /* ===================== PAPAN KERJA ===================== */
-/* Mengikuti pola papan tulis fisik: dikelompokkan per hari (Senin-Ahad) dari
-   tanggal transaksi, bukan per minggu kalender — kartu menumpuk terus sampai
-   ditandai "Sudah Diambil" (dilepas dari papan), berapa pun lamanya. */
+/* Mengikuti pola papan tulis fisik: dikelompokkan per hari (Senin-Ahad),
+   bukan per minggu kalender — kartu menumpuk terus sampai ditandai "Sudah
+   Diambil" (dilepas dari papan), berapa pun lamanya.
+   Hari yang dipakai untuk pengelompokan adalah HARI PERKIRAAN SELESAI
+   (field "Estimasi Selesai" saat input transaksi) — bukan hari masuk,
+   supaya cucian yang masuk Senin tapi baru selesai Rabu (misal butuh 2
+   hari kerja) muncul di kolom Rabu. Kalau estimasi belum diisi, dipakai
+   tanggal masuk sebagai fallback (paling akurat yang tersedia). */
 const INDO_DAY_NAMES = ['Ahad','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 function indoDayName(tanggal){
   if(!tanggal) return INDO_DAY_NAMES[0];
   return INDO_DAY_NAMES[new Date(tanggal+'T00:00:00').getDay()];
 }
+function workBoardDate(t){ return t.estimasi || t.tanggal; }
 async function setWorkStatus(id, status){
   const t = transactions.find(x=>x.id===id);
   if(!t) return;
@@ -4295,6 +4301,9 @@ async function markPickedUp(id){
 function workBoardCardHTML(t){
   const layanan = (t.items||[]).map(it=>it.nama).join(', ') || '-';
   const ws = t.workStatus || 'belum';
+  const tanggalInfo = t.estimasi
+    ? `Estimasi selesai: ${fmtDate(t.estimasi)}`
+    : `Masuk: ${fmtDate(t.tanggal)} (belum ada estimasi selesai)`;
   return `
     <div class="trx-card">
       <div class="trx-top">
@@ -4304,6 +4313,7 @@ function workBoardCardHTML(t){
         </div>
         <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum Lunas'}</span>
       </div>
+      <div style="font-size:12px;color:var(--ink-soft);margin:2px 0 6px;">${tanggalInfo}</div>
       <div class="trx-total">${rupiah(t.total)}</div>
       <div class="btn-row" style="margin-top:8px;gap:6px;">
         <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${t.id}','belum')">Belum</button>
@@ -4327,7 +4337,8 @@ function renderWorkBoard(){
   const todayName = indoDayName(todayISO());
   const orderedDays = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Ahad'];
   el.innerHTML = orderedDays.map(day=>{
-    const list = sortByTanggalAsc(active.filter(t=>indoDayName(t.tanggal)===day));
+    const list = active.filter(t=>indoDayName(workBoardDate(t))===day)
+      .slice().sort((a,b)=>{ const da=workBoardDate(a), db=workBoardDate(b); return da<db?-1:(da>db?1:0); });
     if(list.length===0) return '';
     const todayBadge = day===todayName ? '<span class="work-day-today">Hari Ini</span>' : '';
     return `<div class="work-day-heading"><h2>${day}</h2>${todayBadge}<span style="font-size:11.5px;color:var(--ink-soft);">${list.length} cucian</span></div>`
