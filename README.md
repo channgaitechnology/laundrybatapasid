@@ -19,6 +19,7 @@ dalam satu file, tanpa build step. Dependensi lewat CDN:
 
 - [`@supabase/supabase-js`](https://supabase.com/) — auth & database
 - [`jsPDF`](https://github.com/parallax/jsPDF) — cetak nota/laporan jadi PDF
+- [`html2canvas`](https://html2canvas.hertzen.com/) — unduh tampilan Daftar Tugas jadi gambar JPG
 
 Project Supabase yang dipakai: `ffpgapgvlzhetrkzmhqh.supabase.co` (kunci publik
 `sb_publishable_...` sudah ada di kode — ini memang dirancang publik oleh
@@ -150,7 +151,7 @@ pengeluaran baru akan gagal dengan toast error (fitur lain di app tidak
 terpengaruh); pengeluaran lama yang sudah tercatat tetap tampil (tanpa
 rincian qty/satuan/harga).
 
-Fitur **Papan Kerja** (tab baru, terbuka untuk Owner maupun kasir — mirip
+Fitur **Daftar Tugas** (tab baru, terbuka untuk Owner maupun kasir — mirip
 papan tulis fisik yang dikelompokkan per hari Senin-Ahad, otomatis terisi
 dari setiap transaksi yang diinput) butuh satu kolom baru di tabel
 `transactions`:
@@ -161,13 +162,13 @@ alter table transactions add column if not exists work_status text not null defa
 
 Kolom ini menyimpan status pengerjaan tiap transaksi: `belum`, `sedang`,
 `selesai`, atau `diambil` (begitu ditandai `diambil`, kartunya hilang dari
-Papan Kerja — persis seperti melepas kertas dari papan tulis fisik, tapi
+Daftar Tugas — persis seperti melepas kertas dari papan tulis fisik, tapi
 data transaksinya sendiri tidak dihapus, tetap ada di Riwayat/Laporan).
-Sebelum kolom ini ada, tab Papan Kerja tetap terbuka tapi tombol ubah status
+Sebelum kolom ini ada, tab Daftar Tugas tetap terbuka tapi tombol ubah status
 akan gagal dengan toast error — transaksi tetap tersimpan normal, hanya
-fitur papan kerjanya yang belum aktif.
+fitur Daftar Tugas-nya yang belum aktif.
 
-Supaya kerjaan **Paket Bulanan & Tempo** juga ikut muncul di Papan Kerja
+Supaya kerjaan **Paket Bulanan & Tempo** juga ikut muncul di Daftar Tugas
 (sebelumnya cuma transaksi reguler), tabel `subscription_usage` butuh 2
 kolom tambahan yang sama:
 
@@ -178,9 +179,10 @@ alter table subscription_usage add column if not exists work_status text not nul
 
 `estimasi` diisi lewat field "Estimasi Selesai" yang sekarang ada di form
 "Catat Laundry Masuk (kg)" dan "Tambah Layanan Lain" di halaman Paket
-Bulanan/Tempo. Hanya catatan bertipe layanan tambahan (bukan timbangan kg
-polos) yang muncul di Papan Kerja, karena timbangan kg tidak punya harga
-per-baris yang jelas untuk ditampilkan di kartunya. ⚠️ Beda dari migrasi
+Bulanan/Tempo — keduanya ikut muncul di Daftar Tugas. Untuk timbangan kg
+polos (belum punya harga per-baris yang jelas, baru ditagih di akhir
+periode/kalau lebih kuota), kartunya menampilkan berat (kg) sebagai ganti
+harga. ⚠️ Beda dari migrasi
 lain di atas: sebelum kolom `estimasi` ini ada, mencatat laundry
 masuk/layanan tambahan di Paket Bulanan/Tempo akan **gagal total** dengan
 toast error (bukan cuma kolom estimasinya yang tidak tersimpan) — karena
