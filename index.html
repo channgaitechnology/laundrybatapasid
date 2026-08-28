@@ -66,9 +66,12 @@
   .appbar-title p{margin:0;font-size:11.5px;color:rgba(255,255,255,0.78);}
   .icon-btn{
     background:rgba(255,255,255,0.16);border:none;border-radius:12px;
-    width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+    min-width:44px;padding:6px 7px 5px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;
     color:#fff;cursor:pointer;
   }
+  .icon-btn .icon-btn-emoji{font-size:23px;line-height:1;}
+  .icon-btn .icon-btn-label{font-size:8.5px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:.1px;}
   .icon-btn:active{background:rgba(255,255,255,0.3);}
 
   main{max-width:520px;margin:0 auto;padding:16px 14px 24px;}
@@ -347,15 +350,23 @@
     <div>
       <h1 id="shopNameLabel">Laundry Batapas.id</h1>
       <p>Kasir &amp; Nota Digital Laundry</p>
+      <button type="button" id="outletSwitcherWrap" onclick="openOutletPicker()" style="display:none;align-items:center;gap:4px;background:rgba(255,255,255,0.16);border:none;border-radius:8px;padding:3px 8px;margin-top:4px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">
+        🏬 <span id="outletSwitcherLabel">Pilih Outlet</span> ▾
+      </button>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
-    <button class="icon-btn" onclick="openTutorial()" aria-label="Tutorial penggunaan">📖</button>
+    <button class="icon-btn" onclick="openTutorial()" aria-label="Tutorial penggunaan">
+      <span class="icon-btn-emoji">📖</span>
+      <span class="icon-btn-label">Tutorial</span>
+    </button>
     <button class="icon-btn owner-only" onclick="openSettings()" aria-label="Pengaturan toko">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="icon-btn-label">Pengaturan</span>
     </button>
     <button class="icon-btn" onclick="handleLogout()" aria-label="Keluar">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="icon-btn-label">Keluar</span>
     </button>
   </div>
 </div>
@@ -501,6 +512,12 @@
 
   <!-- ===== VIEW 4: LAPORAN ===== -->
   <section class="view" id="view-laporan">
+    <div class="card" id="reportOutletFilterWrap" style="display:none;">
+      <label for="reportOutletFilterSelect">Outlet</label>
+      <select id="reportOutletFilterSelect" onchange="onReportOutletFilterChange()">
+        <option value="">Semua Outlet</option>
+      </select>
+    </div>
     <div class="card">
       <label for="reportMonth">Pilih Bulan</label>
       <input id="reportMonth" type="month" onchange="renderReport()">
@@ -754,6 +771,7 @@
     <p id="subsDetailPeriode" style="font-size:12.5px;color:var(--ink-soft);margin-top:-10px;margin-bottom:10px;">-</p>
     <div class="btn-row owner-only" style="margin-bottom:14px;">
       <button class="btn btn-outline btn-sm" onclick="editSubscription()">✏️ Edit Pelanggan</button>
+      <button class="btn btn-ghost btn-sm" onclick="openEditHistory('subscription', currentSubscriptionId, '🕘 Riwayat Edit Pelanggan')">🕘 Riwayat</button>
       <button class="btn btn-danger-ghost btn-sm" onclick="deleteSubscription()">🗑️ Hapus</button>
     </div>
     <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin-bottom:16px;" id="subsKuotaCard">
@@ -899,6 +917,13 @@
     <textarea id="setCatatan" rows="2" placeholder="cth. Terima kasih telah menggunakan jasa kami">Terima kasih telah menggunakan jasa laundry kami</textarea>
     <button class="btn btn-primary" onclick="saveSettingsForm()">Simpan Pengaturan</button>
 
+    <div class="section-title" style="margin-top:22px;">Notifikasi WA Otomatis</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.</p>
+    <div class="item-line" style="align-items:center;">
+      <span>Kirim notifikasi WA otomatis saat Selesai</span>
+      <input type="checkbox" id="setAutoNotifySelesai" style="width:20px;height:20px;" onchange="toggleAutoNotifySelesai(this.checked)">
+    </div>
+
     <div class="section-title" style="margin-top:22px;">Akun</div>
     <label for="setEmailBaru">Ganti Email</label>
     <div style="display:flex;gap:8px;">
@@ -917,6 +942,25 @@
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="importContactsFromPhone()">📇 Impor Kontak dari HP</button>
     <div id="contactsList" style="max-height:220px;overflow-y:auto;"></div>
 
+    <div class="section-title" style="margin-top:22px;">Outlet / Cabang</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Punya lebih dari satu lokasi toko? Tambahkan outletnya di sini — begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko untuk pilih lokasi mana yang sedang dikerjakan. Transaksi, Paket, dan Pengeluaran otomatis tercatat & terfilter sesuai outlet aktif.</p>
+    <div id="outletManagerList" style="margin-bottom:10px;"></div>
+    <div class="row2">
+      <div><label for="outletNama">Nama Outlet</label><input id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
+      <div><label for="outletTelp">No. Telepon</label><input id="outletTelp" placeholder="cth. 0812xxxxxxx"></div>
+    </div>
+    <label for="outletAlamat">Alamat</label>
+    <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
+    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
+
+    <div class="section-title" style="margin-top:22px;">Printer Bluetooth</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Sambungkan printer thermal Bluetooth (58mm/80mm) untuk cetak nota langsung, tanpa lewat WhatsApp. Tombol "Cetak Bluetooth" muncul di setiap layar kirim nota — begitu ditekan pertama kali, HP/laptop akan minta kamu memilih printernya.</p>
+    <div id="btPrinterStatus" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Belum tersambung</div>
+    <div class="row2">
+      <button type="button" class="btn btn-outline btn-sm" onclick="connectBluetoothPrinter()">🖨️ Sambungkan Printer</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="disconnectBluetoothPrinter()">Putus Sambungan</button>
+    </div>
+
     <div class="section-title" style="margin-top:22px;">Karyawan / Kasir</div>
     <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
@@ -932,7 +976,29 @@
       <b style="font-size:13px;">Kode Pendaftaran</b>
       <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin:6px 0 10px;" onclick="createManualCode()">➕ Buat Kode Manual</button>
       <div id="regCodeList" style="max-height:220px;overflow-y:auto;"></div>
+
+      <b style="font-size:13px;">Footer Nota (kredit pengembang)</b>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Baris "dikembangkan oleh..." yang muncul di bawah SEMUA nota (semua toko yang pakai instance app ini) — bukan per-toko. Ubah kalau app ini dipakai/dijual ulang oleh pihak lain.</p>
+      <label for="brandNama">Nama Pengembang</label>
+      <input id="brandNama" placeholder="cth. Tinggiran Tech Studio">
+      <label for="brandTagline">Tagline</label>
+      <input id="brandTagline" placeholder="cth. Bikin Apps & Website Kilat">
+      <label for="brandWA">No. WhatsApp</label>
+      <input id="brandWA" placeholder="cth. 081293228520">
+      <label for="brandEmail">Email</label>
+      <input id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
+      <button type="button" class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="saveAppBranding()">Simpan Footer Nota</button>
     </div>
+  </div>
+</div>
+
+<!-- Pilih outlet yang sedang dikerjakan -->
+<div class="modal-bg" id="outletPickerModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeOutletPicker()">✕</button>
+    <h3>Pilih Outlet</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Transaksi, Paket, Pengeluaran, dan Daftar Tugas baru akan tercatat & tampil sesuai outlet yang dipilih.</p>
+    <div id="outletPickerList"></div>
   </div>
 </div>
 
@@ -949,12 +1015,13 @@
       <button class="tut-head" onclick="toggleTut(this)">1️⃣ Membuat Transaksi Baru</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Transaksi</b> (paling kiri di menu bawah)</li>
+          <li>Buka tab <b>Transaksi</b> (ikon ➕ paling kiri di menu bawah)</li>
           <li>Isi nama pelanggan & no. WhatsApp — kalau sudah pernah input sebelumnya, tinggal pilih dari saran yang muncul</li>
-          <li>Isi kolom <b>Layanan</b>: pilih dari saran, atau ketik manual, isi berat/qty dan harga otomatis terisi</li>
-          <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar</li>
-          <li>Isi diskon/DP kalau ada, pilih status Lunas/Belum</li>
-          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul dan siap dikirim ke WhatsApp pelanggan</li>
+          <li>Isi kolom <b>Layanan</b>: pilih dari saran katalog, atau ketik manual — isi berat/qty dan harga otomatis terisi (boleh diubah manual)</li>
+          <li>Isi <b>Estimasi Selesai</b> (opsional) supaya cucian ini otomatis muncul di jadwal yang tepat di tab <b>Daftar Tugas</b></li>
+          <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar — boleh lebih dari satu layanan dalam satu nota</li>
+          <li>Isi diskon kalau ada, isi <b>Uang Muka (DP)</b> kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang</li>
+          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan atau diunduh sebagai gambar/PDF</li>
         </ol>
       </div>
     </div>
@@ -964,58 +1031,92 @@
       <div class="tut-body">
         <ol>
           <li>Buka tab <b>Riwayat</b> untuk lihat semua transaksi, termasuk statistik lunas/belum hari ini</li>
-          <li>Ketuk kolom cari untuk temukan transaksi pelanggan tertentu</li>
-          <li>Tekan <b>Edit</b> kalau ada perubahan layanan, atau <b>Hapus</b> kalau transaksi salah input</li>
-          <li>Tekan <b>Lunasi</b> untuk menandai transaksi yang belum lunas jadi lunas</li>
+          <li>Ketuk kolom cari untuk temukan transaksi dari nama pelanggan atau nomor nota tertentu</li>
+          <li>Tekan <b>Edit</b> kalau ada perubahan layanan/harga, atau <b>Hapus</b> kalau transaksi salah input</li>
+          <li>Salah hapus? Jangan panik — muncul tombol <b>Urungkan</b> di notifikasi bawah selama beberapa detik untuk mengembalikannya persis seperti semula</li>
+          <li>Tekan <b>Lunasi</b> untuk menandai transaksi yang belum lunas jadi lunas dengan sekali ketuk</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item">
-      <button class="tut-head" onclick="toggleTut(this)">3️⃣ Paket Bulanan</button>
+      <button class="tut-head" onclick="toggleTut(this)">3️⃣ Daftar Tugas — Jadwal Kerja Harian</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan Paket Baru</b> untuk daftarkan pelanggan langganan bulanan</li>
-          <li>Pilih jenis paket dari katalog, isi kuota kg dan tanggal mulai</li>
-          <li>Setiap pelanggan bawa laundry, buka detail paketnya lalu <b>Catat Laundry Masuk</b></li>
-          <li>Kalau pelanggan minta layanan lain (ekspres dll), gunakan <b>Tambah Layanan Lain</b> di halaman yang sama</li>
-          <li>Di akhir periode, cek ringkasan tagihan lalu tekan <b>Tandai Lunas</b> — otomatis masuk ke Laporan</li>
+          <li>Buka tab <b>Daftar Tugas</b> untuk lihat semua cucian yang perlu dikerjakan, otomatis dikelompokkan per hari Senin–Ahad menurut <b>Estimasi Selesai</b></li>
+          <li>Tiap kartu menampilkan nama pelanggan, jenis layanan, tanggal selesai, dan harga (atau tulisan "Lunas" kalau sudah dibayar)</li>
+          <li>Ketuk tombol <b>Belum</b> / <b>Dikerjakan</b> / <b>Selesai</b> untuk memperbarui progres tiap cucian sepanjang hari</li>
+          <li>Kalau sudah Selesai, tekan <b>📤 Sudah Diambil</b> begitu pelanggan mengambilnya — kartunya otomatis hilang dari daftar (data transaksinya sendiri tetap tersimpan normal di Riwayat)</li>
+          <li>Mau simpan/bagikan rekap kerjaan (termasuk yang sudah lama)? Pilih <b>Dari Tanggal</b>/<b>Sampai Tanggal</b> di bagian Unduh, lalu tekan <b>Unduh JPG</b> untuk dapat gambarnya — bisa langsung dibagikan ke grup WhatsApp karyawan</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item">
-      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Pelanggan Tempo (Bayar Nanti)</button>
+      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Paket Bulanan</button>
       <div class="tut-body">
         <ol>
-          <li>Untuk pelanggan yang bayarnya tidak tetap — kadang sebulan sekali, kadang setelah beberapa kali laundry</li>
+          <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan Baru</b> untuk daftarkan pelanggan langganan bulanan</li>
+          <li>Pilih jenis paket dari katalog, isi kuota kg dan tanggal mulai — harga paket & tanggal selesai periode otomatis terisi</li>
+          <li>Setiap pelanggan bawa laundry, buka detail paketnya lalu <b>Catat Laundry Masuk</b> — isi berat (kg) dan <b>Estimasi Selesai</b> supaya muncul di tab Daftar Tugas</li>
+          <li>Kalau pelanggan minta layanan lain di luar paket (setrika ekspres, cuci sepatu, cuci karpet, dll), gunakan <b>Tambah Layanan Lain</b> di halaman yang sama — ditagih bersama saat lunas</li>
+          <li>Kalau pemakaian kg-nya melebihi kuota, kelebihannya otomatis dihitung dan ditambahkan ke tagihan — tidak perlu hitung manual</li>
+          <li>Di akhir periode, cek ringkasan tagihan lalu tekan <b>Tandai Lunas</b> — otomatis masuk ke Riwayat & Laporan, siklus paket berikutnya langsung dimulai</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item">
+      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Pelanggan Tempo (Bayar Nanti)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Untuk pelanggan yang bayarnya tidak tetap — kadang sebulan sekali, kadang setelah beberapa kali laundry, tanpa kuota kg</li>
           <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan</b>, pilih Jenis Pelanggan <b>Tempo — Bayar Nanti</b></li>
           <li>Tidak ada kuota & tidak ada batas periode — cukup isi nama dan tanggal mulai</li>
-          <li>Setiap laundry masuk, buka detail pelanggannya lalu <b>Catat Laundry Masuk</b> (pilih layanan reguler dari katalog) — nota otomatis muncul berisi rekap seluruh riwayat yang belum dibayar</li>
-          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat Transaksi & Laporan</li>
+          <li>Setiap laundry masuk, buka detail pelanggannya lalu catat kunjungannya (pilih layanan dari katalog atau ketik manual, isi Estimasi Selesai) — boleh catat beberapa layanan sekaligus sebelum kirim notanya</li>
+          <li>Nota per-kunjungan otomatis muncul berisi rekap seluruh riwayat yang belum dibayar, jadi pelanggan selalu tahu total tunggakannya</li>
+          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat & Laporan. Kalau bayarnya lebih dari tagihan, sisanya otomatis jadi saldo untuk laundry berikutnya, bukan hilang</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Laporan Omset (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">6️⃣ Pengeluaran &amp; Laba Rugi (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total omzet, lunas, dan belum lunas</li>
-          <li>Scroll ke bawah untuk <b>Laporan Per Pelanggan</b> — bisa pilih rentang tanggal bebas, per bulan, atau per tahun</li>
-          <li>Tekan <b>Unduh PDF</b> untuk simpan laporan sebagai file</li>
+          <li>Buka tab <b>Pengeluaran</b>, isi <b>Nama Barang/Jasa</b> (pilih dari saran katalog atau ketik manual), qty, dan harga per satuan — jumlah totalnya otomatis terhitung</li>
+          <li>Isi <b>Kategori</b> (Listrik, Gaji Karyawan, Deterjen & Perlengkapan, dll) — bebas ketik kategori baru sendiri, tidak terbatas pilihan tetap</li>
+          <li>Tekan <b>+ Simpan Pengeluaran</b> untuk mencatatnya</li>
+          <li>Pilih periode Harian/Bulanan/Tahunan untuk lihat riwayat pengeluaran yang sudah tercatat, atau <b>Hapus</b> kalau salah input (ada <b>Urungkan</b> juga kalau salah hapus)</li>
+          <li>Untuk lihat untung/rugi toko, buka tab <b>Laporan</b> → bagian <b>Laba Rugi</b> — pilih per bulan atau per tahun untuk lihat Pendapatan Bersih (omzet dikurangi pengeluaran) lengkap dengan rincian per kategori</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">6️⃣ Kelola Karyawan (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">7️⃣ Laporan Omset &amp; Peringkat Pelanggan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka ⚙️ <b>Pengaturan</b> → scroll ke <b>Karyawan/Kasir</b></li>
-          <li>Tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
+          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total transaksi, omzet, lunas, dan belum lunas, lengkap dengan grafik omzet harian</li>
+          <li>Scroll ke <b>Rincian Transaksi</b> untuk lihat & unduh daftar semua transaksi bulan itu sebagai PDF</li>
+          <li>Scroll ke <b>Laporan Per Pelanggan</b> untuk lihat riwayat belanja satu pelanggan tertentu — bisa pilih rentang tanggal bebas, per bulan, atau per tahun</li>
+          <li>Scroll ke <b>Peringkat Pemasukan Pelanggan</b> untuk lihat pelanggan mana yang belanjanya paling banyak — bisa per bulan, per tahun, atau sepanjang waktu</li>
+          <li>Tiap bagian punya tombol <b>Unduh PDF</b> sendiri-sendiri untuk disimpan atau dicetak</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item owner-only">
+      <button class="tut-head" onclick="toggleTut(this)">8️⃣ Pengaturan Toko &amp; Karyawan (khusus Pemilik)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas)</li>
+          <li>Ganti <b>Logo Toko</b> dengan foto/logo asli — otomatis dipakai di header aplikasi dan semua nota (JPG/PDF) setelah login</li>
+          <li>Isi <b>Nama Toko</b>, <b>Alamat</b>, <b>No. Telepon</b>, dan <b>Catatan Kaki Nota</b>, lalu tekan <b>Simpan Pengaturan</b></li>
+          <li>Scroll ke <b>Kontak Pelanggan</b> untuk impor kontak dari HP supaya langsung muncul sebagai saran nama saat input transaksi & paket</li>
+          <li>Scroll ke <b>Karyawan/Kasir</b>, tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
           <li>Karyawan buka aplikasi ini di HP-nya, daftar akun sendiri, lalu masukkan kode itu saat pertama login</li>
-          <li>Kasir cuma bisa input transaksi & catat paket, tidak bisa lihat laporan atau ubah harga</li>
+          <li>Kasir cuma bisa input transaksi & catat paket — tidak bisa lihat Laporan/Pengeluaran, ubah Katalog, atau Edit/Hapus data</li>
         </ol>
       </div>
     </div>
@@ -1193,7 +1294,9 @@
     <p id="usageNotaHint" style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printUsageNotaBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printUsageNotaViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
   </div>
 </div>
 
@@ -1204,7 +1307,18 @@
     <h3>Kirim Nota</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printReceiptBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printReceiptViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+  </div>
+</div>
+
+<!-- Riwayat perubahan (transaksi/pelanggan paket) — siapa mengedit apa, kapan -->
+<div class="modal-bg" id="editHistoryModal" style="z-index:107;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditHistory()">✕</button>
+    <h3 id="editHistoryModalTitle">🕘 Riwayat Edit</h3>
+    <div id="editHistoryList" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1215,7 +1329,9 @@
     <h3>Kirim Nota Tagihan</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printSubsInvoiceBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printSubsInvoiceViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
   </div>
 </div>
 
@@ -1287,7 +1403,12 @@ const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
 
 /* ===================== STATE ===================== */
 var SHOP_LOGO_B64 = 'data:image/jpeg;base64,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';
-var settings = { shopName:'Laundry Batapas.id', address:'', phone:'', note:'Terima kasih telah menggunakan jasa laundry kami', logoUrl:null };
+var settings = { shopName:'Laundry Batapas.id', address:'', phone:'', note:'Terima kasih telah menggunakan jasa laundry kami', logoUrl:null, autoNotifySelesai:false };
+/* Kredit pengembang di footer SEMUA nota (bukan per-toko) — cuma diedit
+   lewat Pengaturan → Admin Platform (khusus ADMIN_EMAIL), supaya kalau app
+   ini dipakai/dijual ulang oleh pihak lain, footernya bisa diganti tanpa
+   mengubah kode. Default persis sama seperti nilai hardcode sebelumnya. */
+var appBranding = { nama:'Tinggiran Tech Studio', tagline:'Bikin Apps & Website Kilat', wa:'081293228520', email:'tinggirantech@gmail.com' };
 function shopLogoSrc(){ return settings.logoUrl || SHOP_LOGO_B64; }
 var transactions = [];
 var draftItems = [];
@@ -1296,12 +1417,27 @@ var currentUser = null;
 var currentRole = 'owner';
 var shopOwnerId = null;
 var employeeName = '';
+/* Kalau kasir ini dibatasi pemilik ke satu outlet tertentu (lewat outlet_id
+   di team_members), diisi id outlet-nya di sini. null = kasir bebas akses
+   & pindah ke semua outlet (perilaku lama, tetap default). */
+var kasirOutletId = null;
 var authMode = 'masuk';
 var serviceCatalog = [];
 var editingCatalogId = null;
 var subscriptions = [];
 var expenses = [];
 var expenseCatalog = [];
+/* Multi-outlet: fitur opt-in — kalau outlets kosong (toko belum pernah
+   bikin outlet), app jalan persis seperti sebelumnya (single-outlet,
+   tidak ada switcher/filter yang muncul). currentOutletId menentukan
+   outlet mana yang sedang "aktif dikerjakan" (dipakai saat mencatat
+   transaksi/paket/pengeluaran baru & memfilter Riwayat/Paket/Pengeluaran/
+   Daftar Tugas) — beda dari filter khusus Laporan (lihat reportOutletFilter)
+   yang defaultnya "Semua Outlet" karena laporan memang untuk lihat
+   gambaran besar semua cabang. */
+var outlets = [];
+var currentOutletId = null;
+var reportOutletFilter = '';
 var editingExpenseCatalogId = null;
 var expenseReportCache = null;
 var labaRugiCache = null;
@@ -1484,6 +1620,7 @@ async function resolveRoleAndInit(){
     currentRole = 'kasir';
     shopOwnerId = memberRow.owner_id;
     employeeName = memberRow.nama;
+    kasirOutletId = memberRow.outlet_id!=null ? String(memberRow.outlet_id) : null;
     applyRoleUI();
     await ensureAppSubscription(shopOwnerId, false);
     await initUserData();
@@ -1529,6 +1666,7 @@ async function claimInviteCode(){
   currentRole = 'kasir';
   shopOwnerId = row.owner_id;
   employeeName = row.nama;
+  kasirOutletId = row.outlet_id!=null ? String(row.outlet_id) : null;
   document.getElementById('onboardingScreen').classList.remove('show');
   applyRoleUI();
   showToast(`Berhasil bergabung sebagai kasir "${row.nama}"`);
@@ -1544,9 +1682,19 @@ function genInviteCode(){
 async function createInvite(){
   const nama = prompt('Nama karyawan/kasir ini:');
   if(!nama || !nama.trim()) return;
+  let outletId = null;
+  if(outlets.length>0){
+    const daftar = outlets.map((o,i)=>`${i+1}. ${o.nama}`).join('\n');
+    const pilihan = prompt(`Batasi kasir ini ke satu outlet tertentu? Ketik nomor outlet di bawah, atau kosongkan untuk kasir bebas akses semua outlet:\n\n${daftar}`);
+    if(pilihan && pilihan.trim()){
+      const idx = parseInt(pilihan.trim(), 10) - 1;
+      if(outlets[idx]) outletId = outlets[idx].id;
+    }
+  }
   const code = genInviteCode();
   const { error } = await sb.from('team_members').insert({
-    owner_id: shopOwnerId, nama: nama.trim(), role:'kasir', invite_code: code, status:'pending'
+    owner_id: shopOwnerId, nama: nama.trim(), role:'kasir', invite_code: code, status:'pending',
+    ...(outletId ? { outlet_id: outletId } : {})
   });
   if(error){ showToast('Gagal membuat undangan'); return; }
   await loadTeamList();
@@ -1565,11 +1713,14 @@ function renderTeamList(){
     el.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Belum ada karyawan ditambahkan.</div>';
     return;
   }
-  el.innerHTML = teamListCache.map(m=>`
+  el.innerHTML = teamListCache.map(m=>{
+    const outletNama = m.outlet_id!=null ? (outlets.find(o=>String(o.id)===String(m.outlet_id))?.nama || 'outlet terhapus') : '';
+    return `
     <div class="item-line" style="align-items:center;">
-      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· Aktif' : '· Menunggu ('+m.invite_code+')'}</span></span>
+      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· Aktif' : '· Menunggu ('+m.invite_code+')'}${outletNama ? ' · 🔒 '+escapeHTML(outletNama) : ''}</span></span>
       <button onclick="removeMember('${m.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 async function removeMember(id){
   if(!confirm('Hapus karyawan ini? Dia tidak akan bisa akses data toko lagi.')) return;
@@ -1708,6 +1859,8 @@ const TOUR_STEPS = [
   { tab:'baru', el:'#submitTrxBtn', text:'Kalau semua sudah diisi, tekan tombol ini untuk menyimpan transaksi & langsung membuat nota.' },
   { tab:'riwayat', el:'#searchInput', text:'Di tab Riwayat, kamu bisa cari transaksi pelanggan tertentu di sini.', pre:()=>renderHistory() },
   { tab:'paket', el:'button[onclick="openNewSubscription()"]', text:'Ini untuk mendaftarkan pelanggan paket bulanan maupun pelanggan Tempo (bayar nanti, tanpa kuota).' },
+  { tab:'papan', el:'#workBoardGrid', text:'Ini tab Daftar Tugas — otomatis menampilkan semua cucian yang perlu dikerjakan, dikelompokkan per hari menurut Estimasi Selesai. Ketuk Belum/Dikerjakan/Selesai di tiap kartu untuk update progresnya.', pre:()=>renderWorkBoard() },
+  { tab:'papan', el:'button[onclick="downloadWorkBoardImage()"]', text:'Mau lihat atau bagikan rekap kerjaan (termasuk yang sudah lama)? Pilih rentang tanggalnya lalu tekan tombol ini untuk mengunduhnya sebagai gambar JPG.' },
 ];
 var tourIndex = 0;
 function startGuidedTour(){
@@ -1775,6 +1928,42 @@ async function createManualCode(){
 }
 var regCodeCache = [];
 var paymentReqCache = [];
+/* Satu baris global (id=1), bukan per-toko — dipanggil untuk SEMUA user
+   (bukan cuma admin) di initUserData(), karena footer nota tiap toko
+   butuh nilai ini. Diam-diam gagal & tetap pakai default appBranding
+   kalau tabel app_branding belum dimigrasi (lihat README). */
+async function loadAppBranding(){
+  try{
+    const { data, error } = await sb.from('app_branding').select('*').eq('id', 1).maybeSingle();
+    if(data){
+      appBranding = {
+        nama: data.dev_nama || appBranding.nama,
+        tagline: data.dev_tagline || appBranding.tagline,
+        wa: data.dev_wa || appBranding.wa,
+        email: data.dev_email || appBranding.email
+      };
+    }
+  }catch(e){ /* diamkan — lihat komentar di atas */ }
+}
+function fillAppBrandingForm(){
+  const nama = document.getElementById('brandNama');
+  if(!nama) return;
+  nama.value = appBranding.nama;
+  document.getElementById('brandTagline').value = appBranding.tagline;
+  document.getElementById('brandWA').value = appBranding.wa;
+  document.getElementById('brandEmail').value = appBranding.email;
+}
+async function saveAppBranding(){
+  const nama = document.getElementById('brandNama').value.trim();
+  const tagline = document.getElementById('brandTagline').value.trim();
+  const wa = document.getElementById('brandWA').value.trim();
+  const email = document.getElementById('brandEmail').value.trim();
+  if(!nama){ showToast('Nama pengembang wajib diisi'); return; }
+  const { error } = await sb.from('app_branding').upsert({ id:1, dev_nama:nama, dev_tagline:tagline, dev_wa:wa, dev_email:email });
+  if(error){ showToast('Gagal menyimpan — pastikan tabel app_branding sudah dimigrasi (lihat README)'); return; }
+  appBranding = { nama, tagline, wa, email };
+  showToast('Footer nota diperbarui untuk semua toko');
+}
 async function loadAdminData(){
   const { data: codes } = await sb.from('registration_codes').select('*').order('created_at', { ascending:false });
   regCodeCache = codes || [];
@@ -1871,7 +2060,9 @@ async function initUserData(){
     if(saved && ['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(saved)) lastTab = saved;
   }catch(e){}
   try{
+    await loadAppBranding();
     await loadSettingsFromDB();
+    await loadOutletsFromDB();
     await loadTransactionsFromDB();
     await loadCatalogFromDB();
     await loadSubscriptionsFromDB();
@@ -1880,6 +2071,8 @@ async function initUserData(){
     await loadExpensesFromDB();
     await loadExpenseCatalogFromDB();
     applySettingsToUI();
+    renderOutletSwitcherLabel();
+    populateReportOutletFilter();
     renderAll();
   }catch(e){
     console.error('Gagal memuat data awal:', e);
@@ -1890,7 +2083,7 @@ async function initUserData(){
 async function loadSettingsFromDB(){
   const { data, error } = await sb.from('settings').select('*').eq('user_id', shopOwnerId).maybeSingle();
   if(data){
-    settings = { shopName:data.shop_name||'Laundry Batapas.id', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null };
+    settings = { shopName:data.shop_name||'Laundry Batapas.id', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
   }
 }
 async function loadTransactionsFromDB(){
@@ -1900,7 +2093,8 @@ async function loadTransactionsFromDB(){
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum'
+    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
+    outletId: row.outlet_id!=null ? String(row.outlet_id) : null
   }));
 }
 /* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
@@ -1913,7 +2107,8 @@ async function loadExpensesFromDB(){
     id: row.id, tanggal: row.tanggal, nama: row.nama || row.kategori || '-',
     qty: row.qty!=null ? Number(row.qty) : null, satuan: row.satuan || '',
     harga: row.harga!=null ? Number(row.harga) : null,
-    jumlah: Number(row.jumlah)||0, kategori: row.kategori || 'Lain-lain', catatan: row.catatan||''
+    jumlah: Number(row.jumlah)||0, kategori: row.kategori || 'Lain-lain', catatan: row.catatan||'',
+    outletId: row.outlet_id!=null ? String(row.outlet_id) : null
   }));
 }
 /* Tabel expense_catalog (opsional, untuk saran otomatis/autocomplete saat catat
@@ -1923,6 +2118,167 @@ async function loadExpenseCatalogFromDB(){
   const { data, error } = await sb.from('expense_catalog').select('*').eq('user_id', shopOwnerId).order('nama', { ascending:true });
   if(error){ expenseCatalog = []; return; }
   expenseCatalog = (data||[]).map(r => ({ id:r.id, nama:r.nama, satuan:r.satuan||'pcs', harga:Number(r.harga)||0 }));
+}
+/* ===================== MULTI-OUTLET (opt-in) ===================== */
+/* Tabel outlets opsional — kalau belum dimigrasi atau toko belum pernah
+   bikin outlet, diamkan saja: app tetap jalan sebagai single-outlet persis
+   seperti sebelumnya (switcher & filter outlet baru muncul di UI begitu
+   outlets.length > 0). */
+async function loadOutletsFromDB(){
+  const { data, error } = await sb.from('outlets').select('*').eq('user_id', shopOwnerId).order('created_at', { ascending:true });
+  if(error){ outlets = []; currentOutletId = null; return; }
+  outlets = (data||[]).map(r => ({ id:r.id, nama:r.nama, alamat:r.alamat||'', telp:r.telp||'' }));
+  if(outlets.length>0){
+    let saved = null;
+    try{ saved = localStorage.getItem('nk_lastOutletId'); }catch(e){}
+    currentOutletId = (saved && outlets.some(o=>String(o.id)===saved)) ? saved : String(outlets[0].id);
+    if(currentRole==='kasir' && kasirOutletId && outlets.some(o=>String(o.id)===kasirOutletId)){
+      currentOutletId = kasirOutletId;
+      try{ localStorage.setItem('nk_lastOutletId', currentOutletId); }catch(e){}
+    }
+  } else {
+    currentOutletId = null;
+  }
+}
+/* Konteks outlet yang "sedang dikerjakan" — dipakai saat mencatat transaksi/
+   paket/pengeluaran baru, dan memfilter tampilan Riwayat/Paket/Pengeluaran/
+   Daftar Tugas. Beda dari reportOutletFilter (khusus tab Laporan) yang
+   defaultnya "Semua Outlet" karena laporan memang untuk lihat gambaran
+   besar lintas cabang. */
+function switchOutlet(id){
+  if(currentRole==='kasir' && kasirOutletId && String(id)!==kasirOutletId){
+    showToast('Outlet Anda dikunci oleh pemilik toko');
+    closeOutletPicker();
+    return;
+  }
+  currentOutletId = id ? String(id) : null;
+  try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
+  renderOutletSwitcherLabel();
+  closeOutletPicker();
+  switchTab(currentTabName);
+}
+function visibleTransactions(){
+  return (outlets.length===0 || !currentOutletId) ? transactions : transactions.filter(t=>String(t.outletId)===currentOutletId);
+}
+function visibleSubscriptions(){
+  return (outlets.length===0 || !currentOutletId) ? subscriptions : subscriptions.filter(s=>String(s.outletId)===currentOutletId);
+}
+function visibleExpenses(){
+  return (outlets.length===0 || !currentOutletId) ? expenses : expenses.filter(e=>String(e.outletId)===currentOutletId);
+}
+function visibleReportTransactions(){
+  return reportOutletFilter ? transactions.filter(t=>String(t.outletId)===reportOutletFilter) : transactions;
+}
+function visibleReportExpenses(){
+  return reportOutletFilter ? expenses.filter(e=>String(e.outletId)===reportOutletFilter) : expenses;
+}
+async function addOutlet(){
+  const nama = document.getElementById('outletNama').value.trim();
+  const alamat = document.getElementById('outletAlamat').value.trim();
+  const telp = document.getElementById('outletTelp').value.trim();
+  if(!nama){ showToast('Nama outlet wajib diisi'); return; }
+  const { data, error } = await sb.from('outlets').insert({ user_id: shopOwnerId, nama, alamat, telp }).select().single();
+  if(error){ showToast('Gagal menambah outlet — pastikan tabel outlets sudah dimigrasi (lihat README)'); return; }
+  outlets.push({ id:data.id, nama:data.nama, alamat:data.alamat||'', telp:data.telp||'' });
+  if(!currentOutletId){ currentOutletId = String(data.id); try{ localStorage.setItem('nk_lastOutletId', currentOutletId); }catch(e){} }
+  document.getElementById('outletNama').value = '';
+  document.getElementById('outletAlamat').value = '';
+  document.getElementById('outletTelp').value = '';
+  showToast('Outlet ditambahkan');
+  renderOutletManagerList();
+  renderOutletSwitcherLabel();
+  populateReportOutletFilter();
+}
+async function deleteOutlet(id){
+  if(!confirm('Hapus outlet ini? Data transaksi/paket/pengeluaran yang sudah tercatat di outlet ini TIDAK ikut terhapus, cuma dilepas kaitannya (jadi tanpa outlet).')) return;
+  const { error } = await sb.from('outlets').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus outlet'); return; }
+  outlets = outlets.filter(o=>String(o.id)!==String(id));
+  if(currentOutletId===String(id)){
+    currentOutletId = outlets.length>0 ? String(outlets[0].id) : null;
+    try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
+  }
+  showToast('Outlet dihapus');
+  renderOutletManagerList();
+  renderOutletSwitcherLabel();
+  populateReportOutletFilter();
+  switchTab(currentTabName);
+}
+function renderOutletManagerList(){
+  const el = document.getElementById('outletManagerList');
+  if(!el) return;
+  if(outlets.length===0){ el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">Belum ada outlet — toko ini masih mode 1 lokasi.</div>`; return; }
+  el.innerHTML = outlets.map(o=>`
+    <div class="item-line" style="align-items:center;">
+      <span>${escapeHTML(o.nama)}${o.alamat?` <span style="color:var(--ink-soft);">— ${escapeHTML(o.alamat)}</span>`:''}</span>
+      <button type="button" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;" onclick="deleteOutlet('${o.id}')">✕</button>
+    </div>
+  `).join('');
+}
+function renderOutletSwitcherLabel(){
+  const wrap = document.getElementById('outletSwitcherWrap');
+  if(!wrap) return;
+  if(outlets.length===0){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  const cur = outlets.find(o=>String(o.id)===currentOutletId);
+  const locked = currentRole==='kasir' && !!kasirOutletId;
+  document.getElementById('outletSwitcherLabel').textContent = (cur ? cur.nama : 'Pilih Outlet') + (locked ? ' 🔒' : '');
+}
+function openOutletPicker(){
+  if(currentRole==='kasir' && kasirOutletId){ showToast('Outlet Anda dikunci oleh pemilik toko'); return; }
+  const el = document.getElementById('outletPickerList');
+  el.innerHTML = outlets.map(o=>`
+    <button type="button" class="btn ${String(o.id)===currentOutletId?'btn-primary':'btn-outline'}" style="margin-bottom:8px;" onclick="switchOutlet('${o.id}')">${escapeHTML(o.nama)}</button>
+  `).join('');
+  document.getElementById('outletPickerModal').classList.add('show');
+}
+function closeOutletPicker(){ document.getElementById('outletPickerModal').classList.remove('show'); }
+function populateReportOutletFilter(){
+  const sel = document.getElementById('reportOutletFilterSelect');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Semua Outlet</option>' + outlets.map(o=>`<option value="${o.id}">${escapeHTML(o.nama)}</option>`).join('');
+  sel.value = outlets.some(o=>String(o.id)===prev) ? prev : '';
+  reportOutletFilter = sel.value;
+  const wrap = document.getElementById('reportOutletFilterWrap');
+  if(wrap) wrap.style.display = outlets.length>0 ? 'block' : 'none';
+}
+function onReportOutletFilterChange(){
+  reportOutletFilter = document.getElementById('reportOutletFilterSelect').value;
+  renderReport(); renderLabaRugi(); renderPeringkatPelanggan();
+  if(perReportCache) renderPerPelangganReport();
+}
+/* Dipakai semua fungsi nota (WA/PDF/JPG) supaya otomatis pakai alamat & telepon
+   outlet yang terkait transaksi/paket-nya, bukan selalu identitas toko global.
+   Kalau outlet tidak diisi alamat/telepon sendiri (atau transaksinya tanpa
+   outlet), otomatis balik ke Pengaturan → Nama/Alamat/Telepon Toko. */
+function notaHeaderInfo(outletId){
+  const o = outletId ? outlets.find(x=>String(x.id)===String(outletId)) : null;
+  return {
+    nama: settings.shopName || 'Laundry Batapas.id',
+    subtitle: o ? o.nama : '',
+    alamat: (o && o.alamat) ? o.alamat : (settings.address||''),
+    telp: (o && o.telp) ? o.telp : (settings.phone||'')
+  };
+}
+/* Baris kredit pengembang di footer nota — dipakai bareng oleh semua
+   fungsi pembangun nota WA-text/PDF-lines supaya isinya seragam & cuma
+   perlu diedit di satu tempat (appBranding, lihat loadAppBranding()). */
+function notaFooterLinesWA(){
+  return [
+    `*dikembangkan oleh ${appBranding.nama}*`,
+    `_${appBranding.tagline}_`,
+    `🟢 WhatsApp: ${appBranding.wa}`,
+    `📧 ${appBranding.email}`,
+  ];
+}
+function notaFooterLinesPDF(){
+  return [
+    { t:`dikembangkan oleh ${appBranding.nama}`, c:true, b:true, s:7 },
+    { t:appBranding.tagline, c:true, s:6, it:true },
+    { t:appBranding.wa, c:true, s:6, icon:'wa' },
+    { t:appBranding.email, c:true, s:6, icon:'email' },
+  ];
 }
 async function persistSettings(){
   const { error } = await sb.from('settings').upsert({
@@ -1940,6 +2296,27 @@ async function persistSettingsWithLogo(){
     phone: settings.phone, note: settings.note, logo_url: settings.logoUrl
   });
   return error;
+}
+/* Toggle notifikasi WA otomatis langsung tersimpan begitu diklik (seperti
+   logo toko), tidak perlu tombol "Simpan Pengaturan" terpisah. Kolom
+   auto_notify_selesai juga baru (lihat README) — kalau upsert gagal karena
+   kolomnya belum ada, checkbox dikembalikan ke posisi semula. */
+async function toggleAutoNotifySelesai(checked){
+  const prev = settings.autoNotifySelesai;
+  settings.autoNotifySelesai = checked;
+  const { error } = await sb.from('settings').upsert({
+    user_id: shopOwnerId, shop_name: settings.shopName, address: settings.address,
+    phone: settings.phone, note: settings.note, auto_notify_selesai: checked
+  });
+  if(error){
+    settings.autoNotifySelesai = prev;
+    const chk = document.getElementById('setAutoNotifySelesai');
+    if(chk) chk.checked = prev;
+    showToast('Gagal menyimpan — kolom auto_notify_selesai mungkin belum ada di tabel settings (lihat README)');
+    return;
+  }
+  showToast(checked ? 'Notifikasi WA otomatis diaktifkan' : 'Notifikasi WA otomatis dimatikan');
+  renderWorkBoard();
 }
 async function saveShopLogo(dataUri){
   settings.logoUrl = dataUri;
@@ -2175,7 +2552,8 @@ async function loadSubscriptionsFromDB(){
     hargaLebihKg:Number(r.harga_lebih_kg)||0,
     kuotaKg:Number(r.kuota_kg)||0, tanggalMulai:r.tanggal_mulai, tanggalSelesai:r.tanggal_selesai,
     status:r.status||'aktif', statusBayar:r.status_bayar||'belum', dp:Number(r.dp)||0,
-    lunasAt:r.lunas_at||null, transactionId:r.transaction_id||null, terpakai:0
+    lunasAt:r.lunas_at||null, transactionId:r.transaction_id||null, terpakai:0,
+    outletId: r.outlet_id!=null ? String(r.outlet_id) : null
   }));
   await loadAllUsageTotals();
 }
@@ -2224,7 +2602,7 @@ function renderSubscriptions(){
   const filterTipe = filterTipeEl ? filterTipeEl.value : 'semua';
   const today = todayISO();
   const el = document.getElementById('subscriptionList');
-  let list = subscriptions.slice();
+  let list = visibleSubscriptions().slice();
   if(filterTipe==='bulanan') list = list.filter(s=>!isTempo(s));
   else if(filterTipe==='tempo') list = list.filter(s=>isTempo(s));
   if(filter==='aktif'){
@@ -2344,21 +2722,30 @@ async function createSubscription(){
     };
   }
 
+  let beforeSnapshot = null;
   if(editingSubscriptionId){
+    const before = subscriptions.find(s=>s.id===editingSubscriptionId);
+    beforeSnapshot = before ? {...before} : null;
     const { error } = await sb.from('subscriptions').update(payload).eq('id', editingSubscriptionId);
     if(error){ showToast('Gagal menyimpan perubahan'); return; }
     showToast('Data pelanggan paket diperbarui');
   } else {
     const { error } = await sb.from('subscriptions').insert({
-      user_id: shopOwnerId, ...payload, status:'aktif', status_bayar:'belum', dp:0
+      user_id: shopOwnerId, ...payload, status:'aktif', status_bayar:'belum', dp:0,
+      ...(currentOutletId ? { outlet_id: currentOutletId } : {})
     });
     if(error){ showToast('Gagal menyimpan pelanggan paket'); return; }
     showToast(tempo ? 'Pelanggan tempo ditambahkan' : 'Pelanggan paket ditambahkan');
     saveContactIfNew(nama, hp);
   }
+  const editedId = editingSubscriptionId;
   editingSubscriptionId = null;
   closeNewSubscription();
   await loadSubscriptionsFromDB();
+  if(beforeSnapshot){
+    const after = subscriptions.find(s=>s.id===editedId);
+    if(after) await logEditHistory('subscription', editedId, diffSubscriptionFields(beforeSnapshot, after));
+  }
   renderSubscriptions();
 }
 async function openSubsDetail(id){
@@ -2719,7 +3106,11 @@ function subsInvoiceTextWA(s){
   const calc = s._calc || { excessKg:0, excessCost:0, excessRate:0, totalTagihan:s.hargaPaket, sisaBayar:s.hargaPaket-(s.dp||0), lebihBayar:Math.max((s.dp||0)-s.hargaPaket,0), lunasNow:s.statusBayar==='lunas' };
   const tempo = isTempo(s);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push(`Pelanggan  : ${s.nama}`);
   if(tempo){
@@ -2759,10 +3150,7 @@ function subsInvoiceTextWA(s){
   lines.push(`Status     : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
-  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_Bikin Apps & Website Kilat_');
-  lines.push('🟢 WhatsApp: 081293228520');
-  lines.push('📧 tinggirantech@gmail.com');
+  lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 function buildSubsInvoicePDFLines(s){
@@ -2770,9 +3158,11 @@ function buildSubsInvoicePDFLines(s){
   const tempo = isTempo(s);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t: tempo ? 'REKAP TAGIHAN TEMPO' : 'TAGIHAN PAKET BULANAN', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -2813,10 +3203,7 @@ function buildSubsInvoicePDFLines(s){
   L.push({t:`Status         : ${calc.lunasNow ? 'LUNAS' : 'BELUM LUNAS'}`, s:9, indent:17});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
-  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
-  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
-  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  L.push(...notaFooterLinesPDF());
   return L;
 }
 function openSubsInvoiceShare(){
@@ -2994,7 +3381,11 @@ function tempoUsageNotaTextWA(usage, s){
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI - TEMPO*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3014,10 +3405,7 @@ function tempoUsageNotaTextWA(usage, s){
   if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
-  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_Bikin Apps & Website Kilat_');
-  lines.push('🟢 WhatsApp: 081293228520');
-  lines.push('📧 tinggirantech@gmail.com');
+  lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 /* Versi batch dari tempoUsageNotaTextWA() — dipakai saat beberapa layanan
@@ -3030,7 +3418,11 @@ function tempoBatchUsageNotaTextWA(newItems, s){
   const sisaBayar = Math.max(totalHarga - (s.dp||0), 0);
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI - TEMPO*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3052,10 +3444,7 @@ function tempoBatchUsageNotaTextWA(newItems, s){
   if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
-  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_Bikin Apps & Website Kilat_');
-  lines.push('🟢 WhatsApp: 081293228520');
-  lines.push('📧 tinggirantech@gmail.com');
+  lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 function usageNotaTextWA(usage, s){
@@ -3066,7 +3455,11 @@ function usageNotaTextWA(usage, s){
   const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
   const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai(usage, s, terpakaiUpTo);
   const lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push('*CATATAN TRANSAKSI*');
   lines.push(`Pelanggan  : ${s.nama}`);
@@ -3097,10 +3490,7 @@ function usageNotaTextWA(usage, s){
   lines.push(`*Total Harga Paket : ${rupiah(totalHarga)}*`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
-  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_Bikin Apps & Website Kilat_');
-  lines.push('🟢 WhatsApp: 081293228520');
-  lines.push('📧 tinggirantech@gmail.com');
+  lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 function sendUsageNotaWA(target){
@@ -3127,9 +3517,11 @@ function buildTempoUsageNotaPDFLines(usage, s){
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3149,10 +3541,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
-  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
-  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
-  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  L.push(...notaFooterLinesPDF());
   return L;
 }
 /* Versi batch dari buildTempoUsageNotaPDFLines() — lihat tempoBatchUsageNotaTextWA(). */
@@ -3164,9 +3553,11 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   const lebihBayar = Math.max((s.dp||0) - totalHarga, 0);
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3188,10 +3579,7 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
-  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
-  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
-  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  L.push(...notaFooterLinesPDF());
   return L;
 }
 function buildUsageNotaPDFLines(usage, s){
@@ -3203,9 +3591,11 @@ function buildUsageNotaPDFLines(usage, s){
   const sisaKg = Math.max(s.kuotaKg - terpakaiUpTo, 0);
   const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
   const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai(usage, s, terpakaiUpTo);
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:'CATATAN TRANSAKSI', c:true, b:true, s:10});
   L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
@@ -3236,10 +3626,7 @@ function buildUsageNotaPDFLines(usage, s){
   L.push({t:`Total Harga Paket : ${rupiah(totalHarga)}`, b:true, s:9, indent:20});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
-  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
-  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
-  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  L.push(...notaFooterLinesPDF());
   return L;
 }
 /* ===================== RENDER NOTA JADI GAMBAR (JPG) =====================
@@ -3425,6 +3812,229 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
   showToast('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.');
 }
+/* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
+   Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)
+   untuk mengirim nota langsung ke printer thermal 58mm/80mm lewat ESC/POS raw
+   text, tanpa app tambahan. Sama seperti buildNotaCanvas(), sumbernya array
+   `lines` yang sama dipakai versi PDF/JPG (t/c/b/s per baris) — supaya semua
+   format nota (WA, PDF, JPG, Bluetooth) selalu konsisten kontennya. */
+var btPrinterDevice = null;
+var btPrinterServer = null;
+var btPrinterChar = null;
+/* UUID service yang umum dipakai printer thermal Bluetooth murah (BLE UART-like:
+   ISSC/Microchip transparent UART, dan beberapa varian generic printer service).
+   Web Bluetooth cuma boleh mengakses service yang disebut di sini — printer
+   dengan UUID lain tidak akan ketemu karakteristik tulisnya. */
+var BT_PRINTER_SERVICE_UUIDS = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+];
+function isBluetoothPrintSupported(){
+  return !!(navigator.bluetooth && navigator.bluetooth.requestDevice);
+}
+function renderBtPrinterStatus(){
+  const el = document.getElementById('btPrinterStatus');
+  if(!el) return;
+  if(btPrinterDevice && btPrinterServer && btPrinterServer.connected){
+    el.textContent = `Tersambung: ${btPrinterDevice.name || '(tanpa nama)'}`;
+  } else if(!isBluetoothPrintSupported()){
+    el.textContent = 'Browser ini belum mendukung Bluetooth Web — pakai Chrome di Android/laptop';
+  } else {
+    el.textContent = 'Belum tersambung';
+  }
+}
+/* Printer thermal murah umumnya cuma bisa cetak ASCII/CP437, jadi emoji &
+   simbol unicode di nota (—, •, ✓, 🟢, 📧, dst.) diganti/dibuang dulu supaya
+   tidak keluar sebagai karakter acak di kertas. */
+function sanitizeForThermal(s){
+  if(!s) return '';
+  return String(s)
+    .replace(/[—–]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/•/g, '-')
+    .replace(/✓/g, 'v')
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}️]/gu, '')
+    .replace(/[^\x00-\x7E]/g, '')
+    .trim();
+}
+function concatBytes(chunks){
+  let total = 0;
+  chunks.forEach(c=>{ total += c.length; });
+  const out = new Uint8Array(total);
+  let offset = 0;
+  chunks.forEach(c=>{ out.set(c, offset); offset += c.length; });
+  return out;
+}
+/* Ubah array `lines` (format yang sama dipakai buildReceiptPDFLines() dkk.)
+   jadi perintah mentah ESC/POS: ESC @ (init), ESC a (rata tengah/kiri),
+   ESC E (tebal), GS ! (ukuran huruf), lalu teksnya + line feed per baris. */
+function escposBytesFromLines(lines){
+  const enc = new TextEncoder();
+  const chunks = [ new Uint8Array([0x1B,0x40]) ]; // ESC @ — reset printer
+  let curAlign = -1, curBold = -1, curSize = -1;
+  lines.forEach(line=>{
+    const align = line.c ? 1 : 0;
+    const bold = line.b ? 1 : 0;
+    const size = (line.s>=12) ? 0x11 : (line.s>=10 ? 0x01 : 0x00); // 0x11=lebar+tinggi 2x, 0x01=tinggi 2x, 0x00=normal
+    if(align!==curAlign){ chunks.push(new Uint8Array([0x1B,0x61,align])); curAlign=align; }
+    if(bold!==curBold){ chunks.push(new Uint8Array([0x1B,0x45,bold])); curBold=bold; }
+    if(size!==curSize){ chunks.push(new Uint8Array([0x1D,0x21,size])); curSize=size; }
+    chunks.push(enc.encode(sanitizeForThermal(line.t)));
+    chunks.push(new Uint8Array([0x0A]));
+  });
+  chunks.push(new Uint8Array([0x1B,0x45,0x00])); // tebal off
+  chunks.push(new Uint8Array([0x1D,0x21,0x00])); // ukuran normal
+  chunks.push(new Uint8Array([0x1B,0x61,0x00])); // rata kiri
+  chunks.push(new Uint8Array([0x0A,0x0A,0x0A])); // spasi buat sobek kertas
+  return concatBytes(chunks);
+}
+async function connectBluetoothPrinter(){
+  if(!isBluetoothPrintSupported()){
+    showToast('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop');
+    return false;
+  }
+  try{
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: BT_PRINTER_SERVICE_UUIDS
+    });
+    const server = await device.gatt.connect();
+    let writeChar = null;
+    for(const uuid of BT_PRINTER_SERVICE_UUIDS){
+      try{
+        const service = await server.getPrimaryService(uuid);
+        const chars = await service.getCharacteristics();
+        writeChar = chars.find(c=>c.properties.write || c.properties.writeWithoutResponse) || null;
+        if(writeChar) break;
+      }catch(e){ /* printer ini tidak punya service ini, coba UUID berikutnya */ }
+    }
+    if(!writeChar){
+      showToast('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain');
+      try{ device.gatt.disconnect(); }catch(e){}
+      renderBtPrinterStatus();
+      return false;
+    }
+    btPrinterDevice = device; btPrinterServer = server; btPrinterChar = writeChar;
+    device.addEventListener('gattserverdisconnected', ()=>{
+      btPrinterServer = null; btPrinterChar = null;
+      renderBtPrinterStatus();
+    });
+    showToast(`Printer "${device.name||''}" tersambung`);
+    renderBtPrinterStatus();
+    return true;
+  }catch(e){
+    renderBtPrinterStatus();
+    if(e && e.name==='NotFoundError') return false; // dibatalkan user, tidak perlu toast error
+    showToast('Gagal menyambungkan printer: ' + (e && e.message ? e.message : 'coba lagi'));
+    return false;
+  }
+}
+function disconnectBluetoothPrinter(){
+  try{ if(btPrinterDevice && btPrinterDevice.gatt && btPrinterDevice.gatt.connected) btPrinterDevice.gatt.disconnect(); }catch(e){}
+  btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
+  renderBtPrinterStatus();
+}
+async function printLinesViaBluetooth(lines){
+  if(!btPrinterChar || !btPrinterServer || !btPrinterServer.connected){
+    const ok = await connectBluetoothPrinter();
+    if(!ok) return false;
+  }
+  try{
+    const bytes = escposBytesFromLines(lines);
+    const CHUNK = 180; // kirim per potongan kecil, sesuai batas paket BLE khas
+    for(let i=0;i<bytes.length;i+=CHUNK){
+      const chunk = bytes.slice(i, i+CHUNK);
+      if(btPrinterChar.properties.writeWithoutResponse){
+        await btPrinterChar.writeValueWithoutResponse(chunk);
+      } else {
+        await btPrinterChar.writeValue(chunk);
+      }
+      await new Promise(r=>setTimeout(r, 25));
+    }
+    showToast('Nota dikirim ke printer');
+    return true;
+  }catch(e){
+    showToast('Gagal mencetak — coba sambungkan ulang printernya');
+    btPrinterServer = null; btPrinterChar = null;
+    renderBtPrinterStatus();
+    return false;
+  }
+}
+async function printReceiptBluetooth(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  await printLinesViaBluetooth(buildReceiptPDFLines(trx));
+}
+async function printSubsInvoiceBluetooth(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  await printLinesViaBluetooth(buildSubsInvoicePDFLines(s));
+}
+async function printUsageNotaBluetooth(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+  }
+  await printLinesViaBluetooth(lines);
+}
+/* ===================== CETAK VIA BROWSER (AirPrint/printer lain) =====================
+   Web Bluetooth TIDAK didukung Safari/iOS sama sekali, jadi ini jalur cetak
+   cadangan yang jalan di semua browser: render nota sebagai HTML sederhana ke
+   #printArea lalu panggil window.print() bawaan browser. Di iPhone, dialog
+   cetak Safari otomatis menampilkan printer AirPrint yang ada di jaringan yang
+   sama — cocok untuk printer thermal yang mendukung WiFi/AirPrint, bukan cuma
+   Bluetooth. Pakai array `lines` yang sama dengan versi PDF/JPG/Bluetooth
+   supaya isinya tetap konsisten di semua format. */
+function linesToPrintHTML(lines){
+  return lines.map(line=>{
+    const align = line.c ? 'center' : 'left';
+    const weight = line.b ? '800' : '400';
+    const fontStyle = line.it ? 'italic' : 'normal';
+    const size = (line.s>=12) ? '15px' : (line.s>=10 ? '13px' : '11.5px');
+    return `<div style="text-align:${align};font-weight:${weight};font-style:${fontStyle};font-size:${size};white-space:pre-wrap;">${escapeHTML(line.t)}</div>`;
+  }).join('');
+}
+function printLinesViaBrowser(lines){
+  document.getElementById('printArea').innerHTML = `<div style="max-width:340px;margin:0 auto;font-family:'Space Mono',monospace;padding:20px;">${linesToPrintHTML(lines)}</div>`;
+  window.print();
+}
+function printReceiptViaBrowser(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  printLinesViaBrowser(buildReceiptPDFLines(trx));
+}
+function printSubsInvoiceViaBrowser(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  printLinesViaBrowser(buildSubsInvoicePDFLines(s));
+}
+function printUsageNotaViaBrowser(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+  }
+  printLinesViaBrowser(lines);
+}
 async function downloadUsageNotaImage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
@@ -3575,7 +4185,9 @@ function selectContactSuggest(inputId, boxId, contactId){
 }
 
 /* ===================== TAB SWITCH ===================== */
+var currentTabName = 'baru';
 function switchTab(name){
+  currentTabName = name;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran', papan:'view-papan' };
@@ -3658,6 +4270,8 @@ async function submitTransaction(){
   const finalDp = status==='lunas' ? Math.max(dp, total) : dp;
 
   if(editingTransactionId){
+    const before = transactions.find(t=>t.id===editingTransactionId);
+    const beforeSnapshot = before ? {...before} : null;
     const { data, error } = await sb.from('transactions').update({
       nama, hp, tanggal, estimasi: estimasi || null,
       items: draftItems.slice(), diskon, total, dp: finalDp, status, catatan
@@ -3669,9 +4283,11 @@ async function submitTransaction(){
       tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
       diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
       status: data.status, catatan: data.catatan,
-      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum'
+      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum',
+      outletId: data.outlet_id!=null ? String(data.outlet_id) : (idx>-1 ? transactions[idx].outletId : null)
     };
     if(idx>-1) transactions[idx] = trx;
+    if(beforeSnapshot) await logEditHistory('transaction', trx.id, diffTransactionFields(beforeSnapshot, trx));
     resetTransactionForm();
     showToast('Transaksi diperbarui');
     openReceipt(trx.id);
@@ -3685,7 +4301,13 @@ async function submitTransaction(){
     estimasi: estimasi || null,
     items: draftItems.slice(),
     diskon, total, dp: finalDp,
-    status, catatan
+    status, catatan,
+    /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
+       tertentu (currentOutletId terisi) — supaya toko yang belum pernah
+       bikin outlet sama sekali (fitur ini opt-in) tetap kirim payload
+       persis seperti sebelumnya, tidak berisiko gagal gara-gara kolom
+       outlet_id belum ada di database lama yang belum dimigrasi. */
+    ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
 
   if(error){ showToast('Gagal menyimpan transaksi'); return; }
@@ -3694,7 +4316,8 @@ async function submitTransaction(){
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
     tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
     diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum'
+    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum',
+    outletId: data.outlet_id!=null ? String(data.outlet_id) : null
   };
   transactions.push(trx);
   resetTransactionForm();
@@ -3740,6 +4363,108 @@ function cancelEditTransaction(){
   resetTransactionForm();
   showToast('Edit dibatalkan');
 }
+/* ===================== RIWAYAT EDIT (transaksi & pelanggan paket) =====================
+   Satu tabel generik edit_log (entity_type + entity_id) dipakai bareng oleh
+   semua entitas yang bisa diedit & butuh akuntabilitas siapa-ubah-apa-kapan,
+   supaya tidak perlu bikin tabel+RLS terpisah tiap kali ada entitas baru.
+   Pengeluaran TIDAK punya riwayat edit karena memang tidak ada fitur edit
+   pengeluaran (cuma tambah/hapus). Katalog (layanan & pengeluaran) juga
+   sengaja tidak dilacak — itu daftar harga/template, bukan catatan
+   keuangan per pelanggan, jadi nilai akuntabilitasnya jauh lebih rendah
+   dibanding transaksi & pelanggan paket. */
+function diffTransactionFields(oldT, newT){
+  const fields = [
+    { key:'nama', label:'Nama Pelanggan' },
+    { key:'hp', label:'No. HP' },
+    { key:'tanggal', label:'Tanggal' },
+    { key:'estimasi', label:'Estimasi Selesai' },
+    { key:'diskon', label:'Diskon' },
+    { key:'dp', label:'Uang Muka' },
+    { key:'status', label:'Status Bayar' },
+    { key:'catatan', label:'Catatan' },
+  ];
+  const changes = diffScalarFields(oldT, newT, fields);
+  const itemLabel = items => (items||[]).map(it=>`${it.nama} (${it.qty}${it.satuan})`).join(', ') || '-';
+  const oldItemsKey = JSON.stringify((oldT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
+  const newItemsKey = JSON.stringify((newT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
+  if(oldItemsKey!==newItemsKey) changes.push({ field:'items', label:'Daftar Layanan', from:itemLabel(oldT.items), to:itemLabel(newT.items) });
+  if(Number(oldT.total)!==Number(newT.total)) changes.push({ field:'total', label:'Total', from:rupiah(oldT.total), to:rupiah(newT.total) });
+  return changes;
+}
+/* Form Edit Pelanggan Paket cuma menyentuh identitas & harga paketnya
+   (bukan status bayar/DP — itu diubah lewat alur bayar/pemakaian terpisah). */
+function diffSubscriptionFields(oldS, newS){
+  const fields = [
+    { key:'nama', label:'Nama Pelanggan' },
+    { key:'hp', label:'No. HP' },
+    { key:'paketNama', label:'Paket' },
+    { key:'hargaPaket', label:'Harga Paket', fmt:rupiah },
+    { key:'hargaLebihKg', label:'Harga Lebih Kuota/kg', fmt:rupiah },
+    { key:'kuotaKg', label:'Kuota (kg)' },
+    { key:'tanggalMulai', label:'Tanggal Mulai' },
+    { key:'tanggalSelesai', label:'Tanggal Selesai' },
+  ];
+  return diffScalarFields(oldS, newS, fields);
+}
+/* Helper bersama: bandingkan field skalar satu-satu, opsional pakai `fmt`
+   untuk memformat nilai tampilan (mis. rupiah) tanpa mengubah perbandingannya. */
+function diffScalarFields(oldObj, newObj, fields){
+  const changes = [];
+  fields.forEach(f=>{
+    const ov = oldObj[f.key] ?? '';
+    const nv = newObj[f.key] ?? '';
+    if(String(ov)!==String(nv)){
+      const fmt = f.fmt || (v=>String(v)||'-');
+      changes.push({ field:f.key, label:f.label, from:fmt(ov), to:fmt(nv) });
+    }
+  });
+  return changes;
+}
+/* Gagal menulis log TIDAK boleh membatalkan/menggagalkan edit entitasnya
+   sendiri — tabel edit_log baru (lihat README) & opsional, jadi kalau
+   belum dimigrasi, edit tetap jalan normal, cuma riwayatnya tidak tercatat. */
+async function logEditHistory(entityType, entityId, changes){
+  if(!changes || changes.length===0) return;
+  const editorNama = currentRole==='owner' ? 'Pemilik' : (employeeName || 'Kasir');
+  try{
+    await sb.from('edit_log').insert({
+      owner_id: shopOwnerId, entity_type: entityType, entity_id: String(entityId),
+      edited_by: currentUser ? currentUser.id : null, editor_nama: editorNama, changes
+    });
+  }catch(e){ /* diamkan — lihat komentar di atas */ }
+}
+function fmtDateTime(iso){
+  if(!iso) return '-';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '-';
+  return d.toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+async function openEditHistory(entityType, entityId, title){
+  const modal = document.getElementById('editHistoryModal');
+  const list = document.getElementById('editHistoryList');
+  const titleEl = document.getElementById('editHistoryModalTitle');
+  if(titleEl) titleEl.textContent = title || '🕘 Riwayat Edit';
+  list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Memuat...</div>`;
+  modal.classList.add('show');
+  const { data, error } = await sb.from('edit_log').select('*').eq('entity_type', entityType).eq('entity_id', String(entityId)).order('edited_at', { ascending:false });
+  if(error){
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Riwayat edit belum tersedia — tabel edit_log mungkin belum dimigrasi (lihat README).</div>`;
+    return;
+  }
+  if(!data || data.length===0){
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Belum ada riwayat edit untuk data ini.</div>`;
+    return;
+  }
+  list.innerHTML = data.map(row=>{
+    const changes = row.changes || [];
+    const changesHTML = changes.map(c=>`<div style="font-size:12px;padding:3px 0;"><b>${escapeHTML(c.label)}</b>: <span style="color:var(--danger);text-decoration:line-through;">${escapeHTML(c.from)}</span> → <span style="color:var(--success);">${escapeHTML(c.to)}</span></div>`).join('');
+    return `<div style="border-bottom:1px solid var(--line);padding:10px 0;">
+      <div style="font-size:12.5px;font-weight:700;">${escapeHTML(row.editor_nama||'—')} <span style="font-weight:400;color:var(--ink-soft);">· ${fmtDateTime(row.edited_at)}</span></div>
+      ${changesHTML}
+    </div>`;
+  }).join('');
+}
+function closeEditHistory(){ document.getElementById('editHistoryModal').classList.remove('show'); }
 async function deleteTransaction(id){
   const trx = transactions.find(t=>t.id===id);
   if(!trx) return;
@@ -3754,13 +4479,15 @@ async function deleteTransaction(id){
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
         estimasi: trx.estimasi, items: trx.items, diskon: trx.diskon, total: trx.total, dp: trx.dp,
-        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus
+        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus,
+        ...(trx.outletId ? { outlet_id: trx.outletId } : {})
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan transaksi'); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum'
+        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum',
+        outletId: data.outlet_id!=null ? String(data.outlet_id) : null
       });
       renderHistory();
       showToast('Transaksi dikembalikan');
@@ -3898,10 +4625,11 @@ async function submitExpense(){
   if(!nama){ showToast('Isi nama barang/jasa yang dibeli'); return; }
   if(jumlah<=0){ showToast('Isi qty dan harga dengan benar'); return; }
   const { data, error } = await sb.from('expenses').insert({
-    user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan
+    user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan,
+    ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
   if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'); return; }
-  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
+  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
   document.getElementById('expNama').value = '';
   document.getElementById('expQty').value = '1';
   document.getElementById('expHarga').value = '';
@@ -3923,10 +4651,11 @@ async function deleteExpense(id){
     onClick: async ()=>{
       const { data, error: err2 } = await sb.from('expenses').insert({
         user_id: shopOwnerId, tanggal: exp.tanggal, nama: exp.nama, qty: exp.qty, satuan: exp.satuan,
-        harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan
+        harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan,
+        ...(exp.outletId ? { outlet_id: exp.outletId } : {})
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan pengeluaran'); return; }
-      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
+      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
       renderExpenseList();
       showToast('Pengeluaran dikembalikan');
     }
@@ -3973,7 +4702,7 @@ function renderExpenseList(){
     expenseReportCache = null;
     return;
   }
-  const listAsc = sortByTanggalAsc(expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
+  const listAsc = sortByTanggalAsc(visibleExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
   const total = listAsc.reduce((s,e)=>s+e.jumlah,0);
   document.getElementById('expStTotal').textContent = rupiah(total);
   document.getElementById('expStCount').textContent = listAsc.length;
@@ -4075,12 +4804,14 @@ function buildReceiptHTML(trx){
       <div class="r-item-detail">${it.qty} ${it.satuan} x ${rupiah(it.harga)}</div>
     </div>`).join('');
   const sisa = trx.total - (trx.dp||0);
+  const hdr = notaHeaderInfo(trx.outletId);
   return `
     <div class="r-shop">
       <img src="${shopLogoSrc()}" alt="Logo" style="width:56px;height:56px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px;box-shadow:0 1px 4px rgba(0,0,0,0.15);">
-      <b>${escapeHTML(settings.shopName || 'Laundry Batapas.id')}</b>
-      <div>${escapeHTML(settings.address||'')}</div>
-      <div>${escapeHTML(settings.phone||'')}</div>
+      <b>${escapeHTML(hdr.nama)}</b>
+      ${hdr.subtitle ? `<div>${escapeHTML(hdr.subtitle)}</div>` : ''}
+      <div>${escapeHTML(hdr.alamat)}</div>
+      <div>${escapeHTML(hdr.telp)}</div>
     </div>
     <div class="r-divider"></div>
     <div class="r-row"><span>No. Nota</span><span>${trx.kode}</span></div>
@@ -4099,15 +4830,15 @@ function buildReceiptHTML(trx){
     ${trx.catatan ? `<div class="r-divider"></div><div class="r-row" style="display:block;"><i>Catatan: ${escapeHTML(trx.catatan)}</i></div>` : ''}
     <div class="r-footer">${escapeHTML(settings.note||'')}</div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1.5px dashed #B8AD97;font-size:11px;color:#6b5f4d;">
-      <div style="font-weight:800;color:var(--ink);">dikembangkan oleh Tinggiran Tech Studio</div>
-      <div style="font-style:italic;">Bikin Apps &amp; Website Kilat</div>
-      <a href="https://wa.me/6281293228520" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+      <div style="font-weight:800;color:var(--ink);">dikembangkan oleh ${escapeHTML(appBranding.nama)}</div>
+      <div style="font-style:italic;">${escapeHTML(appBranding.tagline)}</div>
+      <a href="https://wa.me/${normalizePhone(appBranding.wa)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
         <span style="width:18px;height:18px;flex:none;display:inline-flex;">${iconBadgeSVG('wa')}</span>
-        <span>081293228520</span>
+        <span>${escapeHTML(appBranding.wa)}</span>
       </a>
-      <a href="mailto:tinggirantech@gmail.com" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+      <a href="mailto:${escapeHTML(appBranding.email)}" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
         <span style="width:18px;height:18px;flex:none;display:inline-flex;">${iconBadgeSVG('email')}</span>
-        <span>tinggirantech@gmail.com</span>
+        <span>${escapeHTML(appBranding.email)}</span>
       </a>
     </div>
   `;
@@ -4133,9 +4864,11 @@ function printCurrentReceipt(){
 function buildReceiptPDFLines(trx){
   const L = [];
   const div = '--------------------------------';
-  L.push({t: settings.shopName || 'Laundry Batapas.id', c:true, b:true, s:12});
-  if(settings.address) L.push({t: settings.address, c:true, s:8});
-  if(settings.phone) L.push({t: settings.phone, c:true, s:8});
+  const hdr = notaHeaderInfo(trx.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t:`No. Nota   : ${trx.kode}`, s:9, indent:13});
   L.push({t:`Tanggal    : ${fmtDate(trx.tanggal)}`, s:9, indent:13});
@@ -4159,10 +4892,7 @@ function buildReceiptPDFLines(trx){
   L.push({t:`Status     : ${trx.status==='lunas'?'LUNAS':'BELUM LUNAS'}`, b:true, s:9});
   L.push({t: div, s:9});
   L.push({t: settings.note || 'Terima kasih', c:true, s:8});
-  L.push({t: 'dikembangkan oleh Tinggiran Tech Studio', c:true, b:true, s:7});
-  L.push({t: 'Bikin Apps & Website Kilat', c:true, s:6, it:true});
-  L.push({t: '081293228520', c:true, s:6, icon:'wa'});
-  L.push({t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email'});
+  L.push(...notaFooterLinesPDF());
   return L;
 }
 async function downloadReceiptImage(){
@@ -4231,8 +4961,11 @@ function downloadReportPDF(){
 
 function receiptTextForWA(trx){
   let lines = [];
-  lines.push(`*${settings.shopName || 'Laundry Batapas.id'}*`);
-  if(settings.address) lines.push(settings.address);
+  const hdr = notaHeaderInfo(trx.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push(`No. Nota   : ${trx.kode}`);
   lines.push(`Tanggal    : ${fmtDate(trx.tanggal)}`);
@@ -4256,10 +4989,7 @@ function receiptTextForWA(trx){
   lines.push(`Status     : ${trx.status==='lunas' ? 'LUNAS' : 'BELUM LUNAS'}`);
   lines.push('-------------------------------');
   lines.push(settings.note || 'Terima kasih');
-  lines.push('*dikembangkan oleh Tinggiran Tech Studio*');
-  lines.push('_Bikin Apps & Website Kilat_');
-  lines.push('🟢 WhatsApp: 081293228520');
-  lines.push('📧 tinggirantech@gmail.com');
+  lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 var notaShareTrxId = null;
@@ -4284,12 +5014,12 @@ function sendReceiptWA(target){
 function renderHistory(){
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
   const el = document.getElementById('historyList');
-  const list = transactions.slice().reverse().filter(t=>
+  const list = visibleTransactions().slice().reverse().filter(t=>
     t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q)
   );
 
   const today = todayISO();
-  const todayList = transactions.filter(t=>t.tanggal===today);
+  const todayList = visibleTransactions().filter(t=>t.tanggal===today);
   const todayLunas = todayList.filter(t=>t.status==='lunas');
   const todayBelum = todayList.filter(t=>t.status==='belum');
   document.getElementById('stTodayLunas').textContent = `${todayLunas.length} · ${rupiah(todayLunas.reduce((s,t)=>s+t.total,0))}`;
@@ -4321,6 +5051,7 @@ function renderHistory(){
       </div>
       <div class="trx-actions owner-only">
         <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')">✏️ Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('transaction','${t.id}','🕘 Riwayat Edit Transaksi')">🕘 Riwayat</button>
         <button class="btn btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">🗑️ Hapus</button>
       </div>
     </div>
@@ -4365,24 +5096,29 @@ const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
    SEMUA riwayat termasuk yang sudah diambil/lama, supaya daftar tugas
    lama tetap bisa dilihat lewat unduhan). */
 function buildAllWorkItemsRaw(){
-  const trxItems = transactions.map(t=>({
-    id:t.id, source:'trx', nama:t.nama,
+  /* Konteks outlet ikut membatasi Daftar Tugas: kerjaan Paket Bulanan/Tempo
+     hanya diikutkan kalau pelanggannya terdaftar di outlet yang sedang
+     aktif (dicek lewat visibleSubscriptions(), bukan filter langsung ke
+     allWorkUsage karena baris usage sendiri tidak punya outlet_id). */
+  const visSubIds = new Set(visibleSubscriptions().map(s=>String(s.id)));
+  const trxItems = visibleTransactions().map(t=>({
+    id:t.id, source:'trx', nama:t.nama, hp:t.hp, outletId:t.outletId,
     layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
     harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
     lunas:t.status==='lunas'
   }));
-  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan').map(u=>{
+  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan' && visSubIds.has(String(u.subscriptionId))).map(u=>{
     const sub = subscriptions.find(s=>s.id===u.subscriptionId);
     return {
-      id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+      id:u.id, source:'usage', nama: sub ? sub.nama : '-', hp: sub ? sub.hp : '', outletId: sub ? sub.outletId : null,
       layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
       lunas: sub ? sub.statusBayar==='lunas' : false
     };
   });
-  const beratItems = allWorkUsage.filter(u=>u.type==='pemakaian').map(u=>{
+  const beratItems = allWorkUsage.filter(u=>u.type==='pemakaian' && visSubIds.has(String(u.subscriptionId))).map(u=>{
     const sub = subscriptions.find(s=>s.id===u.subscriptionId);
     return {
-      id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+      id:u.id, source:'usage', nama: sub ? sub.nama : '-', hp: sub ? sub.hp : '', outletId: sub ? sub.outletId : null,
       layanan: sub ? sub.paketNama : 'Laundry Masuk (kg)', beratLabel:`${u.berat} kg`,
       tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
       lunas: sub ? sub.statusBayar==='lunas' : false
@@ -4432,6 +5168,31 @@ async function setWorkStatus(id, status, source){
   if(error){ showToast('Gagal memperbarui status kerja'); return; }
   item.workStatus = status;
   renderWorkBoard();
+  if(status==='selesai' && settings.autoNotifySelesai) sendWorkDoneNotification(id, source);
+}
+/* Pesan WA yang dikirim ke pelanggan begitu kerjaannya ditandai Selesai —
+   dipakai baik oleh notifikasi otomatis maupun tombol "Kirim Notifikasi"
+   manual, supaya isinya selalu sama. Alamat/nama outlet ikut memakai
+   notaHeaderInfo() seperti nota lainnya. */
+function workDoneNotifTextWA(it){
+  const hdr = notaHeaderInfo(it.outletId);
+  const lines = [];
+  lines.push(`Halo ${it.nama},`);
+  lines.push(`Laundry Anda (${it.layanan}) sudah *SELESAI* dan siap diambil di ${hdr.nama}${hdr.subtitle ? ' - '+hdr.subtitle : ''}.`);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  lines.push('');
+  lines.push(settings.note || 'Terima kasih telah menggunakan jasa kami');
+  return lines.join('\n');
+}
+/* Web (bukan app WhatsApp Business resmi/API) tidak bisa kirim pesan tanpa
+   sentuhan pengguna sama sekali — "otomatis" di sini artinya begitu status
+   diubah jadi Selesai, WhatsApp langsung terbuka dengan pesan siap kirim;
+   tombol "Kirim" terakhir tetap perlu diketuk manual di WhatsApp-nya. */
+function sendWorkDoneNotification(id, source){
+  const it = buildAllWorkItemsRaw().find(x=>x.id===id && x.source===source);
+  if(!it){ showToast('Data kerjaan tidak ditemukan'); return; }
+  if(!it.hp){ showToast('Nomor WA pelanggan belum diisi — notifikasi tidak dikirim'); return; }
+  openWA(normalizePhone(it.hp), workDoneNotifTextWA(it), 'wa');
 }
 async function markPickedUp(id, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
@@ -4471,6 +5232,7 @@ function workBoardCardHTML(it){
         <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">Dikerjakan</button>
         <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${it.id}','selesai','${it.source}')">Selesai</button>
       </div>
+      ${ws==='selesai' && !settings.autoNotifySelesai ? `<button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="sendWorkDoneNotification('${it.id}','${it.source}')">📣 Kirim Notifikasi</button>` : ''}
       ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">📤 Sudah Diambil</button>` : ''}
     </div>`;
 }
@@ -4594,7 +5356,7 @@ function renderReport(){
   const monthInput = document.getElementById('reportMonth');
   if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
   const ym = monthInput.value; // "2026-07"
-  const list = transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
+  const list = visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
 
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
@@ -4679,7 +5441,7 @@ function populatePerNamaSelect(){
   if(!sel) return;
   const prev = sel.value;
   const namaSet = new Set();
-  transactions.forEach(t=>{ if(t.nama) namaSet.add(t.nama); });
+  visibleReportTransactions().forEach(t=>{ if(t.nama) namaSet.add(t.nama); });
   subscriptions.forEach(s=>{ if(s.nama) namaSet.add(s.nama); });
   const namaList = Array.from(namaSet).sort((a,b)=>a.localeCompare(b));
   if(namaList.length===0){
@@ -4724,7 +5486,7 @@ function renderPerPelangganReport(){
   const range = getPerPeriodeRange();
   if(!range){ showToast('Lengkapi periode laporan dulu'); return; }
 
-  const list = transactions.filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const totalLunas = list.filter(t=>t.status==='lunas').reduce((s,t)=>s+t.total,0);
@@ -4840,8 +5602,8 @@ function renderLabaRugi(){
     labaRugiCache = null;
     return;
   }
-  const trxList = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
-  const expList = expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
+  const trxList = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const expList = visibleReportExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
   const totalOmzet = trxList.reduce((s,t)=>s+t.total,0);
   const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
   const pendapatanBersih = totalOmzet - totalPengeluaran;
@@ -4936,7 +5698,7 @@ function renderPeringkatPelanggan(){
   const range = getRankPeriodeRange();
   const el = document.getElementById('rankList');
   if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
-  const list = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const list = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const byNama = {};
   list.forEach(t=>{
     if(!byNama[t.nama]) byNama[t.nama] = { nama:t.nama, total:0, count:0 };
@@ -5012,12 +5774,16 @@ function openSettings(){
   document.getElementById('setAlamat').value = settings.address||'';
   document.getElementById('setHP').value = settings.phone||'';
   document.getElementById('setCatatan').value = settings.note||'';
+  const autoNotifyChk = document.getElementById('setAutoNotifySelesai');
+  if(autoNotifyChk) autoNotifyChk.checked = !!settings.autoNotifySelesai;
   const logoPreview = document.getElementById('logoPreviewImg');
   if(logoPreview) logoPreview.src = shopLogoSrc();
   renderContactsList();
+  renderOutletManagerList();
+  renderBtPrinterStatus();
   if(currentRole==='owner') loadTeamList();
   document.getElementById('adminPlatformSection').style.display = (currentUser && currentUser.email===ADMIN_EMAIL) ? 'block' : 'none';
-  if(currentUser && currentUser.email===ADMIN_EMAIL) loadAdminData();
+  if(currentUser && currentUser.email===ADMIN_EMAIL){ loadAdminData(); fillAppBrandingForm(); }
   document.getElementById('settingsModal').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('show'); }
