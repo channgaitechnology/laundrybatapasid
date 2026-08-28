@@ -255,9 +255,36 @@ bawah nama toko pada nota, supaya pelanggan tahu dilayani dari cabang
 mana. Laporan (Laporan Omset, Laba Rugi, dsb.) tetap pakai identitas
 toko global karena sifatnya rekap internal, bukan dokumen ke pelanggan.
 
+Karyawan/kasir sekarang juga bisa dibatasi ke satu outlet tertentu lewat
+kolom `outlet_id` di `team_members` — jalankan ini sekali kalau tabel
+`team_members` sudah ada (harusnya sudah, dari fitur Karyawan/Kasir
+sebelum fitur Multi-Outlet ini):
+
+```sql
+alter table team_members add column if not exists outlet_id bigint references outlets(id) on delete set null;
+```
+
+Nullable & aman dijalankan kapan saja — kasir lama/tanpa pembatasan tetap
+bebas akses & pindah ke semua outlet seperti sebelumnya (perilaku
+default, `outlet_id` = null). Saat membuat undangan kasir baru lewat
+"+ Tambah Karyawan" (kalau toko sudah punya outlet), pemilik akan
+ditanya mau membatasi kasir itu ke outlet tertentu atau tidak. Kasir yang
+dibatasi otomatis terkunci ke outlet itu saat login (pemilih outlet
+tampil terkunci 🔒, tidak bisa pindah outlet lain).
+
+⚠️ Pembatasan ini murni di level tampilan aplikasi (client-side), belum
+di level RLS Supabase — kebijakan RLS `team_members` yang ada sekarang
+tetap memberi kasir akses ke seluruh data toko pemiliknya (semua
+outlet), bukan cuma outlet yang ditugaskan. Cukup untuk mencegah kasir
+salah pindah-pindah outlet lewat aplikasi, tapi bukan pagar keamanan
+yang benar-benar ketat kalau kasir mencoba akses API Supabase secara
+langsung. Kalau dibutuhkan proteksi yang lebih kuat, RLS `transactions`/
+`subscriptions`/`expenses` perlu ditulis ulang supaya ikut memeriksa
+`team_members.outlet_id` — belum dikerjakan di iterasi ini.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [ ] Tinjauan `/tim-studio` menyeluruh belum pernah dilakukan untuk proyek ini — kode sebesar ini dalam satu file belum pernah direview dari sisi arsitektur/keamanan/UX
-- [ ] Multi-Outlet: karyawan/kasir belum bisa dibatasi ke outlet tertentu — semua kasir toko masih bisa akses & pindah ke semua outlet
+- [ ] Multi-Outlet: pembatasan kasir ke outlet tertentu baru di level tampilan (client-side) — RLS `transactions`/`subscriptions`/`expenses` belum ikut memeriksa `team_members.outlet_id`, jadi bukan pagar keamanan yang ketat kalau kasir akses API Supabase langsung

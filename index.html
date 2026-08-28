@@ -1369,6 +1369,10 @@ var currentUser = null;
 var currentRole = 'owner';
 var shopOwnerId = null;
 var employeeName = '';
+/* Kalau kasir ini dibatasi pemilik ke satu outlet tertentu (lewat outlet_id
+   di team_members), diisi id outlet-nya di sini. null = kasir bebas akses
+   & pindah ke semua outlet (perilaku lama, tetap default). */
+var kasirOutletId = null;
 var authMode = 'masuk';
 var serviceCatalog = [];
 var editingCatalogId = null;
@@ -1568,6 +1572,7 @@ async function resolveRoleAndInit(){
     currentRole = 'kasir';
     shopOwnerId = memberRow.owner_id;
     employeeName = memberRow.nama;
+    kasirOutletId = memberRow.outlet_id!=null ? String(memberRow.outlet_id) : null;
     applyRoleUI();
     await ensureAppSubscription(shopOwnerId, false);
     await initUserData();
@@ -1613,6 +1618,7 @@ async function claimInviteCode(){
   currentRole = 'kasir';
   shopOwnerId = row.owner_id;
   employeeName = row.nama;
+  kasirOutletId = row.outlet_id!=null ? String(row.outlet_id) : null;
   document.getElementById('onboardingScreen').classList.remove('show');
   applyRoleUI();
   showToast(`Berhasil bergabung sebagai kasir "${row.nama}"`);
@@ -1628,9 +1634,19 @@ function genInviteCode(){
 async function createInvite(){
   const nama = prompt('Nama karyawan/kasir ini:');
   if(!nama || !nama.trim()) return;
+  let outletId = null;
+  if(outlets.length>0){
+    const daftar = outlets.map((o,i)=>`${i+1}. ${o.nama}`).join('\n');
+    const pilihan = prompt(`Batasi kasir ini ke satu outlet tertentu? Ketik nomor outlet di bawah, atau kosongkan untuk kasir bebas akses semua outlet:\n\n${daftar}`);
+    if(pilihan && pilihan.trim()){
+      const idx = parseInt(pilihan.trim(), 10) - 1;
+      if(outlets[idx]) outletId = outlets[idx].id;
+    }
+  }
   const code = genInviteCode();
   const { error } = await sb.from('team_members').insert({
-    owner_id: shopOwnerId, nama: nama.trim(), role:'kasir', invite_code: code, status:'pending'
+    owner_id: shopOwnerId, nama: nama.trim(), role:'kasir', invite_code: code, status:'pending',
+    ...(outletId ? { outlet_id: outletId } : {})
   });
   if(error){ showToast('Gagal membuat undangan'); return; }
   await loadTeamList();
@@ -1649,11 +1665,14 @@ function renderTeamList(){
     el.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Belum ada karyawan ditambahkan.</div>';
     return;
   }
-  el.innerHTML = teamListCache.map(m=>`
+  el.innerHTML = teamListCache.map(m=>{
+    const outletNama = m.outlet_id!=null ? (outlets.find(o=>String(o.id)===String(m.outlet_id))?.nama || 'outlet terhapus') : '';
+    return `
     <div class="item-line" style="align-items:center;">
-      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· Aktif' : '· Menunggu ('+m.invite_code+')'}</span></span>
+      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· Aktif' : '· Menunggu ('+m.invite_code+')'}${outletNama ? ' · 🔒 '+escapeHTML(outletNama) : ''}</span></span>
       <button onclick="removeMember('${m.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 async function removeMember(id){
   if(!confirm('Hapus karyawan ini? Dia tidak akan bisa akses data toko lagi.')) return;
@@ -2028,6 +2047,10 @@ async function loadOutletsFromDB(){
     let saved = null;
     try{ saved = localStorage.getItem('nk_lastOutletId'); }catch(e){}
     currentOutletId = (saved && outlets.some(o=>String(o.id)===saved)) ? saved : String(outlets[0].id);
+    if(currentRole==='kasir' && kasirOutletId && outlets.some(o=>String(o.id)===kasirOutletId)){
+      currentOutletId = kasirOutletId;
+      try{ localStorage.setItem('nk_lastOutletId', currentOutletId); }catch(e){}
+    }
   } else {
     currentOutletId = null;
   }
@@ -2038,6 +2061,11 @@ async function loadOutletsFromDB(){
    defaultnya "Semua Outlet" karena laporan memang untuk lihat gambaran
    besar lintas cabang. */
 function switchOutlet(id){
+  if(currentRole==='kasir' && kasirOutletId && String(id)!==kasirOutletId){
+    showToast('Outlet Anda dikunci oleh pemilik toko');
+    closeOutletPicker();
+    return;
+  }
   currentOutletId = id ? String(id) : null;
   try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
   renderOutletSwitcherLabel();
@@ -2108,9 +2136,11 @@ function renderOutletSwitcherLabel(){
   if(outlets.length===0){ wrap.style.display = 'none'; return; }
   wrap.style.display = 'flex';
   const cur = outlets.find(o=>String(o.id)===currentOutletId);
-  document.getElementById('outletSwitcherLabel').textContent = cur ? cur.nama : 'Pilih Outlet';
+  const locked = currentRole==='kasir' && !!kasirOutletId;
+  document.getElementById('outletSwitcherLabel').textContent = (cur ? cur.nama : 'Pilih Outlet') + (locked ? ' 🔒' : '');
 }
 function openOutletPicker(){
+  if(currentRole==='kasir' && kasirOutletId){ showToast('Outlet Anda dikunci oleh pemilik toko'); return; }
   const el = document.getElementById('outletPickerList');
   el.innerHTML = outlets.map(o=>`
     <button type="button" class="btn ${String(o.id)===currentOutletId?'btn-primary':'btn-outline'}" style="margin-bottom:8px;" onclick="switchOutlet('${o.id}')">${escapeHTML(o.nama)}</button>
