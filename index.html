@@ -16,6 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root{
     --suds:#146C8E;
@@ -485,8 +486,11 @@
   <!-- ===== VIEW: PAPAN KERJA ===== -->
   <section class="view" id="view-papan">
     <div class="card">
-      <h2 style="margin-bottom:2px;">Papan Kerja</h2>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis). Transaksi dengan tanggal masuk sebelum 25 Agustus 2026 tidak ditampilkan di sini (nota lama, dianggap sudah selesai semua).</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px;">
+        <h2 style="margin:0;">Papan Kerja</h2>
+        <button class="btn btn-accent btn-sm" style="width:auto;flex:0 0 auto;" onclick="downloadWorkBoardImage()">📥 Unduh JPG</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:8px 0 0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis). Transaksi dengan tanggal masuk sebelum 25 Agustus 2026 tidak ditampilkan di sini (nota lama, dianggap sudah selesai semua).</p>
     </div>
     <div class="work-board-grid" id="workBoardGrid"></div>
   </section>
@@ -4456,6 +4460,44 @@ function renderWorkBoard(){
       <div class="work-day-col-body">${body}</div>
     </div>`;
   }).join('');
+}
+/* html2canvas "memfoto" seluruh grid apa adanya (7 kolom penuh, bukan cuma
+   yang kelihatan di layar HP) — overflow dipaksa visible & lebar dipaksa
+   scrollWidth lewat onclone supaya kolom yang tersembunyi karena scroll
+   horizontal ikut tertangkap di gambar. */
+async function downloadWorkBoardImage(){
+  const el = document.getElementById('workBoardGrid');
+  if(!el || buildWorkItems().length===0){ showToast('Papan Kerja kosong'); return; }
+  if(typeof html2canvas==='undefined'){ showToast('Gagal memuat alat unduh gambar'); return; }
+  showToast('Menyiapkan gambar Papan Kerja...');
+  try{
+    const canvas = await html2canvas(el, {
+      backgroundColor:'#EEF5F7', scale:2,
+      width: el.scrollWidth, height: el.scrollHeight, windowWidth: el.scrollWidth,
+      onclone:(clonedDoc)=>{
+        const clonedEl = clonedDoc.getElementById('workBoardGrid');
+        if(clonedEl){ clonedEl.style.overflow = 'visible'; clonedEl.style.width = el.scrollWidth + 'px'; }
+      }
+    });
+    const filename = `papan-kerja-${todayISO()}.jpg`;
+    const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if(!blob){ showToast('Gagal membuat gambar Papan Kerja'); return; }
+    try{
+      const file = new File([blob], filename, { type:'image/jpeg' });
+      if(navigator.canShare && navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file], title: filename, text:'Papan Kerja' });
+        return;
+      }
+    }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=> URL.revokeObjectURL(url), 5000);
+    showToast('Gambar Papan Kerja diunduh');
+  }catch(e){
+    showToast('Gagal membuat gambar Papan Kerja');
+  }
 }
 
 /* ===================== LAPORAN BULANAN ===================== */

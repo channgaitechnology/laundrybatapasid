@@ -19,6 +19,7 @@ dalam satu file, tanpa build step. Dependensi lewat CDN:
 
 - [`@supabase/supabase-js`](https://supabase.com/) — auth & database
 - [`jsPDF`](https://github.com/parallax/jsPDF) — cetak nota/laporan jadi PDF
+- [`html2canvas`](https://html2canvas.hertzen.com/) — unduh tampilan Papan Kerja jadi gambar JPG
 
 Project Supabase yang dipakai: `ffpgapgvlzhetrkzmhqh.supabase.co` (kunci publik
 `sb_publishable_...` sudah ada di kode — ini memang dirancang publik oleh
