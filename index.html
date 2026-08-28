@@ -66,9 +66,12 @@
   .appbar-title p{margin:0;font-size:11.5px;color:rgba(255,255,255,0.78);}
   .icon-btn{
     background:rgba(255,255,255,0.16);border:none;border-radius:12px;
-    width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+    min-width:44px;padding:6px 7px 5px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;
     color:#fff;cursor:pointer;
   }
+  .icon-btn .icon-btn-emoji{font-size:23px;line-height:1;}
+  .icon-btn .icon-btn-label{font-size:8.5px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:.1px;}
   .icon-btn:active{background:rgba(255,255,255,0.3);}
 
   main{max-width:520px;margin:0 auto;padding:16px 14px 24px;}
@@ -350,12 +353,17 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;">
-    <button class="icon-btn" onclick="openTutorial()" aria-label="Tutorial penggunaan">📖</button>
+    <button class="icon-btn" onclick="openTutorial()" aria-label="Tutorial penggunaan">
+      <span class="icon-btn-emoji">📖</span>
+      <span class="icon-btn-label">Tutorial</span>
+    </button>
     <button class="icon-btn owner-only" onclick="openSettings()" aria-label="Pengaturan toko">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="icon-btn-label">Pengaturan</span>
     </button>
     <button class="icon-btn" onclick="handleLogout()" aria-label="Keluar">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="icon-btn-label">Keluar</span>
     </button>
   </div>
 </div>
@@ -949,12 +957,13 @@
       <button class="tut-head" onclick="toggleTut(this)">1️⃣ Membuat Transaksi Baru</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Transaksi</b> (paling kiri di menu bawah)</li>
+          <li>Buka tab <b>Transaksi</b> (ikon ➕ paling kiri di menu bawah)</li>
           <li>Isi nama pelanggan & no. WhatsApp — kalau sudah pernah input sebelumnya, tinggal pilih dari saran yang muncul</li>
-          <li>Isi kolom <b>Layanan</b>: pilih dari saran, atau ketik manual, isi berat/qty dan harga otomatis terisi</li>
-          <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar</li>
-          <li>Isi diskon/DP kalau ada, pilih status Lunas/Belum</li>
-          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul dan siap dikirim ke WhatsApp pelanggan</li>
+          <li>Isi kolom <b>Layanan</b>: pilih dari saran katalog, atau ketik manual — isi berat/qty dan harga otomatis terisi (boleh diubah manual)</li>
+          <li>Isi <b>Estimasi Selesai</b> (opsional) supaya cucian ini otomatis muncul di jadwal yang tepat di tab <b>Daftar Tugas</b></li>
+          <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar — boleh lebih dari satu layanan dalam satu nota</li>
+          <li>Isi diskon kalau ada, isi <b>Uang Muka (DP)</b> kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang</li>
+          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan atau diunduh sebagai gambar/PDF</li>
         </ol>
       </div>
     </div>
@@ -964,58 +973,92 @@
       <div class="tut-body">
         <ol>
           <li>Buka tab <b>Riwayat</b> untuk lihat semua transaksi, termasuk statistik lunas/belum hari ini</li>
-          <li>Ketuk kolom cari untuk temukan transaksi pelanggan tertentu</li>
-          <li>Tekan <b>Edit</b> kalau ada perubahan layanan, atau <b>Hapus</b> kalau transaksi salah input</li>
-          <li>Tekan <b>Lunasi</b> untuk menandai transaksi yang belum lunas jadi lunas</li>
+          <li>Ketuk kolom cari untuk temukan transaksi dari nama pelanggan atau nomor nota tertentu</li>
+          <li>Tekan <b>Edit</b> kalau ada perubahan layanan/harga, atau <b>Hapus</b> kalau transaksi salah input</li>
+          <li>Salah hapus? Jangan panik — muncul tombol <b>Urungkan</b> di notifikasi bawah selama beberapa detik untuk mengembalikannya persis seperti semula</li>
+          <li>Tekan <b>Lunasi</b> untuk menandai transaksi yang belum lunas jadi lunas dengan sekali ketuk</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item">
-      <button class="tut-head" onclick="toggleTut(this)">3️⃣ Paket Bulanan</button>
+      <button class="tut-head" onclick="toggleTut(this)">3️⃣ Daftar Tugas — Jadwal Kerja Harian</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan Paket Baru</b> untuk daftarkan pelanggan langganan bulanan</li>
-          <li>Pilih jenis paket dari katalog, isi kuota kg dan tanggal mulai</li>
-          <li>Setiap pelanggan bawa laundry, buka detail paketnya lalu <b>Catat Laundry Masuk</b></li>
-          <li>Kalau pelanggan minta layanan lain (ekspres dll), gunakan <b>Tambah Layanan Lain</b> di halaman yang sama</li>
-          <li>Di akhir periode, cek ringkasan tagihan lalu tekan <b>Tandai Lunas</b> — otomatis masuk ke Laporan</li>
+          <li>Buka tab <b>Daftar Tugas</b> untuk lihat semua cucian yang perlu dikerjakan, otomatis dikelompokkan per hari Senin–Ahad menurut <b>Estimasi Selesai</b></li>
+          <li>Tiap kartu menampilkan nama pelanggan, jenis layanan, tanggal selesai, dan harga (atau tulisan "Lunas" kalau sudah dibayar)</li>
+          <li>Ketuk tombol <b>Belum</b> / <b>Dikerjakan</b> / <b>Selesai</b> untuk memperbarui progres tiap cucian sepanjang hari</li>
+          <li>Kalau sudah Selesai, tekan <b>📤 Sudah Diambil</b> begitu pelanggan mengambilnya — kartunya otomatis hilang dari daftar (data transaksinya sendiri tetap tersimpan normal di Riwayat)</li>
+          <li>Mau simpan/bagikan rekap kerjaan (termasuk yang sudah lama)? Pilih <b>Dari Tanggal</b>/<b>Sampai Tanggal</b> di bagian Unduh, lalu tekan <b>Unduh JPG</b> untuk dapat gambarnya — bisa langsung dibagikan ke grup WhatsApp karyawan</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item">
-      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Pelanggan Tempo (Bayar Nanti)</button>
+      <button class="tut-head" onclick="toggleTut(this)">4️⃣ Paket Bulanan</button>
       <div class="tut-body">
         <ol>
-          <li>Untuk pelanggan yang bayarnya tidak tetap — kadang sebulan sekali, kadang setelah beberapa kali laundry</li>
+          <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan Baru</b> untuk daftarkan pelanggan langganan bulanan</li>
+          <li>Pilih jenis paket dari katalog, isi kuota kg dan tanggal mulai — harga paket & tanggal selesai periode otomatis terisi</li>
+          <li>Setiap pelanggan bawa laundry, buka detail paketnya lalu <b>Catat Laundry Masuk</b> — isi berat (kg) dan <b>Estimasi Selesai</b> supaya muncul di tab Daftar Tugas</li>
+          <li>Kalau pelanggan minta layanan lain di luar paket (setrika ekspres, cuci sepatu, cuci karpet, dll), gunakan <b>Tambah Layanan Lain</b> di halaman yang sama — ditagih bersama saat lunas</li>
+          <li>Kalau pemakaian kg-nya melebihi kuota, kelebihannya otomatis dihitung dan ditambahkan ke tagihan — tidak perlu hitung manual</li>
+          <li>Di akhir periode, cek ringkasan tagihan lalu tekan <b>Tandai Lunas</b> — otomatis masuk ke Riwayat & Laporan, siklus paket berikutnya langsung dimulai</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item">
+      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Pelanggan Tempo (Bayar Nanti)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Untuk pelanggan yang bayarnya tidak tetap — kadang sebulan sekali, kadang setelah beberapa kali laundry, tanpa kuota kg</li>
           <li>Buka tab <b>Paket</b>, tekan <b>+ Pelanggan</b>, pilih Jenis Pelanggan <b>Tempo — Bayar Nanti</b></li>
           <li>Tidak ada kuota & tidak ada batas periode — cukup isi nama dan tanggal mulai</li>
-          <li>Setiap laundry masuk, buka detail pelanggannya lalu <b>Catat Laundry Masuk</b> (pilih layanan reguler dari katalog) — nota otomatis muncul berisi rekap seluruh riwayat yang belum dibayar</li>
-          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat Transaksi & Laporan</li>
+          <li>Setiap laundry masuk, buka detail pelanggannya lalu catat kunjungannya (pilih layanan dari katalog atau ketik manual, isi Estimasi Selesai) — boleh catat beberapa layanan sekaligus sebelum kirim notanya</li>
+          <li>Nota per-kunjungan otomatis muncul berisi rekap seluruh riwayat yang belum dibayar, jadi pelanggan selalu tahu total tunggakannya</li>
+          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat & Laporan. Kalau bayarnya lebih dari tagihan, sisanya otomatis jadi saldo untuk laundry berikutnya, bukan hilang</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">5️⃣ Laporan Omset (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">6️⃣ Pengeluaran &amp; Laba Rugi (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total omzet, lunas, dan belum lunas</li>
-          <li>Scroll ke bawah untuk <b>Laporan Per Pelanggan</b> — bisa pilih rentang tanggal bebas, per bulan, atau per tahun</li>
-          <li>Tekan <b>Unduh PDF</b> untuk simpan laporan sebagai file</li>
+          <li>Buka tab <b>Pengeluaran</b>, isi <b>Nama Barang/Jasa</b> (pilih dari saran katalog atau ketik manual), qty, dan harga per satuan — jumlah totalnya otomatis terhitung</li>
+          <li>Isi <b>Kategori</b> (Listrik, Gaji Karyawan, Deterjen & Perlengkapan, dll) — bebas ketik kategori baru sendiri, tidak terbatas pilihan tetap</li>
+          <li>Tekan <b>+ Simpan Pengeluaran</b> untuk mencatatnya</li>
+          <li>Pilih periode Harian/Bulanan/Tahunan untuk lihat riwayat pengeluaran yang sudah tercatat, atau <b>Hapus</b> kalau salah input (ada <b>Urungkan</b> juga kalau salah hapus)</li>
+          <li>Untuk lihat untung/rugi toko, buka tab <b>Laporan</b> → bagian <b>Laba Rugi</b> — pilih per bulan atau per tahun untuk lihat Pendapatan Bersih (omzet dikurangi pengeluaran) lengkap dengan rincian per kategori</li>
         </ol>
       </div>
     </div>
 
     <div class="tut-item owner-only">
-      <button class="tut-head" onclick="toggleTut(this)">6️⃣ Kelola Karyawan (khusus Pemilik)</button>
+      <button class="tut-head" onclick="toggleTut(this)">7️⃣ Laporan Omset &amp; Peringkat Pelanggan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka ⚙️ <b>Pengaturan</b> → scroll ke <b>Karyawan/Kasir</b></li>
-          <li>Tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
+          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total transaksi, omzet, lunas, dan belum lunas, lengkap dengan grafik omzet harian</li>
+          <li>Scroll ke <b>Rincian Transaksi</b> untuk lihat & unduh daftar semua transaksi bulan itu sebagai PDF</li>
+          <li>Scroll ke <b>Laporan Per Pelanggan</b> untuk lihat riwayat belanja satu pelanggan tertentu — bisa pilih rentang tanggal bebas, per bulan, atau per tahun</li>
+          <li>Scroll ke <b>Peringkat Pemasukan Pelanggan</b> untuk lihat pelanggan mana yang belanjanya paling banyak — bisa per bulan, per tahun, atau sepanjang waktu</li>
+          <li>Tiap bagian punya tombol <b>Unduh PDF</b> sendiri-sendiri untuk disimpan atau dicetak</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item owner-only">
+      <button class="tut-head" onclick="toggleTut(this)">8️⃣ Pengaturan Toko &amp; Karyawan (khusus Pemilik)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas)</li>
+          <li>Ganti <b>Logo Toko</b> dengan foto/logo asli — otomatis dipakai di header aplikasi dan semua nota (JPG/PDF) setelah login</li>
+          <li>Isi <b>Nama Toko</b>, <b>Alamat</b>, <b>No. Telepon</b>, dan <b>Catatan Kaki Nota</b>, lalu tekan <b>Simpan Pengaturan</b></li>
+          <li>Scroll ke <b>Kontak Pelanggan</b> untuk impor kontak dari HP supaya langsung muncul sebagai saran nama saat input transaksi & paket</li>
+          <li>Scroll ke <b>Karyawan/Kasir</b>, tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
           <li>Karyawan buka aplikasi ini di HP-nya, daftar akun sendiri, lalu masukkan kode itu saat pertama login</li>
-          <li>Kasir cuma bisa input transaksi & catat paket, tidak bisa lihat laporan atau ubah harga</li>
+          <li>Kasir cuma bisa input transaksi & catat paket — tidak bisa lihat Laporan/Pengeluaran, ubah Katalog, atau Edit/Hapus data</li>
         </ol>
       </div>
     </div>
@@ -1708,6 +1751,8 @@ const TOUR_STEPS = [
   { tab:'baru', el:'#submitTrxBtn', text:'Kalau semua sudah diisi, tekan tombol ini untuk menyimpan transaksi & langsung membuat nota.' },
   { tab:'riwayat', el:'#searchInput', text:'Di tab Riwayat, kamu bisa cari transaksi pelanggan tertentu di sini.', pre:()=>renderHistory() },
   { tab:'paket', el:'button[onclick="openNewSubscription()"]', text:'Ini untuk mendaftarkan pelanggan paket bulanan maupun pelanggan Tempo (bayar nanti, tanpa kuota).' },
+  { tab:'papan', el:'#workBoardGrid', text:'Ini tab Daftar Tugas — otomatis menampilkan semua cucian yang perlu dikerjakan, dikelompokkan per hari menurut Estimasi Selesai. Ketuk Belum/Dikerjakan/Selesai di tiap kartu untuk update progresnya.', pre:()=>renderWorkBoard() },
+  { tab:'papan', el:'button[onclick="downloadWorkBoardImage()"]', text:'Mau lihat atau bagikan rekap kerjaan (termasuk yang sudah lama)? Pilih rentang tanggalnya lalu tekan tombol ini untuk mengunduhnya sebagai gambar JPG.' },
 ];
 var tourIndex = 0;
 function startGuidedTour(){
