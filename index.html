@@ -187,16 +187,31 @@
   .badge-lunas{background:var(--success-bg);color:var(--success);}
   .badge-belum{background:var(--warn-bg);color:var(--warn);}
 
-  /* ---- Papan Kerja ---- */
-  .work-pill{flex:1;text-align:center;padding:6px 4px;border-radius:8px;font-size:11px;font-weight:700;
+  /* ---- Papan Kerja: grid kalender horizontal, 7 kolom Senin->Ahad berjejer
+     kiri-ke-kanan (di-scroll ke samping di HP), meniru papan tulis fisik. ---- */
+  .work-board-grid{display:flex;flex-wrap:nowrap;gap:10px;overflow-x:auto;padding:2px 2px 10px;
+    scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;}
+  .work-day-col{flex:0 0 208px;width:208px;display:flex;flex-direction:column;scroll-snap-align:start;}
+  .work-day-col-header{background:var(--suds);color:#fff;text-align:center;font-weight:800;font-size:13px;
+    padding:8px 4px;border-radius:10px 10px 0 0;}
+  .work-day-col-header.is-today{background:var(--sun);}
+  .work-day-col-header small{display:block;font-weight:600;font-size:10px;opacity:0.9;margin-top:1px;}
+  .work-day-col-body{background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;
+    padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;}
+  .work-day-empty{font-size:11px;color:var(--ink-soft);text-align:center;padding:14px 0;}
+  .work-card{border:1px solid var(--line);border-radius:10px;padding:8px;background:#FAFDFE;}
+  .work-card .trx-name{font-size:13px;margin-bottom:1px;}
+  .work-card .kode{font-size:10px;}
+  .work-card .work-layanan{font-size:11px;color:var(--ink);margin:2px 0;}
+  .work-card .work-tanggal{font-size:10px;color:var(--ink-soft);margin-bottom:4px;}
+  .work-card .work-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .work-card .work-total{font-size:13px;font-weight:800;color:var(--suds);}
+  .work-card .badge{font-size:9.5px;padding:2px 7px;}
+  .work-pill{flex:1;text-align:center;padding:5px 2px;border-radius:7px;font-size:9.5px;font-weight:700;
     border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
   .work-pill.on-belum{background:#ECECEC;border-color:#BBB;color:#555;}
   .work-pill.on-sedang{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);}
   .work-pill.on-selesai{background:var(--success-bg);border-color:var(--success);color:var(--success);}
-  .work-day-heading{display:flex;align-items:center;gap:8px;margin:18px 0 8px;}
-  .work-day-heading:first-child{margin-top:0;}
-  .work-day-heading h2{margin:0;font-size:15px;}
-  .work-day-today{background:var(--suds);color:#fff;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
 
   /* ---- History list ---- */
   .search-bar{position:relative;margin-bottom:12px;}
@@ -471,7 +486,7 @@
       <h2 style="margin-bottom:2px;">Papan Kerja</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">Otomatis terisi dari transaksi yang diinput, dikelompokkan menurut hari <b>Estimasi Selesai</b> (bukan hari masuk) — kalau estimasi belum diisi saat input, dipakai tanggal masuk sementara. Tandai progres tiap cucian, dan tekan "Sudah Diambil" begitu pelanggan mengambilnya (kartunya akan hilang dari papan, seperti melepas kertas dari papan tulis).</p>
     </div>
-    <div id="workBoardList"></div>
+    <div class="work-board-grid" id="workBoardGrid"></div>
   </section>
 
   <!-- ===== VIEW 4: LAPORAN ===== -->
@@ -4302,47 +4317,47 @@ function workBoardCardHTML(t){
   const layanan = (t.items||[]).map(it=>it.nama).join(', ') || '-';
   const ws = t.workStatus || 'belum';
   const tanggalInfo = t.estimasi
-    ? `Estimasi selesai: ${fmtDate(t.estimasi)}`
-    : `Masuk: ${fmtDate(t.tanggal)} (belum ada estimasi selesai)`;
+    ? `Selesai: ${fmtDate(t.estimasi)}`
+    : `Masuk: ${fmtDate(t.tanggal)} (blm ada estimasi)`;
   return `
-    <div class="trx-card">
-      <div class="trx-top">
-        <div>
-          <div class="trx-name">${escapeHTML(t.nama)}</div>
-          <div class="kode">${t.kode} · ${escapeHTML(layanan)}</div>
-        </div>
-        <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum Lunas'}</span>
+    <div class="work-card">
+      <div class="trx-name">${escapeHTML(t.nama)}</div>
+      <div class="kode">${t.kode}</div>
+      <div class="work-layanan">${escapeHTML(layanan)}</div>
+      <div class="work-tanggal">${tanggalInfo}</div>
+      <div class="work-total-row">
+        <span class="work-total">${rupiah(t.total)}</span>
+        <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum'}</span>
       </div>
-      <div style="font-size:12px;color:var(--ink-soft);margin:2px 0 6px;">${tanggalInfo}</div>
-      <div class="trx-total">${rupiah(t.total)}</div>
-      <div class="btn-row" style="margin-top:8px;gap:6px;">
+      <div class="btn-row" style="gap:4px;">
         <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${t.id}','belum')">Belum</button>
         <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${t.id}','sedang')">Sedang</button>
         <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${t.id}','selesai')">Selesai</button>
       </div>
-      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="markPickedUp('${t.id}')">📤 Sudah Diambil</button>` : ''}
+      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${t.id}')">📤 Sudah Diambil</button>` : ''}
     </div>`;
 }
+/* Grid horizontal 7 kolom Senin->Ahad (di-scroll ke samping), meniru
+   susunan papan tulis fisik persis: nama hari di header kotak paling atas,
+   kartu-kartu kerjaan tersusun ke bawah di dalam kotak harinya. Kolom hari
+   SELALU ditampilkan (walau kosong) supaya bentuk grid-nya tetap utuh
+   seperti papan aslinya, bukan cuma hari yang ada kerjaannya saja. */
 function renderWorkBoard(){
-  const el = document.getElementById('workBoardList');
+  const el = document.getElementById('workBoardGrid');
   const active = transactions.filter(t=>(t.workStatus||'belum')!=='diambil');
-  if(active.length===0){
-    el.innerHTML = `<div class="empty">
-      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Papan kerja masih kosong</h3>
-      <p>Transaksi baru yang belum diambil pelanggan akan otomatis muncul di sini.</p>
-    </div>`;
-    return;
-  }
   const todayName = indoDayName(todayISO());
   const orderedDays = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Ahad'];
   el.innerHTML = orderedDays.map(day=>{
     const list = active.filter(t=>indoDayName(workBoardDate(t))===day)
       .slice().sort((a,b)=>{ const da=workBoardDate(a), db=workBoardDate(b); return da<db?-1:(da>db?1:0); });
-    if(list.length===0) return '';
-    const todayBadge = day===todayName ? '<span class="work-day-today">Hari Ini</span>' : '';
-    return `<div class="work-day-heading"><h2>${day}</h2>${todayBadge}<span style="font-size:11.5px;color:var(--ink-soft);">${list.length} cucian</span></div>`
-      + list.map(workBoardCardHTML).join('');
+    const isToday = day===todayName;
+    const body = list.length===0
+      ? `<div class="work-day-empty">Belum ada</div>`
+      : list.map(workBoardCardHTML).join('');
+    return `<div class="work-day-col">
+      <div class="work-day-col-header ${isToday?'is-today':''}">${day}${isToday?'<small>Hari Ini</small>':''}</div>
+      <div class="work-day-col-body">${body}</div>
+    </div>`;
   }).join('');
 }
 
