@@ -178,9 +178,10 @@ alter table subscription_usage add column if not exists work_status text not nul
 
 `estimasi` diisi lewat field "Estimasi Selesai" yang sekarang ada di form
 "Catat Laundry Masuk (kg)" dan "Tambah Layanan Lain" di halaman Paket
-Bulanan/Tempo. Hanya catatan bertipe layanan tambahan (bukan timbangan kg
-polos) yang muncul di Papan Kerja, karena timbangan kg tidak punya harga
-per-baris yang jelas untuk ditampilkan di kartunya. ⚠️ Beda dari migrasi
+Bulanan/Tempo — keduanya ikut muncul di Papan Kerja. Untuk timbangan kg
+polos (belum punya harga per-baris yang jelas, baru ditagih di akhir
+periode/kalau lebih kuota), kartunya menampilkan berat (kg) sebagai ganti
+harga. ⚠️ Beda dari migrasi
 lain di atas: sebelum kolom `estimasi` ini ada, mencatat laundry
 masuk/layanan tambahan di Paket Bulanan/Tempo akan **gagal total** dengan
 toast error (bukan cuma kolom estimasinya yang tidak tersimpan) — karena

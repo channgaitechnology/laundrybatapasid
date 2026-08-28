@@ -2185,6 +2185,7 @@ async function loadAllWorkUsage(){
     id:r.id, subscriptionId:r.subscription_id, tanggal:r.tanggal, estimasi:r.estimasi||null,
     type:r.type||'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
     satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
+    berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
     workStatus:r.work_status||'belum'
   }));
 }
@@ -2498,6 +2499,13 @@ async function addUsage(){
   document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
+  if(inserted){
+    allWorkUsage.push({
+      id:inserted.id, subscriptionId:s.id, tanggal:inserted.tanggal, estimasi:inserted.estimasi||null,
+      type:'pemakaian', layananNama:'', qty:0, satuan:'', harga:0, subtotal:0,
+      berat:Number(inserted.berat_kg)||0, catatan:inserted.catatan||'', workStatus:'belum'
+    });
+  }
   await refreshSubsDetail();
   showToast('Laundry masuk tercatat');
   if(inserted) openUsageNotaOptions(inserted.id);
@@ -2623,6 +2631,8 @@ async function deleteUsage(id){
       if(err2){ showToast('Gagal mengembalikan catatan'); return; }
       if(data && data.type==='layanan_tambahan'){
         allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+      } else if(data){
+        allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'pemakaian', layananNama:'', qty:0, satuan:'', harga:0, subtotal:0, berat:Number(data.berat_kg)||0, catatan:data.catatan||'', workStatus:'belum' });
       }
       if(currentSubscriptionId===subId) await refreshSubsDetail();
       showToast('Catatan dikembalikan');
@@ -4339,12 +4349,13 @@ function workBoardDate(t){ return t.estimasi || t.tanggal; }
    sebelum itu dan sudah pasti selesai/diambil lama, jadi sengaja tidak usah
    ikut muncul di papan biar tidak mengotori tampilan kerjaan yang aktif. */
 const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
-/* Papan Kerja menggabungkan dua sumber data jadi satu daftar kerjaan
-   seragam: transaksi reguler (transactions) DAN kunjungan Paket
-   Bulanan/Tempo bertipe layanan_tambahan (allWorkUsage) — supaya kerjaan
-   dari ketiga jenis pelanggan ikut muncul di papan, bukan cuma transaksi
-   reguler. Timbangan kg polos Paket Bulanan (type "pemakaian") sengaja
-   tidak diikutkan karena tidak punya harga per-baris yang jelas. */
+/* Papan Kerja menggabungkan tiga sumber data jadi satu daftar kerjaan
+   seragam: transaksi reguler (transactions), kunjungan Paket Bulanan/Tempo
+   bertipe layanan_tambahan, DAN timbangan kg polos Paket Bulanan (type
+   "pemakaian") — supaya SEMUA laundry yang masuk ikut muncul di papan,
+   bukan cuma yang punya harga per-baris. Timbangan kg polos belum punya
+   harga pasti (baru ditagih di akhir periode/kalau lebih kuota), jadi
+   kartunya menampilkan berat (kg) sebagai ganti harga. */
 function buildWorkItems(){
   const trxItems = transactions
     .filter(t=>(t.workStatus||'belum')!=='diambil' && t.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
@@ -4364,7 +4375,18 @@ function buildWorkItems(){
         lunas: sub ? sub.statusBayar==='lunas' : false
       };
     });
-  return trxItems.concat(usageItems);
+  const beratItems = allWorkUsage
+    .filter(u=>u.type==='pemakaian' && (u.workStatus||'belum')!=='diambil' && u.tanggal >= PAPAN_KERJA_MULAI_TANGGAL)
+    .map(u=>{
+      const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+      return {
+        id:u.id, source:'usage', nama: sub ? sub.nama : '-',
+        layanan: sub ? sub.paketNama : 'Laundry Masuk (kg)', beratLabel:`${u.berat} kg`,
+        tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
+        lunas: sub ? sub.statusBayar==='lunas' : false
+      };
+    });
+  return trxItems.concat(usageItems, beratItems);
 }
 async function setWorkStatus(id, status, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
@@ -4397,7 +4419,7 @@ function workBoardCardHTML(it){
     : `${fmtDate(it.tanggal)} (blm ada estimasi)`;
   const bayarInfo = it.lunas
     ? `<div class="work-lunas">Lunas</div>`
-    : `<div class="work-harga">${rupiah(it.harga)}</div>`;
+    : `<div class="work-harga">${it.beratLabel || rupiah(it.harga)}</div>`;
   return `
     <div class="work-card">
       <div class="work-nama">${escapeHTML(it.nama)}</div>
