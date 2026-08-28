@@ -350,6 +350,9 @@
     <div>
       <h1 id="shopNameLabel">Laundry Batapas.id</h1>
       <p>Kasir &amp; Nota Digital Laundry</p>
+      <button type="button" id="outletSwitcherWrap" onclick="openOutletPicker()" style="display:none;align-items:center;gap:4px;background:rgba(255,255,255,0.16);border:none;border-radius:8px;padding:3px 8px;margin-top:4px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;">
+        🏬 <span id="outletSwitcherLabel">Pilih Outlet</span> ▾
+      </button>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
@@ -509,6 +512,12 @@
 
   <!-- ===== VIEW 4: LAPORAN ===== -->
   <section class="view" id="view-laporan">
+    <div class="card" id="reportOutletFilterWrap" style="display:none;">
+      <label for="reportOutletFilterSelect">Outlet</label>
+      <select id="reportOutletFilterSelect" onchange="onReportOutletFilterChange()">
+        <option value="">Semua Outlet</option>
+      </select>
+    </div>
     <div class="card">
       <label for="reportMonth">Pilih Bulan</label>
       <input id="reportMonth" type="month" onchange="renderReport()">
@@ -925,6 +934,17 @@
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="importContactsFromPhone()">📇 Impor Kontak dari HP</button>
     <div id="contactsList" style="max-height:220px;overflow-y:auto;"></div>
 
+    <div class="section-title" style="margin-top:22px;">Outlet / Cabang</div>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Punya lebih dari satu lokasi toko? Tambahkan outletnya di sini — begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko untuk pilih lokasi mana yang sedang dikerjakan. Transaksi, Paket, dan Pengeluaran otomatis tercatat & terfilter sesuai outlet aktif.</p>
+    <div id="outletManagerList" style="margin-bottom:10px;"></div>
+    <div class="row2">
+      <div><label for="outletNama">Nama Outlet</label><input id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
+      <div><label for="outletTelp">No. Telepon</label><input id="outletTelp" placeholder="cth. 0812xxxxxxx"></div>
+    </div>
+    <label for="outletAlamat">Alamat</label>
+    <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
+    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
+
     <div class="section-title" style="margin-top:22px;">Karyawan / Kasir</div>
     <p style="font-size:12px;color:var(--ink-soft);margin:-4px 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
     <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
@@ -941,6 +961,16 @@
       <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin:6px 0 10px;" onclick="createManualCode()">➕ Buat Kode Manual</button>
       <div id="regCodeList" style="max-height:220px;overflow-y:auto;"></div>
     </div>
+  </div>
+</div>
+
+<!-- Pilih outlet yang sedang dikerjakan -->
+<div class="modal-bg" id="outletPickerModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeOutletPicker()">✕</button>
+    <h3>Pilih Outlet</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Transaksi, Paket, Pengeluaran, dan Daftar Tugas baru akan tercatat & tampil sesuai outlet yang dipilih.</p>
+    <div id="outletPickerList"></div>
   </div>
 </div>
 
@@ -1345,6 +1375,17 @@ var editingCatalogId = null;
 var subscriptions = [];
 var expenses = [];
 var expenseCatalog = [];
+/* Multi-outlet: fitur opt-in — kalau outlets kosong (toko belum pernah
+   bikin outlet), app jalan persis seperti sebelumnya (single-outlet,
+   tidak ada switcher/filter yang muncul). currentOutletId menentukan
+   outlet mana yang sedang "aktif dikerjakan" (dipakai saat mencatat
+   transaksi/paket/pengeluaran baru & memfilter Riwayat/Paket/Pengeluaran/
+   Daftar Tugas) — beda dari filter khusus Laporan (lihat reportOutletFilter)
+   yang defaultnya "Semua Outlet" karena laporan memang untuk lihat
+   gambaran besar semua cabang. */
+var outlets = [];
+var currentOutletId = null;
+var reportOutletFilter = '';
 var editingExpenseCatalogId = null;
 var expenseReportCache = null;
 var labaRugiCache = null;
@@ -1917,6 +1958,7 @@ async function initUserData(){
   }catch(e){}
   try{
     await loadSettingsFromDB();
+    await loadOutletsFromDB();
     await loadTransactionsFromDB();
     await loadCatalogFromDB();
     await loadSubscriptionsFromDB();
@@ -1925,6 +1967,8 @@ async function initUserData(){
     await loadExpensesFromDB();
     await loadExpenseCatalogFromDB();
     applySettingsToUI();
+    renderOutletSwitcherLabel();
+    populateReportOutletFilter();
     renderAll();
   }catch(e){
     console.error('Gagal memuat data awal:', e);
@@ -1945,7 +1989,8 @@ async function loadTransactionsFromDB(){
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum'
+    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
+    outletId: row.outlet_id!=null ? String(row.outlet_id) : null
   }));
 }
 /* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
@@ -1958,7 +2003,8 @@ async function loadExpensesFromDB(){
     id: row.id, tanggal: row.tanggal, nama: row.nama || row.kategori || '-',
     qty: row.qty!=null ? Number(row.qty) : null, satuan: row.satuan || '',
     harga: row.harga!=null ? Number(row.harga) : null,
-    jumlah: Number(row.jumlah)||0, kategori: row.kategori || 'Lain-lain', catatan: row.catatan||''
+    jumlah: Number(row.jumlah)||0, kategori: row.kategori || 'Lain-lain', catatan: row.catatan||'',
+    outletId: row.outlet_id!=null ? String(row.outlet_id) : null
   }));
 }
 /* Tabel expense_catalog (opsional, untuk saran otomatis/autocomplete saat catat
@@ -1968,6 +2014,124 @@ async function loadExpenseCatalogFromDB(){
   const { data, error } = await sb.from('expense_catalog').select('*').eq('user_id', shopOwnerId).order('nama', { ascending:true });
   if(error){ expenseCatalog = []; return; }
   expenseCatalog = (data||[]).map(r => ({ id:r.id, nama:r.nama, satuan:r.satuan||'pcs', harga:Number(r.harga)||0 }));
+}
+/* ===================== MULTI-OUTLET (opt-in) ===================== */
+/* Tabel outlets opsional — kalau belum dimigrasi atau toko belum pernah
+   bikin outlet, diamkan saja: app tetap jalan sebagai single-outlet persis
+   seperti sebelumnya (switcher & filter outlet baru muncul di UI begitu
+   outlets.length > 0). */
+async function loadOutletsFromDB(){
+  const { data, error } = await sb.from('outlets').select('*').eq('user_id', shopOwnerId).order('created_at', { ascending:true });
+  if(error){ outlets = []; currentOutletId = null; return; }
+  outlets = (data||[]).map(r => ({ id:r.id, nama:r.nama, alamat:r.alamat||'', telp:r.telp||'' }));
+  if(outlets.length>0){
+    let saved = null;
+    try{ saved = localStorage.getItem('nk_lastOutletId'); }catch(e){}
+    currentOutletId = (saved && outlets.some(o=>String(o.id)===saved)) ? saved : String(outlets[0].id);
+  } else {
+    currentOutletId = null;
+  }
+}
+/* Konteks outlet yang "sedang dikerjakan" — dipakai saat mencatat transaksi/
+   paket/pengeluaran baru, dan memfilter tampilan Riwayat/Paket/Pengeluaran/
+   Daftar Tugas. Beda dari reportOutletFilter (khusus tab Laporan) yang
+   defaultnya "Semua Outlet" karena laporan memang untuk lihat gambaran
+   besar lintas cabang. */
+function switchOutlet(id){
+  currentOutletId = id ? String(id) : null;
+  try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
+  renderOutletSwitcherLabel();
+  closeOutletPicker();
+  switchTab(currentTabName);
+}
+function visibleTransactions(){
+  return (outlets.length===0 || !currentOutletId) ? transactions : transactions.filter(t=>String(t.outletId)===currentOutletId);
+}
+function visibleSubscriptions(){
+  return (outlets.length===0 || !currentOutletId) ? subscriptions : subscriptions.filter(s=>String(s.outletId)===currentOutletId);
+}
+function visibleExpenses(){
+  return (outlets.length===0 || !currentOutletId) ? expenses : expenses.filter(e=>String(e.outletId)===currentOutletId);
+}
+function visibleReportTransactions(){
+  return reportOutletFilter ? transactions.filter(t=>String(t.outletId)===reportOutletFilter) : transactions;
+}
+function visibleReportExpenses(){
+  return reportOutletFilter ? expenses.filter(e=>String(e.outletId)===reportOutletFilter) : expenses;
+}
+async function addOutlet(){
+  const nama = document.getElementById('outletNama').value.trim();
+  const alamat = document.getElementById('outletAlamat').value.trim();
+  const telp = document.getElementById('outletTelp').value.trim();
+  if(!nama){ showToast('Nama outlet wajib diisi'); return; }
+  const { data, error } = await sb.from('outlets').insert({ user_id: shopOwnerId, nama, alamat, telp }).select().single();
+  if(error){ showToast('Gagal menambah outlet — pastikan tabel outlets sudah dimigrasi (lihat README)'); return; }
+  outlets.push({ id:data.id, nama:data.nama, alamat:data.alamat||'', telp:data.telp||'' });
+  if(!currentOutletId){ currentOutletId = String(data.id); try{ localStorage.setItem('nk_lastOutletId', currentOutletId); }catch(e){} }
+  document.getElementById('outletNama').value = '';
+  document.getElementById('outletAlamat').value = '';
+  document.getElementById('outletTelp').value = '';
+  showToast('Outlet ditambahkan');
+  renderOutletManagerList();
+  renderOutletSwitcherLabel();
+  populateReportOutletFilter();
+}
+async function deleteOutlet(id){
+  if(!confirm('Hapus outlet ini? Data transaksi/paket/pengeluaran yang sudah tercatat di outlet ini TIDAK ikut terhapus, cuma dilepas kaitannya (jadi tanpa outlet).')) return;
+  const { error } = await sb.from('outlets').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus outlet'); return; }
+  outlets = outlets.filter(o=>String(o.id)!==String(id));
+  if(currentOutletId===String(id)){
+    currentOutletId = outlets.length>0 ? String(outlets[0].id) : null;
+    try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
+  }
+  showToast('Outlet dihapus');
+  renderOutletManagerList();
+  renderOutletSwitcherLabel();
+  populateReportOutletFilter();
+  switchTab(currentTabName);
+}
+function renderOutletManagerList(){
+  const el = document.getElementById('outletManagerList');
+  if(!el) return;
+  if(outlets.length===0){ el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">Belum ada outlet — toko ini masih mode 1 lokasi.</div>`; return; }
+  el.innerHTML = outlets.map(o=>`
+    <div class="item-line" style="align-items:center;">
+      <span>${escapeHTML(o.nama)}${o.alamat?` <span style="color:var(--ink-soft);">— ${escapeHTML(o.alamat)}</span>`:''}</span>
+      <button type="button" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;" onclick="deleteOutlet('${o.id}')">✕</button>
+    </div>
+  `).join('');
+}
+function renderOutletSwitcherLabel(){
+  const wrap = document.getElementById('outletSwitcherWrap');
+  if(!wrap) return;
+  if(outlets.length===0){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  const cur = outlets.find(o=>String(o.id)===currentOutletId);
+  document.getElementById('outletSwitcherLabel').textContent = cur ? cur.nama : 'Pilih Outlet';
+}
+function openOutletPicker(){
+  const el = document.getElementById('outletPickerList');
+  el.innerHTML = outlets.map(o=>`
+    <button type="button" class="btn ${String(o.id)===currentOutletId?'btn-primary':'btn-outline'}" style="margin-bottom:8px;" onclick="switchOutlet('${o.id}')">${escapeHTML(o.nama)}</button>
+  `).join('');
+  document.getElementById('outletPickerModal').classList.add('show');
+}
+function closeOutletPicker(){ document.getElementById('outletPickerModal').classList.remove('show'); }
+function populateReportOutletFilter(){
+  const sel = document.getElementById('reportOutletFilterSelect');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Semua Outlet</option>' + outlets.map(o=>`<option value="${o.id}">${escapeHTML(o.nama)}</option>`).join('');
+  sel.value = outlets.some(o=>String(o.id)===prev) ? prev : '';
+  reportOutletFilter = sel.value;
+  const wrap = document.getElementById('reportOutletFilterWrap');
+  if(wrap) wrap.style.display = outlets.length>0 ? 'block' : 'none';
+}
+function onReportOutletFilterChange(){
+  reportOutletFilter = document.getElementById('reportOutletFilterSelect').value;
+  renderReport(); renderLabaRugi(); renderPeringkatPelanggan();
+  if(perReportCache) renderPerPelangganReport();
 }
 async function persistSettings(){
   const { error } = await sb.from('settings').upsert({
@@ -2220,7 +2384,8 @@ async function loadSubscriptionsFromDB(){
     hargaLebihKg:Number(r.harga_lebih_kg)||0,
     kuotaKg:Number(r.kuota_kg)||0, tanggalMulai:r.tanggal_mulai, tanggalSelesai:r.tanggal_selesai,
     status:r.status||'aktif', statusBayar:r.status_bayar||'belum', dp:Number(r.dp)||0,
-    lunasAt:r.lunas_at||null, transactionId:r.transaction_id||null, terpakai:0
+    lunasAt:r.lunas_at||null, transactionId:r.transaction_id||null, terpakai:0,
+    outletId: r.outlet_id!=null ? String(r.outlet_id) : null
   }));
   await loadAllUsageTotals();
 }
@@ -2269,7 +2434,7 @@ function renderSubscriptions(){
   const filterTipe = filterTipeEl ? filterTipeEl.value : 'semua';
   const today = todayISO();
   const el = document.getElementById('subscriptionList');
-  let list = subscriptions.slice();
+  let list = visibleSubscriptions().slice();
   if(filterTipe==='bulanan') list = list.filter(s=>!isTempo(s));
   else if(filterTipe==='tempo') list = list.filter(s=>isTempo(s));
   if(filter==='aktif'){
@@ -2395,7 +2560,8 @@ async function createSubscription(){
     showToast('Data pelanggan paket diperbarui');
   } else {
     const { error } = await sb.from('subscriptions').insert({
-      user_id: shopOwnerId, ...payload, status:'aktif', status_bayar:'belum', dp:0
+      user_id: shopOwnerId, ...payload, status:'aktif', status_bayar:'belum', dp:0,
+      ...(currentOutletId ? { outlet_id: currentOutletId } : {})
     });
     if(error){ showToast('Gagal menyimpan pelanggan paket'); return; }
     showToast(tempo ? 'Pelanggan tempo ditambahkan' : 'Pelanggan paket ditambahkan');
@@ -3620,7 +3786,9 @@ function selectContactSuggest(inputId, boxId, contactId){
 }
 
 /* ===================== TAB SWITCH ===================== */
+var currentTabName = 'baru';
 function switchTab(name){
+  currentTabName = name;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran', papan:'view-papan' };
@@ -3714,7 +3882,8 @@ async function submitTransaction(){
       tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
       diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
       status: data.status, catatan: data.catatan,
-      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum'
+      workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum',
+      outletId: data.outlet_id!=null ? String(data.outlet_id) : (idx>-1 ? transactions[idx].outletId : null)
     };
     if(idx>-1) transactions[idx] = trx;
     resetTransactionForm();
@@ -3730,7 +3899,13 @@ async function submitTransaction(){
     estimasi: estimasi || null,
     items: draftItems.slice(),
     diskon, total, dp: finalDp,
-    status, catatan
+    status, catatan,
+    /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
+       tertentu (currentOutletId terisi) — supaya toko yang belum pernah
+       bikin outlet sama sekali (fitur ini opt-in) tetap kirim payload
+       persis seperti sebelumnya, tidak berisiko gagal gara-gara kolom
+       outlet_id belum ada di database lama yang belum dimigrasi. */
+    ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
 
   if(error){ showToast('Gagal menyimpan transaksi'); return; }
@@ -3739,7 +3914,8 @@ async function submitTransaction(){
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
     tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
     diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum'
+    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum',
+    outletId: data.outlet_id!=null ? String(data.outlet_id) : null
   };
   transactions.push(trx);
   resetTransactionForm();
@@ -3799,13 +3975,15 @@ async function deleteTransaction(id){
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
         estimasi: trx.estimasi, items: trx.items, diskon: trx.diskon, total: trx.total, dp: trx.dp,
-        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus
+        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus,
+        ...(trx.outletId ? { outlet_id: trx.outletId } : {})
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan transaksi'); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum'
+        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum',
+        outletId: data.outlet_id!=null ? String(data.outlet_id) : null
       });
       renderHistory();
       showToast('Transaksi dikembalikan');
@@ -3943,10 +4121,11 @@ async function submitExpense(){
   if(!nama){ showToast('Isi nama barang/jasa yang dibeli'); return; }
   if(jumlah<=0){ showToast('Isi qty dan harga dengan benar'); return; }
   const { data, error } = await sb.from('expenses').insert({
-    user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan
+    user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan,
+    ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
   if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'); return; }
-  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
+  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
   document.getElementById('expNama').value = '';
   document.getElementById('expQty').value = '1';
   document.getElementById('expHarga').value = '';
@@ -3968,10 +4147,11 @@ async function deleteExpense(id){
     onClick: async ()=>{
       const { data, error: err2 } = await sb.from('expenses').insert({
         user_id: shopOwnerId, tanggal: exp.tanggal, nama: exp.nama, qty: exp.qty, satuan: exp.satuan,
-        harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan
+        harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan,
+        ...(exp.outletId ? { outlet_id: exp.outletId } : {})
       }).select().single();
       if(err2){ showToast('Gagal mengembalikan pengeluaran'); return; }
-      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'' });
+      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
       renderExpenseList();
       showToast('Pengeluaran dikembalikan');
     }
@@ -4018,7 +4198,7 @@ function renderExpenseList(){
     expenseReportCache = null;
     return;
   }
-  const listAsc = sortByTanggalAsc(expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
+  const listAsc = sortByTanggalAsc(visibleExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
   const total = listAsc.reduce((s,e)=>s+e.jumlah,0);
   document.getElementById('expStTotal').textContent = rupiah(total);
   document.getElementById('expStCount').textContent = listAsc.length;
@@ -4329,12 +4509,12 @@ function sendReceiptWA(target){
 function renderHistory(){
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
   const el = document.getElementById('historyList');
-  const list = transactions.slice().reverse().filter(t=>
+  const list = visibleTransactions().slice().reverse().filter(t=>
     t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q)
   );
 
   const today = todayISO();
-  const todayList = transactions.filter(t=>t.tanggal===today);
+  const todayList = visibleTransactions().filter(t=>t.tanggal===today);
   const todayLunas = todayList.filter(t=>t.status==='lunas');
   const todayBelum = todayList.filter(t=>t.status==='belum');
   document.getElementById('stTodayLunas').textContent = `${todayLunas.length} · ${rupiah(todayLunas.reduce((s,t)=>s+t.total,0))}`;
@@ -4410,13 +4590,18 @@ const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
    SEMUA riwayat termasuk yang sudah diambil/lama, supaya daftar tugas
    lama tetap bisa dilihat lewat unduhan). */
 function buildAllWorkItemsRaw(){
-  const trxItems = transactions.map(t=>({
+  /* Konteks outlet ikut membatasi Daftar Tugas: kerjaan Paket Bulanan/Tempo
+     hanya diikutkan kalau pelanggannya terdaftar di outlet yang sedang
+     aktif (dicek lewat visibleSubscriptions(), bukan filter langsung ke
+     allWorkUsage karena baris usage sendiri tidak punya outlet_id). */
+  const visSubIds = new Set(visibleSubscriptions().map(s=>String(s.id)));
+  const trxItems = visibleTransactions().map(t=>({
     id:t.id, source:'trx', nama:t.nama,
     layanan:(t.items||[]).map(it=>it.nama).join(', ')||'-',
     harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
     lunas:t.status==='lunas'
   }));
-  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan').map(u=>{
+  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan' && visSubIds.has(String(u.subscriptionId))).map(u=>{
     const sub = subscriptions.find(s=>s.id===u.subscriptionId);
     return {
       id:u.id, source:'usage', nama: sub ? sub.nama : '-',
@@ -4424,7 +4609,7 @@ function buildAllWorkItemsRaw(){
       lunas: sub ? sub.statusBayar==='lunas' : false
     };
   });
-  const beratItems = allWorkUsage.filter(u=>u.type==='pemakaian').map(u=>{
+  const beratItems = allWorkUsage.filter(u=>u.type==='pemakaian' && visSubIds.has(String(u.subscriptionId))).map(u=>{
     const sub = subscriptions.find(s=>s.id===u.subscriptionId);
     return {
       id:u.id, source:'usage', nama: sub ? sub.nama : '-',
@@ -4639,7 +4824,7 @@ function renderReport(){
   const monthInput = document.getElementById('reportMonth');
   if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
   const ym = monthInput.value; // "2026-07"
-  const list = transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
+  const list = visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
 
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
@@ -4724,7 +4909,7 @@ function populatePerNamaSelect(){
   if(!sel) return;
   const prev = sel.value;
   const namaSet = new Set();
-  transactions.forEach(t=>{ if(t.nama) namaSet.add(t.nama); });
+  visibleReportTransactions().forEach(t=>{ if(t.nama) namaSet.add(t.nama); });
   subscriptions.forEach(s=>{ if(s.nama) namaSet.add(s.nama); });
   const namaList = Array.from(namaSet).sort((a,b)=>a.localeCompare(b));
   if(namaList.length===0){
@@ -4769,7 +4954,7 @@ function renderPerPelangganReport(){
   const range = getPerPeriodeRange();
   if(!range){ showToast('Lengkapi periode laporan dulu'); return; }
 
-  const list = transactions.filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const totalLunas = list.filter(t=>t.status==='lunas').reduce((s,t)=>s+t.total,0);
@@ -4885,8 +5070,8 @@ function renderLabaRugi(){
     labaRugiCache = null;
     return;
   }
-  const trxList = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
-  const expList = expenses.filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
+  const trxList = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const expList = visibleReportExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
   const totalOmzet = trxList.reduce((s,t)=>s+t.total,0);
   const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
   const pendapatanBersih = totalOmzet - totalPengeluaran;
@@ -4981,7 +5166,7 @@ function renderPeringkatPelanggan(){
   const range = getRankPeriodeRange();
   const el = document.getElementById('rankList');
   if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
-  const list = transactions.filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
+  const list = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const byNama = {};
   list.forEach(t=>{
     if(!byNama[t.nama]) byNama[t.nama] = { nama:t.nama, total:0, count:0 };
@@ -5060,6 +5245,7 @@ function openSettings(){
   const logoPreview = document.getElementById('logoPreviewImg');
   if(logoPreview) logoPreview.src = shopLogoSrc();
   renderContactsList();
+  renderOutletManagerList();
   if(currentRole==='owner') loadTeamList();
   document.getElementById('adminPlatformSection').style.display = (currentUser && currentUser.email===ADMIN_EMAIL) ? 'block' : 'none';
   if(currentUser && currentUser.email===ADMIN_EMAIL) loadAdminData();
