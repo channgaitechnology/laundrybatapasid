@@ -1275,7 +1275,8 @@
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wab')">Kirim via WhatsApp Business</button>
     <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-outline" onclick="printUsageNotaBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printUsageNotaBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printUsageNotaViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
   </div>
 </div>
 
@@ -1287,7 +1288,8 @@
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wab')">Kirim via WhatsApp Business</button>
     <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-outline" onclick="printReceiptBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printReceiptBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printReceiptViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
   </div>
 </div>
 
@@ -1299,7 +1301,8 @@
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wab')">Kirim via WhatsApp Business</button>
     <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-outline" onclick="printSubsInvoiceBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printSubsInvoiceBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printSubsInvoiceViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
   </div>
 </div>
 
@@ -3890,6 +3893,52 @@ async function printUsageNotaBluetooth(){
     lines = buildUsageNotaPDFLines(usage, s);
   }
   await printLinesViaBluetooth(lines);
+}
+/* ===================== CETAK VIA BROWSER (AirPrint/printer lain) =====================
+   Web Bluetooth TIDAK didukung Safari/iOS sama sekali, jadi ini jalur cetak
+   cadangan yang jalan di semua browser: render nota sebagai HTML sederhana ke
+   #printArea lalu panggil window.print() bawaan browser. Di iPhone, dialog
+   cetak Safari otomatis menampilkan printer AirPrint yang ada di jaringan yang
+   sama — cocok untuk printer thermal yang mendukung WiFi/AirPrint, bukan cuma
+   Bluetooth. Pakai array `lines` yang sama dengan versi PDF/JPG/Bluetooth
+   supaya isinya tetap konsisten di semua format. */
+function linesToPrintHTML(lines){
+  return lines.map(line=>{
+    const align = line.c ? 'center' : 'left';
+    const weight = line.b ? '800' : '400';
+    const fontStyle = line.it ? 'italic' : 'normal';
+    const size = (line.s>=12) ? '15px' : (line.s>=10 ? '13px' : '11.5px');
+    return `<div style="text-align:${align};font-weight:${weight};font-style:${fontStyle};font-size:${size};white-space:pre-wrap;">${escapeHTML(line.t)}</div>`;
+  }).join('');
+}
+function printLinesViaBrowser(lines){
+  document.getElementById('printArea').innerHTML = `<div style="max-width:340px;margin:0 auto;font-family:'Space Mono',monospace;padding:20px;">${linesToPrintHTML(lines)}</div>`;
+  window.print();
+}
+function printReceiptViaBrowser(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  printLinesViaBrowser(buildReceiptPDFLines(trx));
+}
+function printSubsInvoiceViaBrowser(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  printLinesViaBrowser(buildSubsInvoicePDFLines(s));
+}
+function printUsageNotaViaBrowser(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+  }
+  printLinesViaBrowser(lines);
 }
 async function downloadUsageNotaImage(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);

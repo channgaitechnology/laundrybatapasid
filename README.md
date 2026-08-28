@@ -311,6 +311,19 @@ Batasan penting:
   diganti ASCII sebelum dicetak (lewat `sanitizeForThermal()`) karena
   kebanyakan printer thermal murah cuma mendukung ASCII/CP437.
 
+**Solusi untuk iPhone/iPad**: karena Web Bluetooth tidak ada sama sekali di
+Safari/WebKit, tiap layar kirim nota juga punya tombol kedua "🖨️ Cetak
+(AirPrint / Printer Lain)" yang jalan di SEMUA browser — cukup me-render
+nota sebagai HTML sederhana lalu memanggil `window.print()` bawaan
+browser (lewat `printLinesViaBrowser()`). Di iPhone, dialog cetak Safari
+otomatis menampilkan printer AirPrint yang ada di jaringan WiFi yang sama.
+Ini bukan pengganti 1:1 Bluetooth — pemilik toko yang mau pakai jalur ini
+di iPhone perlu printer thermal yang mendukung WiFi/AirPrint (banyak
+printer thermal murah sekarang dual Bluetooth+WiFi), bukan printer
+Bluetooth-only. Alternatif tanpa printer AirPrint sama sekali: pakai
+"Unduh / Bagikan Nota (JPG)" yang sudah ada, lalu cetak lewat Share Sheet
+iOS → Print.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
