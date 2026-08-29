@@ -4298,7 +4298,7 @@ function renderDraftItems(){
   } else {
     el.innerHTML = draftItems.map((it,i)=>`
       <div class="item-line">
-        <span>${it.nama} — ${it.qty} ${it.satuan} × ${rupiah(it.harga)}</span>
+        <span>${escapeHTML(it.nama)} — ${it.qty} ${escapeHTML(it.satuan)} × ${rupiah(it.harga)}</span>
         <span style="display:flex;align-items:center;gap:8px;">${rupiah(it.subtotal)}
           <button onclick="removeItem(${i})" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
         </span>
@@ -4867,8 +4867,8 @@ function downloadExpensePDF(){
 function buildReceiptHTML(trx){
   const itemsHTML = trx.items.map(it=>`
     <div class="r-item">
-      <div class="r-item-name"><span>${it.nama}</span><span>${rupiah(it.subtotal)}</span></div>
-      <div class="r-item-detail">${it.qty} ${it.satuan} x ${rupiah(it.harga)}</div>
+      <div class="r-item-name"><span>${escapeHTML(it.nama)}</span><span>${rupiah(it.subtotal)}</span></div>
+      <div class="r-item-detail">${it.qty} ${escapeHTML(it.satuan)} x ${rupiah(it.harga)}</div>
     </div>`).join('');
   const sisa = trx.total - (trx.dp||0);
   const hdr = notaHeaderInfo(trx.outletId);
