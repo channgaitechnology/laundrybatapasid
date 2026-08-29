@@ -113,6 +113,24 @@
   .settings-sub-panel{display:none;}
   .settings-sub-panel.active{display:block;}
 
+  /* ---- Catatan: grid sampul buku ---- */
+  .notes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:6px;}
+  .note-book{
+    aspect-ratio:3/4;border-radius:5px 12px 12px 5px;padding:12px 12px 10px;
+    display:flex;flex-direction:column;justify-content:space-between;color:#fff;text-align:left;
+    box-shadow:2px 3px 8px rgba(13,79,104,0.25), inset -4px 0 0 rgba(0,0,0,0.16);
+    border:none;cursor:pointer;
+  }
+  .note-book:active{filter:brightness(0.94);}
+  .note-book-title{font-size:13px;font-weight:700;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;}
+  .note-book-dates{font-size:8.5px;line-height:1.5;opacity:0.9;}
+  .note-book-new{
+    background:var(--mist);border:1.5px dashed var(--line);color:var(--ink-soft);
+    align-items:center;justify-content:center;text-align:center;box-shadow:none;
+  }
+  .note-book-new .note-book-plus{font-size:30px;line-height:1;color:var(--suds);}
+  .notes-empty{font-size:12.5px;color:var(--ink-soft);text-align:center;padding:18px 6px;grid-column:1 / -1;}
+
   button{font-family:'Inter',sans-serif;cursor:pointer;}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -381,9 +399,9 @@
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       <span class="icon-btn-label">Pengaturan</span>
     </button>
-    <button class="icon-btn" onclick="handleLogout()" aria-label="Keluar">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      <span class="icon-btn-label">Keluar</span>
+    <button class="icon-btn" onclick="openCatatan()" aria-label="Catatan">
+      <span class="icon-btn-emoji" style="font-size:19px;letter-spacing:-3px;">📔✏️</span>
+      <span class="icon-btn-label">Catatan</span>
     </button>
   </div>
 </div>
@@ -1003,6 +1021,8 @@
           <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountPassword()">Ganti</button>
         </div>
         <div id="accountMsg" style="font-size:12.5px;margin:-4px 0 4px;"></div>
+
+        <button type="button" class="btn btn-danger-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="handleLogout()">🚪 Keluar dari Akun</button>
       </div>
 
       <div class="settings-sub-panel" id="settingsSub-kontak">
@@ -1061,6 +1081,32 @@
           <input id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
           <button type="button" class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="saveAppBranding()">Simpan Footer Nota</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Catatan seputar laundry (buku catatan bebas, di luar sistem transaksi) -->
+<div class="modal-bg" id="catatanModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeCatatan()">✕</button>
+
+    <div id="catatanHome">
+      <h3>📔 Catatan</h3>
+      <button type="button" class="btn btn-accent btn-sm" style="width:100%;margin:8px 0 14px;" onclick="createNewNote()">+ Catatan Baru</button>
+      <div class="notes-grid" id="notesGrid"></div>
+    </div>
+
+    <div id="catatanEditorView" style="display:none;">
+      <button type="button" class="settings-sub-back" onclick="closeCatatanEditor()">← Kembali</button>
+      <label for="noteJudul">Judul</label>
+      <input id="noteJudul" placeholder="cth. Stok Deterjen, Ide Promo, dll." maxlength="80">
+      <label for="noteIsi">Isi Catatan</label>
+      <textarea id="noteIsi" rows="12" placeholder="Tulis catatan seputar laundry di sini..."></textarea>
+      <div id="noteDatesInfo" style="font-size:11px;color:var(--ink-soft);margin:6px 0 12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn btn-accent" style="flex:2;" onclick="saveNote()">Simpan</button>
+        <button type="button" class="btn btn-danger-ghost" style="flex:1;" onclick="deleteNote()">🗑️ Hapus</button>
       </div>
     </div>
   </div>
@@ -1471,6 +1517,7 @@
 <script src="js/17-papan-laundry.js"></script>
 <script src="js/18-laporan.js"></script>
 <script src="js/19-settings.js"></script>
+<script src="js/20-catatan.js"></script>
 <script>
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {

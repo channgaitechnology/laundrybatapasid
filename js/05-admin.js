@@ -157,6 +157,7 @@ async function initUserData(){
     await loadContactsFromDB();
     await loadExpensesFromDB();
     await loadExpenseCatalogFromDB();
+    await loadNotesFromDB();
     applySettingsToUI();
     renderOutletSwitcherLabel();
     populateReportOutletFilter();
