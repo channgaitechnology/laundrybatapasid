@@ -398,6 +398,24 @@
   .user-chip{
     display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.9);font-size:11.5px;
   }
+
+  /* ---- Layar lebar (tablet landscape/desktop): lebar konten menyesuaikan
+     viewport (bukan tetap 520px seperti HP) supaya tidak ada ruang kosong
+     besar di kiri-kanan. appbar & tabbar ikut dilebarkan+ditengahkan senada,
+     dan grid-grid utama dapat kolom tambahan supaya kartu-kartu memenuhi
+     ruang yang ada, bukan cuma tampilan HP yang direntangkan. ---- */
+  @media (min-width:640px){
+    main{max-width:min(94vw,1400px);}
+    .appbar{max-width:min(94vw,1400px);margin:0 auto;}
+    .tabbar{max-width:min(94vw,1400px);margin:0 auto;border-radius:16px 16px 0 0;}
+  }
+  @media (min-width:640px){
+    /* .settings-grid/.notes-grid sengaja TIDAK ikut ditambah kolom di sini --
+       keduanya hidup di dalam .modal yang tetap dibatasi max-width:520px
+       (lihat .modal di atas) berapa pun lebar layarnya, jadi menambah kolom
+       di situ cuma bikin kotak-kotaknya sempit, bukan memenuhi ruang kosong. */
+    .stat-grid{grid-template-columns:repeat(4,1fr);}
+  }
 </style>
 </head>
 <body>

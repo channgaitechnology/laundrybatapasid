@@ -141,23 +141,25 @@ async function rejectPaymentRequest(id){
 }
 
 async function initUserData(){
-  let lastTab = 'baru';
   try{
-    const saved = localStorage.getItem('nk_lastTab');
-    if(saved && ['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(saved)) lastTab = saved;
-  }catch(e){}
-  try{
-    await loadAppBranding();
-    await loadSettingsFromDB();
-    await loadOutletsFromDB();
-    await loadTransactionsFromDB();
-    await loadCatalogFromDB();
-    await loadSubscriptionsFromDB();
-    await loadAllWorkUsage();
-    await loadContactsFromDB();
-    await loadExpensesFromDB();
-    await loadExpenseCatalogFromDB();
-    await loadNotesFromDB();
+    // Sebelas query ini masing-masing independen (tabel & array globalnya
+    // sendiri-sendiri, tidak ada yang butuh hasil query lain) -- dijalankan
+    // paralel via Promise.all supaya loading awal tidak menunggu 11 round-trip
+    // berurutan (bisa beberapa detik di jaringan HP), cukup selama query
+    // paling lambat di antaranya.
+    await Promise.all([
+      loadAppBranding(),
+      loadSettingsFromDB(),
+      loadOutletsFromDB(),
+      loadTransactionsFromDB(),
+      loadCatalogFromDB(),
+      loadSubscriptionsFromDB(),
+      loadAllWorkUsage(),
+      loadContactsFromDB(),
+      loadExpensesFromDB(),
+      loadExpenseCatalogFromDB(),
+      loadNotesFromDB(),
+    ]);
     applySettingsToUI();
     renderOutletSwitcherLabel();
     populateReportOutletFilter();
@@ -165,6 +167,16 @@ async function initUserData(){
   }catch(e){
     console.error('Gagal memuat data awal:', e);
   }finally{
+    // Dibaca di SINI (bukan di awal fungsi) supaya kalau user sempat ketuk
+    // tab lain sambil data masih dimuat, switchTab() dari ketukan itu sudah
+    // menulis localStorage.nk_lastTab duluan -- jadi tab yang direstore di
+    // akhir sini ikut tab pilihan user, bukan snapshot lama yang bikin
+    // tampilan "lompat balik" sendiri ke tab sebelumnya.
+    let lastTab = 'baru';
+    try{
+      const saved = localStorage.getItem('nk_lastTab');
+      if(saved && ['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(saved)) lastTab = saved;
+    }catch(e){}
     switchTab(lastTab);
   }
 }
