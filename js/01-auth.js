@@ -105,22 +105,15 @@ async function submitNewPassword(){
   msgEl.className='auth-msg ok'; msgEl.textContent='Password berhasil diganti!';
   setTimeout(()=>{ document.getElementById('newPasswordModal').classList.remove('show'); }, 1200);
 }
-// Deteksi link reset password dari email (Supabase redirect dengan #type=recovery di URL)
-if(window.location.hash.includes('type=recovery')){
-  document.getElementById('newPasswordModal').classList.add('show');
-}
-sb.auth.onAuthStateChange((event, session) => {
-  if(event === 'PASSWORD_RECOVERY'){
-    document.getElementById('newPasswordModal').classList.add('show');
-    return;
-  }
-  if(session && session.user){
-    currentUser = session.user;
-    document.getElementById('authScreen').classList.add('hidden');
-    resolveRoleAndInit();
-  } else {
-    currentUser = null;
-    document.getElementById('authScreen').classList.remove('hidden');
-  }
-});
+/* Pendaftaran sb.auth.onAuthStateChange() SENGAJA dipindah ke <script> paling
+   akhir di index.html (setelah js/21-i18n.js), BUKAN di sini -- lihat catatan
+   di sana. Dulu ada di sini karena file ini pernah jadi bagian dari satu
+   <script> monolitik (semua fungsi otomatis sudah ke-hoist dalam satu
+   eksekusi), tapi sekarang js/*.js dipecah jadi banyak <script src> terpisah
+   yang dieksekusi berurutan -- taruh listener ini di sini kembali membuka
+   race condition: versi supabase-js terbaru bisa memicu callback INI lewat
+   microtask sesaat setelah file ini selesai dieksekusi, SEBELUM js/02-init-
+   data.js (tempat resolveRoleAndInit didefinisikan) sempat dimuat, bikin
+   "ReferenceError: resolveRoleAndInit is not defined" dan user gagal
+   auto-login (harus masuk ulang terus). */
 
