@@ -44,8 +44,8 @@ function renderSubscriptionBadge(){
     if(!appSubscription){ setEl.textContent = ''; }
     else {
       const d = subscriptionDaysLeft();
-      if(appSubscription.status === 'trial') setEl.textContent = isSubscriptionActive() ? `Trial, ${d} hari lagi` : 'Trial berakhir';
-      else setEl.textContent = isSubscriptionActive() ? `Aktif s.d. ${(appSubscription.paid_until||'').slice(0,10)}` : 'Tidak aktif';
+      if(appSubscription.status === 'trial') setEl.textContent = isSubscriptionActive() ? `${t('Trial')}, ${d} ${t('hari lagi')}` : t('Trial berakhir');
+      else setEl.textContent = isSubscriptionActive() ? `${t('Aktif s.d.')} ${(appSubscription.paid_until||'').slice(0,10)}` : t('Tidak aktif');
     }
   }
   if(!el) return;
@@ -54,13 +54,13 @@ function renderSubscriptionBadge(){
   const active = isSubscriptionActive();
   el.style.display = 'block';
   if(!active){
-    el.innerHTML = '⚠️ Trial berakhir — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">perpanjang sekarang</a>';
+    el.innerHTML = `⚠️ ${t('Trial berakhir')} — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">${t('perpanjang sekarang')}</a>`;
     el.style.background = 'var(--danger, #d33)';
   } else if(appSubscription.status === 'trial'){
-    el.innerHTML = `Trial: ${days} hari lagi — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">aktifkan langganan</a>`;
+    el.innerHTML = `${t('Trial')}: ${days} ${t('hari lagi')} — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">${t('aktifkan langganan')}</a>`;
     el.style.background = '#c8860a';
   } else if(appSubscription.status === 'aktif' && appSubscription.paid_until && days !== null && days <= 5){
-    el.innerHTML = `Langganan berakhir ${days} hari lagi — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">perpanjang</a>`;
+    el.innerHTML = `${t('Langganan berakhir')} ${days} ${t('hari lagi')} — <a href="#" onclick="showPaywallModal();return false;" style="color:#fff;text-decoration:underline;">${t('perpanjang')}</a>`;
     el.style.background = '#c8860a';
   } else {
     el.style.display = 'none';
@@ -76,35 +76,35 @@ function closePaywallModal(){
 }
 async function payViaXendit(){
   const btn = document.getElementById('btnPayXendit');
-  if(!shopOwnerId){ showToast('Data toko belum siap'); return; }
-  if(btn){ btn.disabled = true; btn.textContent = 'Memproses...'; }
+  if(!shopOwnerId){ showToast(t('Data toko belum siap')); return; }
+  if(btn){ btn.disabled = true; btn.textContent = t('Memproses...'); }
   try{
     const { data, error } = await sb.functions.invoke('create-invoice', { body: { owner_id: shopOwnerId } });
     if(error || !data || !data.invoice_url){
-      showToast('Gagal membuat tagihan, coba lagi atau pakai transfer manual');
-      if(btn){ btn.disabled = false; btn.textContent = '💳 Bayar Otomatis (QRIS / VA / E-wallet)'; }
+      showToast(t('Gagal membuat tagihan, coba lagi atau pakai transfer manual'));
+      if(btn){ btn.disabled = false; btn.textContent = t('💳 Bayar Otomatis (QRIS / VA / E-wallet)'); }
       return;
     }
     window.open(data.invoice_url, '_blank');
-    showToast('Halaman pembayaran dibuka. Langganan aktif otomatis setelah bayar.');
+    showToast(t('Halaman pembayaran dibuka. Langganan aktif otomatis setelah bayar.'));
     closePaywallModal();
   }catch(e){
-    showToast('Gagal membuat tagihan, coba lagi atau pakai transfer manual');
+    showToast(t('Gagal membuat tagihan, coba lagi atau pakai transfer manual'));
   }
-  if(btn){ btn.disabled = false; btn.textContent = '💳 Bayar Otomatis (QRIS / VA / E-wallet)'; }
+  if(btn){ btn.disabled = false; btn.textContent = t('💳 Bayar Otomatis (QRIS / VA / E-wallet)'); }
 }
 async function requestRenewal(){
-  if(!shopOwnerId){ showToast('Data toko belum siap'); return; }
-  const nama = (settings && settings.shopName) ? settings.shopName : 'Toko';
+  if(!shopOwnerId){ showToast(t('Data toko belum siap')); return; }
+  const nama = (settings && settings.shopName) ? settings.shopName : t('Toko');
   const wa = (settings && settings.phone) ? settings.phone : '';
   const { error } = await sb.from('payment_requests').insert({
-    nama, wa, catatan: 'Perpanjangan langganan aplikasi',
+    nama, wa, catatan: t('Perpanjangan langganan aplikasi'),
     status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId
   });
-  if(error){ showToast('Gagal mengirim permintaan, coba lagi'); return; }
-  showToast('Permintaan perpanjangan terkirim, admin akan verifikasi');
+  if(error){ showToast(t('Gagal mengirim permintaan, coba lagi')); return; }
+  showToast(t('Permintaan perpanjangan terkirim, admin akan verifikasi'));
   const waNum = String(ADMIN_WA || '6283159294102').replace(/[^0-9]/g,'');
-  const text = encodeURIComponent(`Halo admin, saya mau perpanjang langganan Laundry Batapas.id untuk toko "${nama}". Berikut bukti pembayarannya.`);
+  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Laundry Batapas.id untuk toko')} "${nama}". ${t('Berikut bukti pembayarannya.')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
   closePaywallModal();
 }

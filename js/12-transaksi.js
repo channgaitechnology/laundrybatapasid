@@ -25,7 +25,7 @@ function addItem(){
   const satuan = document.getElementById('itSatuan').value;
   const harga = parseFloat(document.getElementById('itHarga').value) || 0;
   if(!nama || qty<=0 || harga<=0){
-    showToast('Lengkapi nama, qty, dan harga layanan');
+    showToast(t('Lengkapi nama, qty, dan harga layanan'));
     return;
   }
   draftItems.push({ nama, qty, satuan, harga, subtotal: qty*harga });
@@ -41,7 +41,7 @@ function removeItem(idx){
 function renderDraftItems(){
   const el = document.getElementById('itemsList');
   if(draftItems.length===0){
-    el.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Belum ada layanan ditambahkan</div>';
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada layanan ditambahkan')}</div>`;
   } else {
     el.innerHTML = draftItems.map((it,i)=>`
       <div class="item-line">
@@ -73,8 +73,8 @@ async function submitTransaction(){
   const status = document.getElementById('inStatus').value;
   const catatan = document.getElementById('inCatatan').value.trim();
 
-  if(!nama){ showToast('Nama pelanggan wajib diisi'); return; }
-  if(draftItems.length===0){ showToast('Tambahkan minimal satu layanan'); return; }
+  if(!nama){ showToast(t('Nama pelanggan wajib diisi')); return; }
+  if(draftItems.length===0){ showToast(t('Tambahkan minimal satu layanan')); return; }
 
   const subtotal = draftItems.reduce((s,it)=>s+it.subtotal,0);
   const total = Math.max(subtotal - diskon, 0);
@@ -90,7 +90,7 @@ async function submitTransaction(){
       nama, hp, tanggal, estimasi: estimasi || null,
       items: draftItems.slice(), diskon, total, dp: finalDp, status, catatan
     }).eq('id', editingTransactionId).select().single();
-    if(error){ showToast('Gagal memperbarui transaksi'); return; }
+    if(error){ showToast(t('Gagal memperbarui transaksi')); return; }
     const idx = transactions.findIndex(t=>t.id===editingTransactionId);
     const trx = {
       id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
@@ -103,7 +103,7 @@ async function submitTransaction(){
     if(idx>-1) transactions[idx] = trx;
     if(beforeSnapshot) await logEditHistory('transaction', trx.id, diffTransactionFields(beforeSnapshot, trx));
     resetTransactionForm();
-    showToast('Transaksi diperbarui');
+    showToast(t('Transaksi diperbarui'));
     openReceipt(trx.id);
     return;
   }
@@ -124,7 +124,7 @@ async function submitTransaction(){
     ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
 
-  if(error){ showToast('Gagal menyimpan transaksi'); return; }
+  if(error){ showToast(t('Gagal menyimpan transaksi')); return; }
 
   const trx = {
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
@@ -135,7 +135,7 @@ async function submitTransaction(){
   };
   transactions.push(trx);
   resetTransactionForm();
-  showToast('Transaksi tersimpan');
+  showToast(t('Transaksi tersimpan'));
   openReceipt(trx.id);
   saveContactIfNew(nama, hp);
 }
@@ -151,29 +151,29 @@ function resetTransactionForm(){
   draftItems = [];
   renderDraftItems();
   editingTransactionId = null;
-  document.getElementById('submitTrxBtn').textContent = 'Simpan & Buat Nota';
+  document.getElementById('submitTrxBtn').textContent = t('Simpan & Buat Nota');
   document.getElementById('cancelEditTrxBtn').style.display = 'none';
 }
 function editTransaction(id){
-  const t = transactions.find(x=>x.id===id);
-  if(!t) return;
+  const trx = transactions.find(x=>x.id===id);
+  if(!trx) return;
   editingTransactionId = id;
-  document.getElementById('inNama').value = t.nama;
-  document.getElementById('inHP').value = t.hp||'';
-  document.getElementById('inTanggal').value = t.tanggal||'';
-  document.getElementById('inEstimasi').value = t.estimasi||'';
-  document.getElementById('inDiskon').value = t.diskon||0;
-  document.getElementById('inDP').value = t.dp||0;
-  document.getElementById('inStatus').value = t.status;
-  document.getElementById('inCatatan').value = t.catatan||'';
-  draftItems = (t.items||[]).map(it=>({...it}));
+  document.getElementById('inNama').value = trx.nama;
+  document.getElementById('inHP').value = trx.hp||'';
+  document.getElementById('inTanggal').value = trx.tanggal||'';
+  document.getElementById('inEstimasi').value = trx.estimasi||'';
+  document.getElementById('inDiskon').value = trx.diskon||0;
+  document.getElementById('inDP').value = trx.dp||0;
+  document.getElementById('inStatus').value = trx.status;
+  document.getElementById('inCatatan').value = trx.catatan||'';
+  draftItems = (trx.items||[]).map(it=>({...it}));
   renderDraftItems();
-  document.getElementById('submitTrxBtn').textContent = 'Update Transaksi';
+  document.getElementById('submitTrxBtn').textContent = t('Update Transaksi');
   document.getElementById('cancelEditTrxBtn').style.display = 'block';
   switchTab('baru');
-  showToast('Mode edit — ubah data lalu tekan Update Transaksi');
+  showToast(t('Mode edit — ubah data lalu tekan Update Transaksi'));
 }
 function cancelEditTransaction(){
   resetTransactionForm();
-  showToast('Edit dibatalkan');
+  showToast(t('Edit dibatalkan'));
 }

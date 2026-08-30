@@ -14,7 +14,7 @@ function setAuthMode(mode){
   authMode = mode;
   document.getElementById('tabMasuk').classList.toggle('active', mode==='masuk');
   document.getElementById('tabDaftar').classList.toggle('active', mode==='daftar');
-  document.getElementById('authSubmitBtn').textContent = mode==='masuk' ? 'Masuk' : 'Daftar';
+  document.getElementById('authSubmitBtn').textContent = mode==='masuk' ? t('Masuk') : t('Daftar');
   document.getElementById('authMsg').textContent = '';
   document.getElementById('regCodeField').style.display = mode==='daftar' ? 'block' : 'none';
 }
@@ -27,15 +27,15 @@ async function handleAuthSubmit(){
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
   const card = document.querySelector('.auth-card');
-  if(!email || !password){ setAuthMsg('Isi email dan password terlebih dahulu', 'error'); return; }
-  if(password.length < 6){ setAuthMsg('Password minimal 6 karakter', 'error'); return; }
+  if(!email || !password){ setAuthMsg(t('Isi email dan password terlebih dahulu'), 'error'); return; }
+  if(password.length < 6){ setAuthMsg(t('Password minimal 6 karakter'), 'error'); return; }
   let regCode = '';
   if(authMode === 'daftar'){
     regCode = document.getElementById('regCodeInput').value.trim().toUpperCase();
     // kode pendaftaran sekarang OPSIONAL: kosongkan untuk trial 30 hari otomatis
   }
   card.classList.add('auth-loading');
-  setAuthMsg('Memproses...', '');
+  setAuthMsg(t('Memproses...'), '');
   try{
     if(authMode === 'masuk'){
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -44,7 +44,7 @@ async function handleAuthSubmit(){
       if(regCode){
         const { data: valid, error: codeErr } = await sb.rpc('check_registration_code', { p_code: regCode });
         if(codeErr || !valid){
-          setAuthMsg('Kode pendaftaran tidak valid atau sudah dipakai', 'error');
+          setAuthMsg(t('Kode pendaftaran tidak valid atau sudah dipakai'), 'error');
           card.classList.remove('auth-loading');
           return;
         }
@@ -55,7 +55,7 @@ async function handleAuthSubmit(){
         try{
           if(regCode) localStorage.setItem('nk_pendingRegCode', regCode);
         }catch(e){}
-        setAuthMsg(regCode ? 'Akun dibuat! Cek email untuk konfirmasi, lalu masuk.' : 'Akun dibuat! Cek email untuk konfirmasi, lalu masuk. Trial 30 hari akan aktif otomatis.', 'ok');
+        setAuthMsg(regCode ? t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk.') : t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk. Trial 30 hari akan aktif otomatis.'), 'ok');
         card.classList.remove('auth-loading');
         return;
       }
@@ -72,9 +72,9 @@ async function handleAuthSubmit(){
   card.classList.remove('auth-loading');
 }
 function translateAuthError(msg){
-  if(/invalid login credentials/i.test(msg)) return 'Email atau password salah';
-  if(/already registered|already exists/i.test(msg)) return 'Email sudah terdaftar, coba menu Masuk';
-  if(/rate limit/i.test(msg)) return 'Terlalu banyak percobaan, coba lagi beberapa saat';
+  if(/invalid login credentials/i.test(msg)) return t('Email atau password salah');
+  if(/already registered|already exists/i.test(msg)) return t('Email sudah terdaftar, coba menu Masuk');
+  if(/rate limit/i.test(msg)) return t('Terlalu banyak percobaan, coba lagi beberapa saat');
   return msg;
 }
 async function handleLogout(){
@@ -89,20 +89,20 @@ function closeForgotPassword(){ document.getElementById('forgotModal').classList
 async function sendResetPasswordEmail(){
   const email = document.getElementById('forgotEmail').value.trim();
   const msgEl = document.getElementById('forgotMsg');
-  if(!email){ msgEl.className='auth-msg error'; msgEl.textContent='Isi email terlebih dahulu'; return; }
-  msgEl.className='auth-msg'; msgEl.textContent='Mengirim...';
+  if(!email){ msgEl.className='auth-msg error'; msgEl.textContent=t('Isi email terlebih dahulu'); return; }
+  msgEl.className='auth-msg'; msgEl.textContent=t('Mengirim...');
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent=error.message; return; }
-  msgEl.className='auth-msg ok'; msgEl.textContent='Link reset password sudah dikirim, cek email kamu.';
+  msgEl.className='auth-msg ok'; msgEl.textContent=t('Link reset password sudah dikirim, cek email kamu.');
 }
 async function submitNewPassword(){
   const password = document.getElementById('newPasswordInput').value;
   const msgEl = document.getElementById('newPasswordMsg');
-  if(!password || password.length<6){ msgEl.className='auth-msg error'; msgEl.textContent='Password minimal 6 karakter'; return; }
-  msgEl.className='auth-msg'; msgEl.textContent='Menyimpan...';
+  if(!password || password.length<6){ msgEl.className='auth-msg error'; msgEl.textContent=t('Password minimal 6 karakter'); return; }
+  msgEl.className='auth-msg'; msgEl.textContent=t('Menyimpan...');
   const { error } = await sb.auth.updateUser({ password });
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent=error.message; return; }
-  msgEl.className='auth-msg ok'; msgEl.textContent='Password berhasil diganti!';
+  msgEl.className='auth-msg ok'; msgEl.textContent=t('Password berhasil diganti!');
   setTimeout(()=>{ document.getElementById('newPasswordModal').classList.remove('show'); }, 1200);
 }
 // Deteksi link reset password dari email (Supabase redirect dengan #type=recovery di URL)

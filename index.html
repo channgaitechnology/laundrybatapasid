@@ -480,7 +480,7 @@
               <option>kg</option>
               <option>pcs</option>
               <option>set</option>
-              <option>kali</option>
+              <option value="kali">kali</option>
               <option>m²</option>
             </select>
           </div>
@@ -744,11 +744,11 @@
           <select id="expSatuan">
             <option>kg</option>
             <option>pcs</option>
-            <option>buah</option>
-            <option>kali</option>
+            <option value="buah">buah</option>
+            <option value="kali">kali</option>
             <option>m²</option>
             <option>liter</option>
-            <option>lainnya</option>
+            <option value="lainnya">lainnya</option>
           </select>
         </div>
       </div>
@@ -883,7 +883,7 @@
           <option>kg</option>
           <option>pcs</option>
           <option>set</option>
-          <option>kali</option>
+          <option value="kali">kali</option>
           <option>m²</option>
         </select>
       </div>
@@ -984,6 +984,9 @@
         <button type="button" class="settings-tile" onclick="openSettingsSub('karyawan')">
           <span class="settings-tile-emoji">👥</span><span class="settings-tile-label">Karyawan / Kasir</span>
         </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('bahasa')">
+          <span class="settings-tile-emoji">🌐</span><span class="settings-tile-label">Bahasa</span>
+        </button>
         <button type="button" class="settings-tile" id="settingsTileAdmin" style="display:none;" onclick="openSettingsSub('admin')">
           <span class="settings-tile-emoji">🔐</span><span class="settings-tile-label">Admin Platform</span>
         </button>
@@ -1079,6 +1082,12 @@
         <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
         <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
         <div id="teamList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="settings-sub-panel" id="settingsSub-bahasa">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Pilih bahasa tampilan aplikasi.</p>
+        <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:8px;" onclick="setLanguage('id')" id="langBtnId">🇮🇩 Bahasa Indonesia</button>
+        <button type="button" class="btn btn-outline" style="width:100%;" onclick="setLanguage('en')" id="langBtnEn">🇬🇧 English</button>
       </div>
 
       <div class="settings-sub-panel" id="settingsSub-admin">
@@ -1209,7 +1218,7 @@
         <ol>
           <li>Buka tab <b>Daftar Tugas</b> untuk lihat semua cucian yang perlu dikerjakan, otomatis dikelompokkan per hari Senin–Ahad menurut <b>Estimasi Selesai</b></li>
           <li>Tiap kartu menampilkan nama pelanggan, jenis layanan, tanggal selesai, dan harga (atau tulisan "Lunas" kalau sudah dibayar)</li>
-          <li>Ketuk tombol <b>Belum</b> / <b>Dikerjakan</b> / <b>Selesai</b> untuk memperbarui progres tiap cucian sepanjang hari</li>
+          <li>Ketuk tombol <b>Belum Dikerjakan</b> / <b>Dikerjakan</b> / <b>Selesai</b> untuk memperbarui progres tiap cucian sepanjang hari</li>
           <li>Kalau sudah Selesai, tekan <b>📤 Sudah Diambil</b> begitu pelanggan mengambilnya — kartunya otomatis hilang dari daftar (data transaksinya sendiri tetap tersimpan normal di Riwayat)</li>
           <li>Mau simpan/bagikan rekap kerjaan (termasuk yang sudah lama)? Pilih <b>Dari Tanggal</b>/<b>Sampai Tanggal</b> di bagian Unduh, lalu tekan <b>Unduh JPG</b> untuk dapat gambarnya — bisa langsung dibagikan ke grup WhatsApp karyawan</li>
         </ol>
@@ -1316,7 +1325,7 @@
 
     <div class="row2" id="catRegulerFields">
       <div><label>Satuan</label>
-        <select id="catSatuan"><option>kg</option><option>pcs</option><option>set</option><option>kali</option><option>m²</option></select>
+        <select id="catSatuan"><option>kg</option><option>pcs</option><option>set</option><option value="kali">kali</option><option>m²</option></select>
       </div>
       <div><label>Harga per Satuan</label><input id="catHarga" type="number" min="0" placeholder="Rp"></div>
     </div>
@@ -1352,11 +1361,11 @@
         <select id="expCatSatuan">
           <option>kg</option>
           <option>pcs</option>
-          <option>buah</option>
-          <option>kali</option>
+          <option value="buah">buah</option>
+          <option value="kali">kali</option>
           <option>m²</option>
           <option>liter</option>
-          <option>lainnya</option>
+          <option value="lainnya">lainnya</option>
         </select>
       </div>
       <div><label for="expCatHarga">Harga per Satuan</label><input id="expCatHarga" type="number" min="0" placeholder="Rp"></div>
@@ -1562,6 +1571,7 @@
 <script src="js/18-laporan.js"></script>
 <script src="js/19-settings.js"></script>
 <script src="js/20-catatan.js"></script>
+<script src="js/21-i18n.js"></script>
 <script>
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {

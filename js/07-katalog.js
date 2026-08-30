@@ -63,7 +63,7 @@ function resetCatalogForm(){
   document.getElementById('catHargaPaket').value = '';
   document.getElementById('catKuotaKg').value = '';
   document.getElementById('catHargaLebih').value = '';
-  document.getElementById('catSubmitBtn').textContent = '+ Tambah ke Katalog';
+  document.getElementById('catSubmitBtn').textContent = t('+ Tambah ke Katalog');
   document.getElementById('catCancelBtn').style.display = 'none';
   toggleCatalogFields();
 }
@@ -82,19 +82,19 @@ function editCatalogItem(id){
     document.getElementById('catHarga').value = item.harga;
   }
   toggleCatalogFields();
-  document.getElementById('catSubmitBtn').textContent = 'Simpan Perubahan';
+  document.getElementById('catSubmitBtn').textContent = t('Simpan Perubahan');
   document.getElementById('catCancelBtn').style.display = 'inline-flex';
 }
 async function addOrUpdateCatalogItem(){
   const type = document.getElementById('catType').value;
   const nama = document.getElementById('catNama').value.trim();
-  if(!nama){ showToast('Nama layanan wajib diisi'); return; }
+  if(!nama){ showToast(t('Nama layanan wajib diisi')); return; }
 
   let payload = { nama, type };
   if(type==='paket'){
     const hargaPaket = parseFloat(document.getElementById('catHargaPaket').value) || 0;
     const kuota = parseFloat(document.getElementById('catKuotaKg').value) || 0;
-    if(kuota<=0){ showToast('Isi kuota (kg) untuk paket ini'); return; }
+    if(kuota<=0){ showToast(t('Isi kuota (kg) untuk paket ini')); return; }
     payload.satuan = 'bulan';
     payload.harga = hargaPaket;
     payload.kuota_kg = kuota;
@@ -110,12 +110,12 @@ async function addOrUpdateCatalogItem(){
 
   if(editingCatalogId){
     const { error } = await sb.from('services').update(payload).eq('id', editingCatalogId);
-    if(error){ showToast('Gagal menyimpan perubahan'); return; }
-    showToast('Katalog diperbarui');
+    if(error){ showToast(t('Gagal menyimpan perubahan')); return; }
+    showToast(t('Katalog diperbarui'));
   } else {
     const { error } = await sb.from('services').insert({ user_id: shopOwnerId, ...payload });
-    if(error){ showToast('Gagal menambah katalog'); return; }
-    showToast('Layanan ditambahkan ke katalog');
+    if(error){ showToast(t('Gagal menambah katalog')); return; }
+    showToast(t('Layanan ditambahkan ke katalog'));
   }
   await loadCatalogFromDB();
   resetCatalogForm();
@@ -123,27 +123,27 @@ async function addOrUpdateCatalogItem(){
 }
 async function deleteCatalogItem(id){
   const { error } = await sb.from('services').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus'); return; }
+  if(error){ showToast(t('Gagal menghapus')); return; }
   await loadCatalogFromDB();
   renderCatalogList();
-  showToast('Layanan dihapus dari katalog');
+  showToast(t('Layanan dihapus dari katalog'));
 }
 function renderCatalogList(){
   const el = document.getElementById('catalogList');
   if(serviceCatalog.length===0){
-    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">Katalog masih kosong. Tambahkan layanan di atas.</div>`;
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">${t('Katalog masih kosong. Tambahkan layanan di atas.')}</div>`;
     return;
   }
   el.innerHTML = serviceCatalog.map(s=>`
     <div class="item-line" style="align-items:center;">
       <span>${escapeHTML(s.nama)}
         ${s.type==='paket'
-          ? `<span class="badge" style="background:#EDE7FB;color:#6B4FBB;margin-left:4px;">Paket · ${s.kuotaKg||0}kg/bln</span>`
+          ? `<span class="badge" style="background:#EDE7FB;color:#6B4FBB;margin-left:4px;">${t('Paket')} · ${s.kuotaKg||0}kg/${t('bln')}</span>`
           : `<span style="color:var(--ink-soft);">(${s.satuan})</span>`}
       </span>
       <span style="display:flex;align-items:center;gap:10px;">
         ${rupiah(s.harga)}
-        <button onclick="editCatalogItem('${s.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">Edit</button>
+        <button onclick="editCatalogItem('${s.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">${t('Edit')}</button>
         <button onclick="deleteCatalogItem('${s.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');

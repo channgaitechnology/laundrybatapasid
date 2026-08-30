@@ -5,10 +5,10 @@ function openUsageNotaOptions(usageId){
   currentBatchUsageIds = null;
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   const tempo = s && isTempo(s);
-  document.getElementById('usageNotaTitle').textContent = tempo ? 'Kirim Nota Transaksi' : 'Kirim Nota Timbangan';
+  document.getElementById('usageNotaTitle').textContent = tempo ? t('Kirim Nota Transaksi') : t('Kirim Nota Timbangan');
   document.getElementById('usageNotaHint').textContent = tempo
-    ? 'Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.'
-    : 'Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.';
+    ? t('Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.')
+    : t('Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.');
   const modal = document.getElementById('usageNotaModal');
   if(modal) modal.classList.add('show');
 }
@@ -18,8 +18,8 @@ function openUsageNotaOptions(usageId){
 function openBatchUsageNotaOptions(usageIds){
   currentBatchUsageIds = usageIds;
   currentUsageNotaId = null;
-  document.getElementById('usageNotaTitle').textContent = 'Kirim Nota Transaksi';
-  document.getElementById('usageNotaHint').textContent = 'Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.';
+  document.getElementById('usageNotaTitle').textContent = t('Kirim Nota Transaksi');
+  document.getElementById('usageNotaHint').textContent = t('Nota berisi rincian laundry hari ini dan rekap seluruh riwayat transaksi yang belum ditagih.');
   const modal = document.getElementById('usageNotaModal');
   if(modal) modal.classList.add('show');
 }
@@ -62,24 +62,24 @@ function tempoUsageNotaTextWA(usage, s){
   if(hdr.alamat) lines.push(hdr.alamat);
   if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
-  lines.push('*CATATAN TRANSAKSI - TEMPO*');
-  lines.push(`Pelanggan  : ${s.nama}`);
-  lines.push('Jenis      : Tempo (Bayar Nanti)');
+  lines.push(`*${t('CATATAN TRANSAKSI - TEMPO')}*`);
+  lines.push(`${t('Pelanggan')}  : ${s.nama}`);
+  lines.push(`${t('Jenis')}      : ${t('Tempo (Bayar Nanti)')}`);
   lines.push('-------------------------------');
-  lines.push('*Timbangan Sekarang*');
+  lines.push(`*${t('Timbangan Sekarang')}*`);
   lines.push(`*${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}*`);
   lines.push('-------------------------------');
-  lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
+  lines.push(`*${t('Rekap Riwayat Transaksi (Belum Ditagih)')}*`);
   extras.forEach((u,i)=>{
     lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
   });
   lines.push('-------------------------------');
-  lines.push(`*Total Tagihan Berjalan : ${rupiah(totalHarga)}*`);
-  lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
-  lines.push(`Sisa Bayar    : ${rupiah(sisaBayar)}`);
-  if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
+  lines.push(`*${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}*`);
+  lines.push(`${t('Sudah Dibayar')} : ${rupiah(s.dp||0)}`);
+  lines.push(`${t('Sisa Bayar')}    : ${rupiah(sisaBayar)}`);
+  if(lebihBayar>0) lines.push(`${t('Kelebihan Bayar')} : ${rupiah(lebihBayar)} (${t('saldo untuk laundry berikutnya, bukan kembalian')})`);
   lines.push('-------------------------------');
-  lines.push(settings.note || 'Terima kasih');
+  lines.push(settings.note || t('Terima kasih'));
   lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
@@ -99,26 +99,26 @@ function tempoBatchUsageNotaTextWA(newItems, s){
   if(hdr.alamat) lines.push(hdr.alamat);
   if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
-  lines.push('*CATATAN TRANSAKSI - TEMPO*');
-  lines.push(`Pelanggan  : ${s.nama}`);
-  lines.push('Jenis      : Tempo (Bayar Nanti)');
+  lines.push(`*${t('CATATAN TRANSAKSI - TEMPO')}*`);
+  lines.push(`${t('Pelanggan')}  : ${s.nama}`);
+  lines.push(`${t('Jenis')}      : ${t('Tempo (Bayar Nanti)')}`);
   lines.push('-------------------------------');
-  lines.push('*Timbangan Sekarang*');
+  lines.push(`*${t('Timbangan Sekarang')}*`);
   newItems.forEach(u=>{
     lines.push(`*${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}*`);
   });
   lines.push('-------------------------------');
-  lines.push('*Rekap Riwayat Transaksi (Belum Ditagih)*');
+  lines.push(`*${t('Rekap Riwayat Transaksi (Belum Ditagih)')}*`);
   extras.forEach((u,i)=>{
     lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
   });
   lines.push('-------------------------------');
-  lines.push(`*Total Tagihan Berjalan : ${rupiah(totalHarga)}*`);
-  lines.push(`Sudah Dibayar : ${rupiah(s.dp||0)}`);
-  lines.push(`Sisa Bayar    : ${rupiah(sisaBayar)}`);
-  if(lebihBayar>0) lines.push(`Kelebihan Bayar : ${rupiah(lebihBayar)} (saldo untuk laundry berikutnya, bukan kembalian)`);
+  lines.push(`*${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}*`);
+  lines.push(`${t('Sudah Dibayar')} : ${rupiah(s.dp||0)}`);
+  lines.push(`${t('Sisa Bayar')}    : ${rupiah(sisaBayar)}`);
+  if(lebihBayar>0) lines.push(`${t('Kelebihan Bayar')} : ${rupiah(lebihBayar)} (${t('saldo untuk laundry berikutnya, bukan kembalian')})`);
   lines.push('-------------------------------');
-  lines.push(settings.note || 'Terima kasih');
+  lines.push(settings.note || t('Terima kasih'));
   lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
@@ -136,42 +136,42 @@ function usageNotaTextWA(usage, s){
   if(hdr.alamat) lines.push(hdr.alamat);
   if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
-  lines.push('*CATATAN TRANSAKSI*');
-  lines.push(`Pelanggan  : ${s.nama}`);
-  lines.push(`Paket      : ${s.paketNama}`);
-  lines.push(`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
+  lines.push(`*${t('CATATAN TRANSAKSI')}*`);
+  lines.push(`${t('Pelanggan')}  : ${s.nama}`);
+  lines.push(`${t('Paket')}      : ${s.paketNama}`);
+  lines.push(`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
   lines.push('-------------------------------');
-  lines.push('*Timbangan Sekarang*');
+  lines.push(`*${t('Timbangan Sekarang')}*`);
   lines.push(`${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`);
   lines.push('-------------------------------');
-  lines.push('*Riwayat Timbangan Paket Ini*');
+  lines.push(`*${t('Riwayat Timbangan Paket Ini')}*`);
   upTo.forEach((u,i)=>{
     lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`);
   });
   if(extras.length>0){
     lines.push('-------------------------------');
-    lines.push('*Layanan Tambahan (di luar paket)*');
+    lines.push(`*${t('Layanan Tambahan (di luar paket)')}*`);
     extras.forEach((u,i)=>{
       lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
     });
   }
   lines.push('-------------------------------');
-  lines.push(`*Total Terpakai : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg*`);
-  lines.push(excessKgQty>0 ? `Lebih Kuota : ${fmtKg(excessKgQty)} kg` : `Sisa Kuota : ${fmtKg(sisaKg)} kg`);
+  lines.push(`*${t('Total Terpakai')} : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg*`);
+  lines.push(excessKgQty>0 ? `${t('Lebih Kuota')} : ${fmtKg(excessKgQty)} kg` : `${t('Sisa Kuota')} : ${fmtKg(sisaKg)} kg`);
   lines.push('-------------------------------');
-  lines.push(`Harga Paket      : ${rupiah(s.hargaPaket||0)}`);
-  if(excessCost>0) lines.push(`Kelebihan Kuota  : ${rupiah(excessCost)}`);
-  if(extraTotal>0) lines.push(`Layanan Tambahan : ${rupiah(extraTotal)}`);
-  lines.push(`*Total Harga Paket : ${rupiah(totalHarga)}*`);
+  lines.push(`${t('Harga Paket')}      : ${rupiah(s.hargaPaket||0)}`);
+  if(excessCost>0) lines.push(`${t('Kelebihan Kuota')}  : ${rupiah(excessCost)}`);
+  if(extraTotal>0) lines.push(`${t('Layanan Tambahan')} : ${rupiah(extraTotal)}`);
+  lines.push(`*${t('Total Harga Paket')} : ${rupiah(totalHarga)}*`);
   lines.push('-------------------------------');
-  lines.push(settings.note || 'Terima kasih');
+  lines.push(settings.note || t('Terima kasih'));
   lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
 function sendUsageNotaWA(target){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
-  if(!s.hp){ showToast('No. WhatsApp pelanggan belum diisi'); return; }
+  if(!s.hp){ showToast(t('No. WhatsApp pelanggan belum diisi')); return; }
   let text;
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
@@ -198,24 +198,24 @@ function buildTempoUsageNotaPDFLines(usage, s){
   if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
   if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
-  L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
-  L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
-  L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
+  L.push({t:t('CATATAN TRANSAKSI - TEMPO'), c:true, b:true, s:10});
+  L.push({t:`${t('Pelanggan')}  : ${s.nama}`, s:9, indent:13});
+  L.push({t:`${t('Jenis')}      : ${t('Tempo (Bayar Nanti)')}`, s:9, indent:13});
   L.push({t: div, s:9});
-  L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+  L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
   L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:11});
   L.push({t: div, s:9});
-  L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
+  L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
   extras.forEach((u,i)=>{
     L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
   });
   L.push({t: div, s:9});
-  L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
-  L.push({t:`Sudah Dibayar          : ${rupiah(s.dp||0)}`, s:9});
-  L.push({t:`Sisa Bayar             : ${rupiah(sisaBayar)}`, s:9});
-  if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
+  L.push({t:`${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}`, b:true, s:9});
+  L.push({t:`${t('Sudah Dibayar')}          : ${rupiah(s.dp||0)}`, s:9});
+  L.push({t:`${t('Sisa Bayar')}             : ${rupiah(sisaBayar)}`, s:9});
+  if(lebihBayar>0) L.push({t:`${t('Kelebihan Bayar')}        : ${rupiah(lebihBayar)} (${t('saldo laundry berikutnya')})`, s:8});
   L.push({t: div, s:9});
-  L.push({t: settings.note || 'Terima kasih', c:true, s:8});
+  L.push({t: settings.note || t('Terima kasih'), c:true, s:8});
   L.push(...notaFooterLinesPDF());
   return L;
 }
@@ -234,26 +234,26 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
   if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
-  L.push({t:'CATATAN TRANSAKSI - TEMPO', c:true, b:true, s:10});
-  L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
-  L.push({t:'Jenis      : Tempo (Bayar Nanti)', s:9, indent:13});
+  L.push({t:t('CATATAN TRANSAKSI - TEMPO'), c:true, b:true, s:10});
+  L.push({t:`${t('Pelanggan')}  : ${s.nama}`, s:9, indent:13});
+  L.push({t:`${t('Jenis')}      : ${t('Tempo (Bayar Nanti)')}`, s:9, indent:13});
   L.push({t: div, s:9});
-  L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+  L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
   newItems.forEach(u=>{
     L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, b:true, s:11});
   });
   L.push({t: div, s:9});
-  L.push({t:'REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)', b:true, s:9});
+  L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
   extras.forEach((u,i)=>{
     L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
   });
   L.push({t: div, s:9});
-  L.push({t:`Total Tagihan Berjalan : ${rupiah(totalHarga)}`, b:true, s:9});
-  L.push({t:`Sudah Dibayar          : ${rupiah(s.dp||0)}`, s:9});
-  L.push({t:`Sisa Bayar             : ${rupiah(sisaBayar)}`, s:9});
-  if(lebihBayar>0) L.push({t:`Kelebihan Bayar        : ${rupiah(lebihBayar)} (saldo laundry berikutnya)`, s:8});
+  L.push({t:`${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}`, b:true, s:9});
+  L.push({t:`${t('Sudah Dibayar')}          : ${rupiah(s.dp||0)}`, s:9});
+  L.push({t:`${t('Sisa Bayar')}             : ${rupiah(sisaBayar)}`, s:9});
+  if(lebihBayar>0) L.push({t:`${t('Kelebihan Bayar')}        : ${rupiah(lebihBayar)} (${t('saldo laundry berikutnya')})`, s:8});
   L.push({t: div, s:9});
-  L.push({t: settings.note || 'Terima kasih', c:true, s:8});
+  L.push({t: settings.note || t('Terima kasih'), c:true, s:8});
   L.push(...notaFooterLinesPDF());
   return L;
 }
@@ -272,35 +272,35 @@ function buildUsageNotaPDFLines(usage, s){
   if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
   if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
-  L.push({t:'CATATAN TRANSAKSI', c:true, b:true, s:10});
-  L.push({t:`Pelanggan  : ${s.nama}`, s:9, indent:13});
-  L.push({t:`Paket      : ${s.paketNama}`, s:9, indent:13});
-  L.push({t:`Periode    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
+  L.push({t:t('CATATAN TRANSAKSI'), c:true, b:true, s:10});
+  L.push({t:`${t('Pelanggan')}  : ${s.nama}`, s:9, indent:13});
+  L.push({t:`${t('Paket')}      : ${s.paketNama}`, s:9, indent:13});
+  L.push({t:`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
   L.push({t: div, s:9});
-  L.push({t:'TIMBANGAN SEKARANG', b:true, s:9});
+  L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
   L.push({t:`${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`, s:9});
   L.push({t: div, s:9});
-  L.push({t:'RIWAYAT TIMBANGAN PAKET INI', b:true, s:9});
+  L.push({t:t('RIWAYAT TIMBANGAN PAKET INI'), b:true, s:9});
   upTo.forEach((u,i)=>{
     L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`, s:8, indent:4});
   });
   if(extras.length>0){
     L.push({t: div, s:9});
-    L.push({t:'LAYANAN TAMBAHAN (di luar paket)', b:true, s:9});
+    L.push({t:t('LAYANAN TAMBAHAN (di luar paket)'), b:true, s:9});
     extras.forEach((u,i)=>{
       L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
     });
   }
   L.push({t: div, s:9});
-  L.push({t:`Total Terpakai : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg`, b:true, s:9});
-  L.push({t: excessKgQty>0 ? `Lebih Kuota    : ${fmtKg(excessKgQty)} kg` : `Sisa Kuota     : ${fmtKg(sisaKg)} kg`, s:9});
+  L.push({t:`${t('Total Terpakai')} : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg`, b:true, s:9});
+  L.push({t: excessKgQty>0 ? `${t('Lebih Kuota')}    : ${fmtKg(excessKgQty)} kg` : `${t('Sisa Kuota')}     : ${fmtKg(sisaKg)} kg`, s:9});
   L.push({t: div, s:9});
-  L.push({t:`Harga Paket      : ${rupiah(s.hargaPaket||0)}`, s:9, indent:19});
-  if(excessCost>0) L.push({t:`Kelebihan Kuota  : ${rupiah(excessCost)}`, s:9, indent:19});
-  if(extraTotal>0) L.push({t:`Layanan Tambahan : ${rupiah(extraTotal)}`, s:9, indent:19});
-  L.push({t:`Total Harga Paket : ${rupiah(totalHarga)}`, b:true, s:9, indent:20});
+  L.push({t:`${t('Harga Paket')}      : ${rupiah(s.hargaPaket||0)}`, s:9, indent:19});
+  if(excessCost>0) L.push({t:`${t('Kelebihan Kuota')}  : ${rupiah(excessCost)}`, s:9, indent:19});
+  if(extraTotal>0) L.push({t:`${t('Layanan Tambahan')} : ${rupiah(extraTotal)}`, s:9, indent:19});
+  L.push({t:`${t('Total Harga Paket')} : ${rupiah(totalHarga)}`, b:true, s:9, indent:20});
   L.push({t: div, s:9});
-  L.push({t: settings.note || 'Terima kasih', c:true, s:8});
+  L.push({t: settings.note || t('Terima kasih'), c:true, s:8});
   L.push(...notaFooterLinesPDF());
   return L;
 }
@@ -472,7 +472,7 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
   const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
-  if(!blob){ showToast('Gagal membuat gambar nota'); return; }
+  if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
   try{
     const file = new File([blob], filename, { type:'image/jpeg' });
     if(navigator.canShare && navigator.canShare({ files:[file] })){
@@ -485,7 +485,7 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  showToast('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.');
+  showToast(t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.'));
 }
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
    Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)
@@ -514,11 +514,11 @@ function renderBtPrinterStatus(){
   const el = document.getElementById('btPrinterStatus');
   if(!el) return;
   if(btPrinterDevice && btPrinterServer && btPrinterServer.connected){
-    el.textContent = `Tersambung: ${btPrinterDevice.name || '(tanpa nama)'}`;
+    el.textContent = `${t('Tersambung:')} ${btPrinterDevice.name || t('(tanpa nama)')}`;
   } else if(!isBluetoothPrintSupported()){
-    el.textContent = 'Browser ini belum mendukung Bluetooth Web — pakai Chrome di Android/laptop';
+    el.textContent = t('Browser ini belum mendukung Bluetooth Web — pakai Chrome di Android/laptop');
   } else {
-    el.textContent = 'Belum tersambung';
+    el.textContent = t('Belum tersambung');
   }
 }
 /* Printer thermal murah umumnya cuma bisa cetak ASCII/CP437, jadi emoji &
@@ -569,7 +569,7 @@ function escposBytesFromLines(lines){
 }
 async function connectBluetoothPrinter(){
   if(!isBluetoothPrintSupported()){
-    showToast('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop');
+    showToast(t('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop'));
     return false;
   }
   try{
@@ -588,7 +588,7 @@ async function connectBluetoothPrinter(){
       }catch(e){ /* printer ini tidak punya service ini, coba UUID berikutnya */ }
     }
     if(!writeChar){
-      showToast('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain');
+      showToast(t('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain'));
       try{ device.gatt.disconnect(); }catch(e){}
       renderBtPrinterStatus();
       return false;
@@ -598,13 +598,13 @@ async function connectBluetoothPrinter(){
       btPrinterServer = null; btPrinterChar = null;
       renderBtPrinterStatus();
     });
-    showToast(`Printer "${device.name||''}" tersambung`);
+    showToast(`${t('Printer')} "${device.name||''}" ${t('tersambung')}`);
     renderBtPrinterStatus();
     return true;
   }catch(e){
     renderBtPrinterStatus();
     if(e && e.name==='NotFoundError') return false; // dibatalkan user, tidak perlu toast error
-    showToast('Gagal menyambungkan printer: ' + (e && e.message ? e.message : 'coba lagi'));
+    showToast(t('Gagal menyambungkan printer:') + ' ' + (e && e.message ? e.message : t('coba lagi')));
     return false;
   }
 }
@@ -630,10 +630,10 @@ async function printLinesViaBluetooth(lines){
       }
       await new Promise(r=>setTimeout(r, 25));
     }
-    showToast('Nota dikirim ke printer');
+    showToast(t('Nota dikirim ke printer'));
     return true;
   }catch(e){
-    showToast('Gagal mencetak — coba sambungkan ulang printernya');
+    showToast(t('Gagal mencetak — coba sambungkan ulang printernya'));
     btPrinterServer = null; btPrinterChar = null;
     renderBtPrinterStatus();
     return false;
@@ -641,7 +641,7 @@ async function printLinesViaBluetooth(lines){
 }
 async function printReceiptBluetooth(){
   const trx = transactions.find(t=>t.id===notaShareTrxId);
-  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
   await printLinesViaBluetooth(buildReceiptPDFLines(trx));
 }
 async function printSubsInvoiceBluetooth(){
@@ -687,7 +687,7 @@ function printLinesViaBrowser(lines){
 }
 function printReceiptViaBrowser(){
   const trx = transactions.find(t=>t.id===notaShareTrxId);
-  if(!trx){ showToast('Nota tidak ditemukan'); return; }
+  if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
   printLinesViaBrowser(buildReceiptPDFLines(trx));
 }
 function printSubsInvoiceViaBrowser(){
@@ -726,8 +726,8 @@ async function downloadUsageNotaImage(){
     tanggalForName = usage.tanggal;
   }
   const tempo = isTempo(s);
-  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||'pelanggan').replace(/\s+/g,'-')}`;
-  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? 'Nota transaksi laundry' : 'Nota timbangan laundry'} - ${s.nama}`);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
   closeUsageNotaOptions();
 }
 function nextKode(){

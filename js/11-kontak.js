@@ -2,7 +2,7 @@
 async function pickContact(){
   const supported = ('contacts' in navigator) && ('ContactsManager' in window);
   if(!supported){
-    showToast('Fitur kontak tidak didukung di sini. Buka lewat Chrome Android (bukan preview) & pastikan aplikasi sudah di-Add to Home Screen.');
+    showToast(t('Fitur kontak tidak didukung di sini. Buka lewat Chrome Android (bukan preview) & pastikan aplikasi sudah di-Add to Home Screen.'));
     return;
   }
   try{
@@ -19,10 +19,10 @@ async function pickContact(){
       await sb.from('contacts').upsert({ user_id: shopOwnerId, nama, hp: hp||null }, { onConflict:'user_id,hp' });
       await loadContactsFromDB();
     }
-    showToast('Kontak berhasil dipilih');
+    showToast(t('Kontak berhasil dipilih'));
   }catch(e){
     if(e.name !== 'AbortError'){
-      showToast('Gagal mengambil kontak. Pastikan izin kontak diizinkan.');
+      showToast(t('Gagal mengambil kontak. Pastikan izin kontak diizinkan.'));
     }
   }
 }
@@ -36,7 +36,7 @@ async function loadContactsFromDB(){
 async function importContactsFromPhone(){
   const supported = ('contacts' in navigator) && ('ContactsManager' in window);
   if(!supported){
-    showToast('Impor kontak tidak didukung di sini. Buka lewat Chrome Android (bukan preview) & pastikan aplikasi sudah di-Add to Home Screen.');
+    showToast(t('Impor kontak tidak didukung di sini. Buka lewat Chrome Android (bukan preview) & pastikan aplikasi sudah di-Add to Home Screen.'));
     return;
   }
   try{
@@ -58,13 +58,13 @@ async function importContactsFromPhone(){
     await loadContactsFromDB();
     renderContactsList();
     if(gagal===0){
-      showToast(`${ok} kontak berhasil diimpor`);
+      showToast(`${ok} ${t('kontak berhasil diimpor')}`);
     } else {
-      showToast(`${ok} berhasil, ${gagal} gagal disimpan. Pastikan sudah menjalankan fix-kontak-import.sql di Supabase.`);
+      showToast(`${ok} ${t('berhasil,')} ${gagal} ${t('gagal disimpan. Pastikan sudah menjalankan fix-kontak-import.sql di Supabase.')}`);
     }
   }catch(e){
     if(e.name !== 'AbortError'){
-      showToast('Gagal mengambil kontak. Pastikan izin kontak diizinkan.');
+      showToast(t('Gagal mengambil kontak. Pastikan izin kontak diizinkan.'));
     }
   }
 }
@@ -72,7 +72,7 @@ function renderContactsList(){
   const el = document.getElementById('contactsList');
   if(!el) return;
   if(savedContacts.length===0){
-    el.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Belum ada kontak tersimpan.</div>';
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada kontak tersimpan.')}</div>`;
     return;
   }
   el.innerHTML = savedContacts.map(c=>`
@@ -83,7 +83,7 @@ function renderContactsList(){
 }
 async function deleteContact(id){
   const { error } = await sb.from('contacts').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus kontak'); return; }
+  if(error){ showToast(t('Gagal menghapus kontak')); return; }
   savedContacts = savedContacts.filter(c=>c.id!==id);
   renderContactsList();
 }

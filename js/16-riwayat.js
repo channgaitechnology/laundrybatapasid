@@ -16,43 +16,43 @@ function renderHistory(){
   if(list.length===0){
     el.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/><circle cx="24" cy="24" r="12" stroke="#5FC9BE" stroke-width="2"/></svg>
-      <h3>Belum ada transaksi</h3>
-      <p>Transaksi yang kamu simpan akan muncul di sini.</p>
+      <h3>${t('Belum ada transaksi')}</h3>
+      <p>${t('Transaksi yang kamu simpan akan muncul di sini.')}</p>
     </div>`;
     return;
   }
-  el.innerHTML = list.map(t=>`
+  el.innerHTML = list.map(trx=>`
     <div class="trx-card">
       <div class="trx-top">
         <div>
-          <div class="trx-name">${escapeHTML(t.nama)}</div>
-          <div class="kode">${t.kode}</div>
+          <div class="trx-name">${escapeHTML(trx.nama)}</div>
+          <div class="kode">${trx.kode}</div>
         </div>
-        <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}">${t.status==='lunas'?'Lunas':'Belum Lunas'}</span>
+        <span class="badge ${trx.status==='lunas'?'badge-lunas':'badge-belum'}">${trx.status==='lunas'?t('Lunas'):t('Belum Lunas')}</span>
       </div>
-      <div class="trx-meta">${fmtDate(t.tanggal)} · ${t.items.length} layanan</div>
-      <div class="trx-total">${rupiah(t.total)}</div>
+      <div class="trx-meta">${fmtDate(trx.tanggal)} · ${trx.items.length} ${currentLang==='en' ? (trx.items.length===1?'service':'services') : t('layanan')}</div>
+      <div class="trx-total">${rupiah(trx.total)}</div>
       <div class="trx-actions">
-        <button class="btn btn-outline btn-sm" onclick="openReceipt('${t.id}')">Nota</button>
-        <button class="btn btn-wa btn-sm" onclick="openReceiptShareOptions('${t.id}')">Kirim</button>
-        ${t.status==='belum' ? `<button class="btn btn-accent btn-sm" onclick="toggleLunas('${t.id}')">Lunasi</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="openReceipt('${trx.id}')">${t('Nota')}</button>
+        <button class="btn btn-wa btn-sm" onclick="openReceiptShareOptions('${trx.id}')">${t('Kirim')}</button>
+        ${trx.status==='belum' ? `<button class="btn btn-accent btn-sm" onclick="toggleLunas('${trx.id}')">${t('Lunasi')}</button>` : ''}
       </div>
       <div class="trx-actions owner-only">
-        <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')">✏️ Edit</button>
-        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('transaction','${t.id}','🕘 Riwayat Edit Transaksi')">🕘 Riwayat</button>
-        <button class="btn btn-danger-ghost btn-sm" onclick="deleteTransaction('${t.id}')">🗑️ Hapus</button>
+        <button class="btn btn-ghost btn-sm" onclick="editTransaction('${trx.id}')">${t('✏️ Edit')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditHistory('transaction','${trx.id}','${escapeHTML(t('🕘 Riwayat Edit Transaksi'))}')">${t('🕘 Riwayat')}</button>
+        <button class="btn btn-danger-ghost btn-sm" onclick="deleteTransaction('${trx.id}')">${t('🗑️ Hapus')}</button>
       </div>
     </div>
   `).join('');
 }
 async function toggleLunas(id){
-  const t = transactions.find(x=>x.id===id);
-  if(!t) return;
-  const { error } = await sb.from('transactions').update({ status:'lunas', dp:t.total }).eq('id', id);
-  if(error){ showToast('Gagal memperbarui status'); return; }
-  t.status = 'lunas';
-  t.dp = t.total;
-  showToast('Transaksi ditandai lunas');
+  const trx = transactions.find(x=>x.id===id);
+  if(!trx) return;
+  const { error } = await sb.from('transactions').update({ status:'lunas', dp:trx.total }).eq('id', id);
+  if(error){ showToast(t('Gagal memperbarui status')); return; }
+  trx.status = 'lunas';
+  trx.dp = trx.total;
+  showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }
 

@@ -42,14 +42,14 @@ function renderReport(){
   if(list.length===0){
     reportList.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Belum ada transaksi bulan ini</h3>
-      <p>Pilih bulan lain atau mulai catat transaksi baru.</p>
+      <h3>${t('Belum ada transaksi bulan ini')}</h3>
+      <p>${t('Pilih bulan lain atau mulai catat transaksi baru.')}</p>
     </div>`;
   } else {
-    reportList.innerHTML = sortByTanggalAsc(list).map(t=>`
+    reportList.innerHTML = sortByTanggalAsc(list).map(trx=>`
       <div class="item-line" style="align-items:center;">
-        <span>${fmtDate(t.tanggal)} — ${escapeHTML(t.nama)} <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${t.status==='lunas'?'Lunas':'Belum'}</span></span>
-        <span>${rupiah(t.total)}</span>
+        <span>${fmtDate(trx.tanggal)} — ${escapeHTML(trx.nama)} <span class="badge ${trx.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${trx.status==='lunas'?t('Lunas'):t('Belum')}</span></span>
+        <span>${rupiah(trx.total)}</span>
       </div>
     `).join('');
   }
@@ -77,7 +77,7 @@ function renderOmzetTrend(ym){
   months.forEach((m, i) => {
     const h = Math.round((perMonth[i]/maxVal)*84)+2;
     const [yy, mm] = m.split('-').map(Number);
-    const label = TREND_MONTH_NAMES[mm-1] + "'" + String(yy).slice(2);
+    const label = t(TREND_MONTH_NAMES[mm-1]) + "'" + String(yy).slice(2);
     barsHTML += `<div class="bar" style="height:${h}px" title="${label}: ${rupiah(perMonth[i])}"></div>`;
     labelsHTML += `<span>${label}</span>`;
   });
@@ -89,24 +89,24 @@ function printReport(){
   const ym = monthInput.value;
   const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
-  const rows = list.map(t=>`
+  const rows = list.map(trx=>`
     <tr>
-      <td>${t.kode}</td><td>${fmtDate(t.tanggal)}</td><td>${escapeHTML(t.nama)}</td>
-      <td>${t.status==='lunas'?'Lunas':'Belum Lunas'}</td><td style="text-align:right;">${rupiah(t.total)}</td>
+      <td>${trx.kode}</td><td>${fmtDate(trx.tanggal)}</td><td>${escapeHTML(trx.nama)}</td>
+      <td>${trx.status==='lunas'?t('Lunas'):t('Belum Lunas')}</td><td style="text-align:right;">${rupiah(trx.total)}</td>
     </tr>`).join('');
   document.getElementById('printArea').innerHTML = `
     <div style="font-family:'Inter',sans-serif;padding:24px;max-width:700px;margin:0 auto;">
       <h2 style="font-family:'Sora',sans-serif;margin-bottom:2px;">${escapeHTML(settings.shopName||'Laundry Batapas.id')}</h2>
-      <p style="color:#555;margin-top:0;">Laporan Transaksi — ${ym}</p>
+      <p style="color:#555;margin-top:0;">${t('Laporan Transaksi')} — ${ym}</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="border-bottom:2px solid #333;text-align:left;">
-          <th style="padding:6px 4px;">No. Nota</th><th style="padding:6px 4px;">Tanggal</th>
-          <th style="padding:6px 4px;">Pelanggan</th><th style="padding:6px 4px;">Status</th>
-          <th style="padding:6px 4px;text-align:right;">Total</th>
+          <th style="padding:6px 4px;">${t('No. Nota')}</th><th style="padding:6px 4px;">${t('Tanggal')}</th>
+          <th style="padding:6px 4px;">${t('Pelanggan')}</th><th style="padding:6px 4px;">${t('Status')}</th>
+          <th style="padding:6px 4px;text-align:right;">${t('Total')}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:2px solid #333;font-weight:700;">
-          <td colspan="4" style="padding:8px 4px;">Total Omzet</td>
+          <td colspan="4" style="padding:8px 4px;">${t('Total Omzet')}</td>
           <td style="padding:8px 4px;text-align:right;">${rupiah(totalOmzet)}</td>
         </tr></tfoot>
       </table>
@@ -125,7 +125,7 @@ function populatePerNamaSelect(){
   subscriptions.forEach(s=>{ if(s.nama) namaSet.add(s.nama); });
   const namaList = Array.from(namaSet).sort((a,b)=>a.localeCompare(b));
   if(namaList.length===0){
-    sel.innerHTML = '<option value="">Belum ada data pelanggan</option>';
+    sel.innerHTML = `<option value="">${t('Belum ada data pelanggan')}</option>`;
     return;
   }
   sel.innerHTML = namaList.map(n=>`<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`).join('');
@@ -150,21 +150,21 @@ function getPerPeriodeRange(){
     if(!ym) return null;
     const [yy,mm] = ym.split('-').map(Number);
     const lastDay = new Date(yy, mm, 0).getDate();
-    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `${t('Bulan')} ${ym}` };
   }
   if(type==='tahunan'){
     const yy = document.getElementById('perTahun').value;
     if(!yy) return null;
-    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `${t('Tahun')} ${yy}` };
   }
   return null;
 }
 var perReportCache = null;
 function renderPerPelangganReport(){
   const nama = document.getElementById('perNama').value;
-  if(!nama){ showToast('Pilih pelanggan dulu'); return; }
+  if(!nama){ showToast(t('Pilih pelanggan dulu')); return; }
   const range = getPerPeriodeRange();
-  if(!range){ showToast('Lengkapi periode laporan dulu'); return; }
+  if(!range){ showToast(t('Lengkapi periode laporan dulu')); return; }
 
   const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const totalTrx = list.length;
@@ -181,14 +181,14 @@ function renderPerPelangganReport(){
   if(list.length===0){
     resultList.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Tidak ada transaksi</h3>
-      <p>Tidak ada transaksi untuk pelanggan ini di periode tersebut.</p>
+      <h3>${t('Tidak ada transaksi')}</h3>
+      <p>${t('Tidak ada transaksi untuk pelanggan ini di periode tersebut.')}</p>
     </div>`;
   } else {
-    resultList.innerHTML = list.slice().reverse().map(t=>`
+    resultList.innerHTML = list.slice().reverse().map(trx=>`
       <div class="item-line" style="align-items:center;">
-        <span>${fmtDate(t.tanggal)} — ${t.kode} <span class="badge ${t.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${t.status==='lunas'?'Lunas':'Belum'}</span></span>
-        <span>${rupiah(t.total)}</span>
+        <span>${fmtDate(trx.tanggal)} — ${trx.kode} <span class="badge ${trx.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${trx.status==='lunas'?t('Lunas'):t('Belum')}</span></span>
+        <span>${rupiah(trx.total)}</span>
       </div>
     `).join('');
   }
@@ -197,7 +197,7 @@ function renderPerPelangganReport(){
 }
 function downloadPerPelangganPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
-  if(!perReportCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  if(!perReportCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
   const { nama, range, list, totalOmzet } = perReportCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -208,16 +208,16 @@ function downloadPerPelangganPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
-  doc.text(`Laporan Per Pelanggan — ${nama}`, 14, 30);
+  doc.text(`${t('Laporan Per Pelanggan')} — ${nama}`, 14, 30);
   doc.setFontSize(9.5);
-  doc.text(`Periode: ${range.label}`, 14, 36);
+  doc.text(`${t('Periode:')} ${range.label}`, 14, 36);
 
   let y = 46;
   doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-  doc.text('No. Nota', colX.kode, y);
-  doc.text('Tanggal', colX.tgl, y);
-  doc.text('Status', colX.status, y);
-  doc.text('Total', colX.total, y, { align:'right' });
+  doc.text(t('No. Nota'), colX.kode, y);
+  doc.text(t('Tanggal'), colX.tgl, y);
+  doc.text(t('Status'), colX.status, y);
+  doc.text(t('Total'), colX.total, y, { align:'right' });
   y += 2.5;
   doc.setLineWidth(0.4);
   doc.line(14, y, 196, y);
@@ -225,15 +225,15 @@ function downloadPerPelangganPDF(){
 
   doc.setFont('helvetica','normal');
   if(list.length===0){
-    doc.text('Tidak ada transaksi pada periode ini.', 14, y);
+    doc.text(t('Tidak ada transaksi pada periode ini.'), 14, y);
     y += 6;
   }
-  list.forEach(t=>{
+  list.forEach(row=>{
     if(y > 280){ doc.addPage(); y = 20; }
-    doc.text(t.kode || '-', colX.kode, y);
-    doc.text(fmtDate(t.tanggal), colX.tgl, y);
-    doc.text(t.status==='lunas' ? 'Lunas' : 'Belum Lunas', colX.status, y);
-    doc.text(rupiah(t.total), colX.total, y, { align:'right' });
+    doc.text(row.kode || '-', colX.kode, y);
+    doc.text(fmtDate(row.tanggal), colX.tgl, y);
+    doc.text(row.status==='lunas' ? t('Lunas') : t('Belum Lunas'), colX.status, y);
+    doc.text(rupiah(row.total), colX.total, y, { align:'right' });
     y += 6.5;
   });
 
@@ -242,7 +242,7 @@ function downloadPerPelangganPDF(){
   doc.line(14, y, 196, y);
   y += 7;
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('Total Belanja', colX.status, y);
+  doc.text(t('Total Belanja'), colX.status, y);
   doc.text(rupiah(totalOmzet), colX.total, y, { align:'right' });
 
   doc.save(`Laporan-${nama.replace(/[^a-zA-Z0-9]/g,'_')}-${range.dari}_${range.sampai}.pdf`);
@@ -261,12 +261,12 @@ function getLrPeriodeRange(){
     if(!ym) return null;
     const [yy,mm] = ym.split('-').map(Number);
     const lastDay = new Date(yy, mm, 0).getDate();
-    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `${t('Bulan')} ${ym}` };
   }
   if(type==='tahunan'){
     const yy = document.getElementById('lrTahun').value;
     if(!yy) return null;
-    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `${t('Tahun')} ${yy}` };
   }
   return null;
 }
@@ -291,14 +291,14 @@ function renderLabaRugi(){
   document.getElementById('lrPemasukan').textContent = rupiah(totalOmzet);
   document.getElementById('lrPengeluaran').textContent = rupiah(totalPengeluaran);
   const lrEl = document.getElementById('lrLabaRugi');
-  lrEl.textContent = (pendapatanBersih<0 ? 'Rugi ' : 'Untung ') + rupiah(Math.abs(pendapatanBersih));
+  lrEl.textContent = (pendapatanBersih<0 ? t('Rugi')+' ' : t('Untung')+' ') + rupiah(Math.abs(pendapatanBersih));
   lrEl.style.color = pendapatanBersih<0 ? 'var(--warn)' : 'var(--success)';
 
   const byKategori = {};
   expList.forEach(e=>{ byKategori[e.kategori] = (byKategori[e.kategori]||0) + e.jumlah; });
   const kategoriRows = Object.entries(byKategori).sort((a,b)=>b[1]-a[1]);
   if(kategoriRows.length===0){
-    breakdownEl.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Tidak ada pengeluaran di periode ini</div>`;
+    breakdownEl.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Tidak ada pengeluaran di periode ini')}</div>`;
   } else {
     breakdownEl.innerHTML = kategoriRows.map(([kat,tot])=>`
       <div class="item-line"><span>${escapeHTML(kat)}</span><span>${rupiah(tot)}</span></div>
@@ -308,7 +308,7 @@ function renderLabaRugi(){
 }
 function downloadLabaRugiPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
-  if(!labaRugiCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  if(!labaRugiCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
   const { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows } = labaRugiCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -318,27 +318,27 @@ function downloadLabaRugiPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
-  doc.text('Laporan Laba Rugi', 14, 30);
+  doc.text(t('Laporan Laba Rugi'), 14, 30);
   doc.setFontSize(9.5);
-  doc.text(`Periode: ${range.label}`, 14, 36);
+  doc.text(`${t('Periode:')} ${range.label}`, 14, 36);
 
   let y = 48;
   doc.setFont('helvetica','normal'); doc.setFontSize(11);
-  doc.text('Total Pemasukan (Omzet)', 14, y);
+  doc.text(t('Total Pemasukan (Omzet)'), 14, y);
   doc.text(rupiah(totalOmzet), 196, y, { align:'right' }); y += 8;
-  doc.text('Total Pengeluaran', 14, y);
+  doc.text(t('Total Pengeluaran'), 14, y);
   doc.text(rupiah(totalPengeluaran), 196, y, { align:'right' }); y += 4;
   doc.setLineWidth(0.4); doc.line(14, y, 196, y); y += 8;
   doc.setFont('helvetica','bold'); doc.setFontSize(12);
-  doc.text('Pendapatan Bersih', 14, y);
+  doc.text(t('Pendapatan Bersih'), 14, y);
   doc.text((pendapatanBersih<0?'-':'')+rupiah(Math.abs(pendapatanBersih)), 196, y, { align:'right' });
   y += 14;
 
   doc.setFontSize(11);
-  doc.text('Rincian Pengeluaran per Kategori', 14, y); y += 8;
+  doc.text(t('Rincian Pengeluaran per Kategori'), 14, y); y += 8;
   doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
   if(kategoriRows.length===0){
-    doc.text('Tidak ada pengeluaran di periode ini.', 14, y); y += 6;
+    doc.text(t('Tidak ada pengeluaran di periode ini.'), 14, y); y += 6;
   }
   kategoriRows.forEach(([kat,tot])=>{
     if(y > 280){ doc.addPage(); y = 20; }
@@ -358,18 +358,18 @@ function toggleRankPeriodeFields(){
 }
 function getRankPeriodeRange(){
   const type = document.getElementById('rankPeriodeType').value;
-  if(type==='semua') return { dari:'0000-01-01', sampai:'9999-12-31', label:'Semua Waktu' };
+  if(type==='semua') return { dari:'0000-01-01', sampai:'9999-12-31', label:t('Semua Waktu') };
   if(type==='bulanan'){
     const ym = document.getElementById('rankBulan').value;
     if(!ym) return null;
     const [yy,mm] = ym.split('-').map(Number);
     const lastDay = new Date(yy, mm, 0).getDate();
-    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `${t('Bulan')} ${ym}` };
   }
   if(type==='tahunan'){
     const yy = document.getElementById('rankTahun').value;
     if(!yy) return null;
-    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `${t('Tahun')} ${yy}` };
   }
   return null;
 }
@@ -389,13 +389,13 @@ function renderPeringkatPelanggan(){
   if(ranked.length===0){
     el.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Tidak ada transaksi</h3>
-      <p>Tidak ada transaksi pada periode ini.</p>
+      <h3>${t('Tidak ada transaksi')}</h3>
+      <p>${t('Tidak ada transaksi pada periode ini.')}</p>
     </div>`;
   } else {
     el.innerHTML = ranked.map((r,i)=>`
       <div class="item-line" style="align-items:center;">
-        <span>${i+1}. ${escapeHTML(r.nama)} <span style="color:var(--ink-soft);">(${r.count} transaksi)</span></span>
+        <span>${i+1}. ${escapeHTML(r.nama)} <span style="color:var(--ink-soft);">(${r.count} ${currentLang==='en' ? (r.count===1?'transaction':'transactions') : t('transaksi')})</span></span>
         <span>${rupiah(r.total)}</span>
       </div>
     `).join('');
@@ -404,7 +404,7 @@ function renderPeringkatPelanggan(){
 }
 function downloadPeringkatPelangganPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
-  if(!peringkatPelangganCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  if(!peringkatPelangganCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
   const { range, ranked } = peringkatPelangganCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -415,16 +415,16 @@ function downloadPeringkatPelangganPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
-  doc.text('Peringkat Pemasukan Pelanggan', 14, 30);
+  doc.text(t('Peringkat Pemasukan Pelanggan'), 14, 30);
   doc.setFontSize(9.5);
-  doc.text(`Periode: ${range.label}`, 14, 36);
+  doc.text(`${t('Periode:')} ${range.label}`, 14, 36);
 
   let y = 46;
   doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-  doc.text('No', colX.no, y);
-  doc.text('Pelanggan', colX.nama, y);
-  doc.text('Jml Transaksi', colX.count, y);
-  doc.text('Total Bayar', colX.total, y, { align:'right' });
+  doc.text(t('No'), colX.no, y);
+  doc.text(t('Pelanggan'), colX.nama, y);
+  doc.text(t('Jml Transaksi'), colX.count, y);
+  doc.text(t('Total Bayar'), colX.total, y, { align:'right' });
   y += 2.5;
   doc.setLineWidth(0.4);
   doc.line(14, y, 196, y);
@@ -432,7 +432,7 @@ function downloadPeringkatPelangganPDF(){
 
   doc.setFont('helvetica','normal'); doc.setFontSize(9);
   if(ranked.length===0){
-    doc.text('Tidak ada transaksi pada periode ini.', 14, y);
+    doc.text(t('Tidak ada transaksi pada periode ini.'), 14, y);
     y += 6;
   }
   ranked.forEach((r,i)=>{

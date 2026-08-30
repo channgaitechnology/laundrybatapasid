@@ -9,17 +9,17 @@ async function submitPaymentRequest(){
   const wa = document.getElementById('preqWA').value.trim();
   const catatan = document.getElementById('preqCatatan').value.trim();
   const msgEl = document.getElementById('preqMsg');
-  if(!nama || !wa){ msgEl.className='auth-msg error'; msgEl.textContent='Isi nama dan no. WhatsApp dulu'; return; }
-  msgEl.className='auth-msg'; msgEl.textContent='Mengirim...';
+  if(!nama || !wa){ msgEl.className='auth-msg error'; msgEl.textContent=t('Isi nama dan no. WhatsApp dulu'); return; }
+  msgEl.className='auth-msg'; msgEl.textContent=t('Mengirim...');
   const { error } = await sb.from('payment_requests').insert({ nama, wa, catatan, status:'menunggu' });
-  if(error){ msgEl.className='auth-msg error'; msgEl.textContent='Gagal mengirim, coba lagi'; return; }
-  msgEl.className='auth-msg ok'; msgEl.textContent='Terkirim! Sekarang kirim juga notifikasi WA ke admin lewat tombol di bawah ini.';
+  if(error){ msgEl.className='auth-msg error'; msgEl.textContent=t('Gagal mengirim, coba lagi'); return; }
+  msgEl.className='auth-msg ok'; msgEl.textContent=t('Terkirim! Sekarang kirim juga notifikasi WA ke admin lewat tombol di bawah ini.');
   document.getElementById('preqNama').value='';
   document.getElementById('preqWA').value='';
   document.getElementById('preqCatatan').value='';
 
   const text = encodeURIComponent(
-    `🔔 *Pendaftaran Baru*\n\nNama: ${nama}\nNo. WA: ${wa}\nCatatan: ${catatan || '-'}\n\nMohon dicek pembayarannya, terima kasih.`
+    `${t('🔔 *Pendaftaran Baru*')}\n\n${t('Nama')}: ${nama}\n${t('No. WA')}: ${wa}\n${t('Catatan')}: ${catatan || '-'}\n\n${t('Mohon dicek pembayarannya, terima kasih.')}`
   );
   document.getElementById('preqNotifBtn').style.display = 'block';
   document.getElementById('preqNotifBtn').onclick = function(){
@@ -65,7 +65,7 @@ async function resolveRoleAndInit(){
 function applyRoleUI(){
   document.body.classList.toggle('role-kasir', currentRole==='kasir');
   const sub = document.querySelector('.appbar-title p');
-  if(sub) sub.textContent = currentRole==='kasir' ? `Kasir: ${employeeName}` : 'Kasir & Nota Digital Laundry';
+  if(sub) sub.textContent = currentRole==='kasir' ? `${t('Kasir')}: ${employeeName}` : t('Kasir & Nota Digital Laundry');
 }
 async function chooseOwnerRole(){
   currentRole = 'owner';
@@ -78,19 +78,19 @@ async function chooseOwnerRole(){
 async function claimInviteCode(){
   const code = document.getElementById('inviteCodeInput').value.trim().toUpperCase();
   const msgEl = document.getElementById('inviteMsg');
-  if(!code){ msgEl.className='auth-msg error'; msgEl.textContent='Masukkan kode undangan dulu'; return; }
-  msgEl.className='auth-msg'; msgEl.textContent='Memeriksa kode...';
+  if(!code){ msgEl.className='auth-msg error'; msgEl.textContent=t('Masukkan kode undangan dulu'); return; }
+  msgEl.className='auth-msg'; msgEl.textContent=t('Memeriksa kode...');
   const { data: row, error: findErr } = await sb.from('team_members').select('*').eq('invite_code', code).eq('status','pending').maybeSingle();
-  if(findErr || !row){ msgEl.className='auth-msg error'; msgEl.textContent='Kode tidak ditemukan atau sudah dipakai'; return; }
+  if(findErr || !row){ msgEl.className='auth-msg error'; msgEl.textContent=t('Kode tidak ditemukan atau sudah dipakai'); return; }
   const { error } = await sb.from('team_members').update({ member_id: currentUser.id, status:'aktif' }).eq('id', row.id);
-  if(error){ msgEl.className='auth-msg error'; msgEl.textContent='Gagal bergabung, coba lagi'; return; }
+  if(error){ msgEl.className='auth-msg error'; msgEl.textContent=t('Gagal bergabung, coba lagi'); return; }
   currentRole = 'kasir';
   shopOwnerId = row.owner_id;
   employeeName = row.nama;
   kasirOutletId = row.outlet_id!=null ? String(row.outlet_id) : null;
   document.getElementById('onboardingScreen').classList.remove('show');
   applyRoleUI();
-  showToast(`Berhasil bergabung sebagai kasir "${row.nama}"`);
+  showToast(`${t('Berhasil bergabung sebagai kasir')} "${row.nama}"`);
   await ensureAppSubscription(shopOwnerId, false);
   await initUserData();
 }
@@ -101,12 +101,12 @@ function genInviteCode(){
   return code;
 }
 async function createInvite(){
-  const nama = prompt('Nama karyawan/kasir ini:');
+  const nama = prompt(t('Nama karyawan/kasir ini:'));
   if(!nama || !nama.trim()) return;
   let outletId = null;
   if(outlets.length>0){
     const daftar = outlets.map((o,i)=>`${i+1}. ${o.nama}`).join('\n');
-    const pilihan = prompt(`Batasi kasir ini ke satu outlet tertentu? Ketik nomor outlet di bawah, atau kosongkan untuk kasir bebas akses semua outlet:\n\n${daftar}`);
+    const pilihan = prompt(`${t('Batasi kasir ini ke satu outlet tertentu? Ketik nomor outlet di bawah, atau kosongkan untuk kasir bebas akses semua outlet:')}\n\n${daftar}`);
     if(pilihan && pilihan.trim()){
       const idx = parseInt(pilihan.trim(), 10) - 1;
       if(outlets[idx]) outletId = outlets[idx].id;
@@ -117,9 +117,9 @@ async function createInvite(){
     owner_id: shopOwnerId, nama: nama.trim(), role:'kasir', invite_code: code, status:'pending',
     ...(outletId ? { outlet_id: outletId } : {})
   });
-  if(error){ showToast('Gagal membuat undangan'); return; }
+  if(error){ showToast(t('Gagal membuat undangan')); return; }
   await loadTeamList();
-  alert(`Kode undangan untuk ${nama.trim()}:\n\n${code}\n\nMinta karyawan buka aplikasi ini, buat akun baru (email/password sendiri), lalu pilih "Saya kasir" dan masukkan kode ini.`);
+  alert(`${t('Kode undangan untuk')} ${nama.trim()}:\n\n${code}\n\n${t('Minta karyawan buka aplikasi ini, buat akun baru (email/password sendiri), lalu pilih "Saya kasir" dan masukkan kode ini.')}`);
 }
 var teamListCache = [];
 async function loadTeamList(){
@@ -131,23 +131,23 @@ function renderTeamList(){
   const el = document.getElementById('teamList');
   if(!el) return;
   if(teamListCache.length===0){
-    el.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">Belum ada karyawan ditambahkan.</div>';
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada karyawan ditambahkan.')}</div>`;
     return;
   }
   el.innerHTML = teamListCache.map(m=>{
-    const outletNama = m.outlet_id!=null ? (outlets.find(o=>String(o.id)===String(m.outlet_id))?.nama || 'outlet terhapus') : '';
+    const outletNama = m.outlet_id!=null ? (outlets.find(o=>String(o.id)===String(m.outlet_id))?.nama || t('outlet terhapus')) : '';
     return `
     <div class="item-line" style="align-items:center;">
-      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· Aktif' : '· Menunggu ('+m.invite_code+')'}${outletNama ? ' · 🔒 '+escapeHTML(outletNama) : ''}</span></span>
+      <span>${escapeHTML(m.nama)} <span style="color:var(--ink-soft);">${m.status==='aktif' ? '· '+t('Aktif') : '· '+t('Menunggu')+' ('+m.invite_code+')'}${outletNama ? ' · 🔒 '+escapeHTML(outletNama) : ''}</span></span>
       <button onclick="removeMember('${m.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
     </div>`;
   }).join('');
 }
 async function removeMember(id){
-  if(!confirm('Hapus karyawan ini? Dia tidak akan bisa akses data toko lagi.')) return;
+  if(!confirm(t('Hapus karyawan ini? Dia tidak akan bisa akses data toko lagi.'))) return;
   const { error } = await sb.from('team_members').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus'); return; }
+  if(error){ showToast(t('Gagal menghapus')); return; }
   await loadTeamList();
-  showToast('Karyawan dihapus');
+  showToast(t('Karyawan dihapus'));
 }
 
