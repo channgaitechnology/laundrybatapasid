@@ -60,7 +60,7 @@ function resetExpenseCatalogForm(){
   document.getElementById('expCatNama').value = '';
   document.getElementById('expCatSatuan').value = 'pcs';
   document.getElementById('expCatHarga').value = '';
-  document.getElementById('expCatSubmitBtn').textContent = '+ Tambah ke Katalog';
+  document.getElementById('expCatSubmitBtn').textContent = t('+ Tambah ke Katalog');
   document.getElementById('expCatCancelBtn').style.display = 'none';
 }
 function editExpenseCatalogItem(id){
@@ -70,22 +70,22 @@ function editExpenseCatalogItem(id){
   document.getElementById('expCatNama').value = item.nama;
   document.getElementById('expCatSatuan').value = item.satuan;
   document.getElementById('expCatHarga').value = item.harga;
-  document.getElementById('expCatSubmitBtn').textContent = 'Simpan Perubahan';
+  document.getElementById('expCatSubmitBtn').textContent = t('Simpan Perubahan');
   document.getElementById('expCatCancelBtn').style.display = 'inline-flex';
 }
 async function addOrUpdateExpenseCatalogItem(){
   const nama = document.getElementById('expCatNama').value.trim();
-  if(!nama){ showToast('Nama barang/jasa wajib diisi'); return; }
+  if(!nama){ showToast(t('Nama barang/jasa wajib diisi')); return; }
   const satuan = document.getElementById('expCatSatuan').value;
   const harga = parseFloat(document.getElementById('expCatHarga').value) || 0;
   if(editingExpenseCatalogId){
     const { error } = await sb.from('expense_catalog').update({ nama, satuan, harga }).eq('id', editingExpenseCatalogId);
-    if(error){ showToast('Gagal menyimpan perubahan — pastikan tabel expense_catalog sudah dibuat'); return; }
-    showToast('Katalog diperbarui');
+    if(error){ showToast(t('Gagal menyimpan perubahan — pastikan tabel expense_catalog sudah dibuat')); return; }
+    showToast(t('Katalog diperbarui'));
   } else {
     const { error } = await sb.from('expense_catalog').insert({ user_id: shopOwnerId, nama, satuan, harga });
-    if(error){ showToast('Gagal menambah katalog — pastikan tabel expense_catalog sudah dibuat'); return; }
-    showToast('Ditambahkan ke katalog');
+    if(error){ showToast(t('Gagal menambah katalog — pastikan tabel expense_catalog sudah dibuat')); return; }
+    showToast(t('Ditambahkan ke katalog'));
   }
   await loadExpenseCatalogFromDB();
   resetExpenseCatalogForm();
@@ -93,15 +93,15 @@ async function addOrUpdateExpenseCatalogItem(){
 }
 async function deleteExpenseCatalogItem(id){
   const { error } = await sb.from('expense_catalog').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus'); return; }
+  if(error){ showToast(t('Gagal menghapus')); return; }
   await loadExpenseCatalogFromDB();
   renderExpenseCatalogList();
-  showToast('Dihapus dari katalog');
+  showToast(t('Dihapus dari katalog'));
 }
 function renderExpenseCatalogList(){
   const el = document.getElementById('expenseCatalogList');
   if(expenseCatalog.length===0){
-    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">Katalog masih kosong. Tambahkan barang/jasa di atas.</div>`;
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">${t('Katalog masih kosong. Tambahkan barang/jasa di atas.')}</div>`;
     return;
   }
   el.innerHTML = expenseCatalog.map(s=>`
@@ -109,7 +109,7 @@ function renderExpenseCatalogList(){
       <span>${escapeHTML(s.nama)} <span style="color:var(--ink-soft);">(${s.satuan})</span></span>
       <span style="display:flex;align-items:center;gap:10px;">
         ${rupiah(s.harga)}
-        <button onclick="editExpenseCatalogItem('${s.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">Edit</button>
+        <button onclick="editExpenseCatalogItem('${s.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">${t('Edit')}</button>
         <button onclick="deleteExpenseCatalogItem('${s.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');
@@ -122,45 +122,45 @@ async function submitExpense(){
   const qty = parseFloat(document.getElementById('expQty').value) || 0;
   const satuan = document.getElementById('expSatuan').value;
   const harga = parseFloat(document.getElementById('expHarga').value) || 0;
-  const kategori = document.getElementById('expKategori').value.trim() || 'Lain-lain';
+  const kategori = document.getElementById('expKategori').value.trim() || t('Lain-lain');
   const catatan = document.getElementById('expCatatan').value.trim();
   const jumlah = qty*harga;
-  if(!nama){ showToast('Isi nama barang/jasa yang dibeli'); return; }
-  if(jumlah<=0){ showToast('Isi qty dan harga dengan benar'); return; }
+  if(!nama){ showToast(t('Isi nama barang/jasa yang dibeli')); return; }
+  if(jumlah<=0){ showToast(t('Isi qty dan harga dengan benar')); return; }
   const { data, error } = await sb.from('expenses').insert({
     user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan,
     ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   }).select().single();
-  if(error){ showToast('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'); return; }
+  if(error){ showToast(t('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)')); return; }
   expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
   document.getElementById('expNama').value = '';
   document.getElementById('expQty').value = '1';
   document.getElementById('expHarga').value = '';
   document.getElementById('expCatatan').value = '';
   updateExpenseSubtotalPreview();
-  showToast('Pengeluaran dicatat');
+  showToast(t('Pengeluaran dicatat'));
   renderExpenseList();
 }
 async function deleteExpense(id){
   const exp = expenses.find(e=>e.id===id);
   if(!exp) return;
-  if(!confirm('Hapus catatan pengeluaran ini?')) return;
+  if(!confirm(t('Hapus catatan pengeluaran ini?'))) return;
   const { error } = await sb.from('expenses').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus pengeluaran'); return; }
+  if(error){ showToast(t('Gagal menghapus pengeluaran')); return; }
   expenses = expenses.filter(e=>e.id!==id);
   renderExpenseList();
-  showToast('Pengeluaran dihapus', {
-    label: 'Urungkan',
+  showToast(t('Pengeluaran dihapus'), {
+    label: t('Urungkan'),
     onClick: async ()=>{
       const { data, error: err2 } = await sb.from('expenses').insert({
         user_id: shopOwnerId, tanggal: exp.tanggal, nama: exp.nama, qty: exp.qty, satuan: exp.satuan,
         harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan,
         ...(exp.outletId ? { outlet_id: exp.outletId } : {})
       }).select().single();
-      if(err2){ showToast('Gagal mengembalikan pengeluaran'); return; }
+      if(err2){ showToast(t('Gagal mengembalikan pengeluaran')); return; }
       expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
       renderExpenseList();
-      showToast('Pengeluaran dikembalikan');
+      showToast(t('Pengeluaran dikembalikan'));
     }
   });
 }
@@ -184,12 +184,12 @@ function getExpPeriodeRange(){
     if(!ym) return null;
     const [yy,mm] = ym.split('-').map(Number);
     const lastDay = new Date(yy, mm, 0).getDate();
-    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `Bulan ${ym}` };
+    return { dari: `${ym}-01`, sampai: `${ym}-${String(lastDay).padStart(2,'0')}`, label: `${t('Bulan')} ${ym}` };
   }
   if(type==='tahunan'){
     const yy = document.getElementById('expTahun').value;
     if(!yy) return null;
-    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `Tahun ${yy}` };
+    return { dari: `${yy}-01-01`, sampai: `${yy}-12-31`, label: `${t('Tahun')} ${yy}` };
   }
   return null;
 }
@@ -201,7 +201,7 @@ function renderExpenseList(){
   if(!range){
     document.getElementById('expStTotal').textContent = rupiah(0);
     document.getElementById('expStCount').textContent = '0';
-    el.innerHTML = `<div class="empty"><h3>Lengkapi periode dulu</h3></div>`;
+    el.innerHTML = `<div class="empty"><h3>${t('Lengkapi periode dulu')}</h3></div>`;
     expenseReportCache = null;
     return;
   }
@@ -213,8 +213,8 @@ function renderExpenseList(){
   if(listAsc.length===0){
     el.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>Belum ada pengeluaran periode ini</h3>
-      <p>Catat pengeluaran seperti listrik, gaji, atau sabun di form atas.</p>
+      <h3>${t('Belum ada pengeluaran periode ini')}</h3>
+      <p>${t('Catat pengeluaran seperti listrik, gaji, atau sabun di form atas.')}</p>
     </div>`;
   } else {
     el.innerHTML = listAsc.slice().reverse().map(e=>`
@@ -229,7 +229,7 @@ function renderExpenseList(){
         ${e.qty ? `<div class="trx-meta">${e.qty} ${escapeHTML(e.satuan||'')} x ${rupiah(e.harga||0)}</div>` : ''}
         ${e.catatan ? `<div class="trx-meta">${escapeHTML(e.catatan)}</div>` : ''}
         <div class="trx-actions">
-          <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">🗑️ Hapus</button>
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">${t('🗑️ Hapus')}</button>
         </div>
       </div>
     `).join('');
@@ -238,7 +238,7 @@ function renderExpenseList(){
 }
 function downloadExpensePDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
-  if(!expenseReportCache){ showToast('Tampilkan laporan dulu sebelum unduh PDF'); return; }
+  if(!expenseReportCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
   const { range, list, total } = expenseReportCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -249,17 +249,17 @@ function downloadExpensePDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
-  doc.text('Laporan Rincian Pengeluaran', 14, 30);
+  doc.text(t('Laporan Rincian Pengeluaran'), 14, 30);
   doc.setFontSize(9.5);
-  doc.text(`Periode: ${range.label}`, 14, 36);
+  doc.text(`${t('Periode:')} ${range.label}`, 14, 36);
 
   let y = 46;
   doc.setFont('helvetica','bold'); doc.setFontSize(9);
-  doc.text('Tanggal', colX.tgl, y);
-  doc.text('Nama Barang/Jasa', colX.nama, y);
-  doc.text('Kategori', colX.kategori, y);
-  doc.text('Qty', colX.qty, y);
-  doc.text('Jumlah', colX.total, y, { align:'right' });
+  doc.text(t('Tanggal'), colX.tgl, y);
+  doc.text(t('Nama Barang/Jasa'), colX.nama, y);
+  doc.text(t('Kategori'), colX.kategori, y);
+  doc.text(t('Qty'), colX.qty, y);
+  doc.text(t('Jumlah'), colX.total, y, { align:'right' });
   y += 2.5;
   doc.setLineWidth(0.4);
   doc.line(14, y, 196, y);
@@ -267,7 +267,7 @@ function downloadExpensePDF(){
 
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
   if(list.length===0){
-    doc.text('Tidak ada pengeluaran pada periode ini.', 14, y);
+    doc.text(t('Tidak ada pengeluaran pada periode ini.'), 14, y);
     y += 6;
   }
   list.forEach(e=>{
@@ -293,7 +293,7 @@ function downloadExpensePDF(){
   doc.line(14, y, 196, y);
   y += 7;
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('Total Pengeluaran', colX.kategori, y);
+  doc.text(t('Total Pengeluaran'), colX.kategori, y);
   doc.text(rupiah(total), colX.total, y, { align:'right' });
 
   doc.save(`Pengeluaran-${range.label.replace(/\s+/g,'-')}.pdf`);

@@ -9,35 +9,35 @@
    dibanding transaksi & pelanggan paket. */
 function diffTransactionFields(oldT, newT){
   const fields = [
-    { key:'nama', label:'Nama Pelanggan' },
-    { key:'hp', label:'No. HP' },
-    { key:'tanggal', label:'Tanggal' },
-    { key:'estimasi', label:'Estimasi Selesai' },
-    { key:'diskon', label:'Diskon' },
-    { key:'dp', label:'Uang Muka' },
-    { key:'status', label:'Status Bayar' },
-    { key:'catatan', label:'Catatan' },
+    { key:'nama', label:t('Nama Pelanggan') },
+    { key:'hp', label:t('No. HP') },
+    { key:'tanggal', label:t('Tanggal') },
+    { key:'estimasi', label:t('Estimasi Selesai') },
+    { key:'diskon', label:t('Diskon') },
+    { key:'dp', label:t('Uang Muka') },
+    { key:'status', label:t('Status Bayar') },
+    { key:'catatan', label:t('Catatan') },
   ];
   const changes = diffScalarFields(oldT, newT, fields);
   const itemLabel = items => (items||[]).map(it=>`${it.nama} (${it.qty}${it.satuan})`).join(', ') || '-';
   const oldItemsKey = JSON.stringify((oldT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
   const newItemsKey = JSON.stringify((newT.items||[]).map(it=>({n:it.nama,q:it.qty,s:it.satuan,h:it.harga})));
-  if(oldItemsKey!==newItemsKey) changes.push({ field:'items', label:'Daftar Layanan', from:itemLabel(oldT.items), to:itemLabel(newT.items) });
-  if(Number(oldT.total)!==Number(newT.total)) changes.push({ field:'total', label:'Total', from:rupiah(oldT.total), to:rupiah(newT.total) });
+  if(oldItemsKey!==newItemsKey) changes.push({ field:'items', label:t('Daftar Layanan'), from:itemLabel(oldT.items), to:itemLabel(newT.items) });
+  if(Number(oldT.total)!==Number(newT.total)) changes.push({ field:'total', label:t('Total'), from:rupiah(oldT.total), to:rupiah(newT.total) });
   return changes;
 }
 /* Form Edit Pelanggan Paket cuma menyentuh identitas & harga paketnya
    (bukan status bayar/DP — itu diubah lewat alur bayar/pemakaian terpisah). */
 function diffSubscriptionFields(oldS, newS){
   const fields = [
-    { key:'nama', label:'Nama Pelanggan' },
-    { key:'hp', label:'No. HP' },
-    { key:'paketNama', label:'Paket' },
-    { key:'hargaPaket', label:'Harga Paket', fmt:rupiah },
-    { key:'hargaLebihKg', label:'Harga Lebih Kuota/kg', fmt:rupiah },
-    { key:'kuotaKg', label:'Kuota (kg)' },
-    { key:'tanggalMulai', label:'Tanggal Mulai' },
-    { key:'tanggalSelesai', label:'Tanggal Selesai' },
+    { key:'nama', label:t('Nama Pelanggan') },
+    { key:'hp', label:t('No. HP') },
+    { key:'paketNama', label:t('Paket') },
+    { key:'hargaPaket', label:t('Harga Paket'), fmt:rupiah },
+    { key:'hargaLebihKg', label:t('Harga Lebih Kuota/kg'), fmt:rupiah },
+    { key:'kuotaKg', label:t('Kuota (kg)') },
+    { key:'tanggalMulai', label:t('Tanggal Mulai') },
+    { key:'tanggalSelesai', label:t('Tanggal Selesai') },
   ];
   return diffScalarFields(oldS, newS, fields);
 }
@@ -60,7 +60,7 @@ function diffScalarFields(oldObj, newObj, fields){
    belum dimigrasi, edit tetap jalan normal, cuma riwayatnya tidak tercatat. */
 async function logEditHistory(entityType, entityId, changes){
   if(!changes || changes.length===0) return;
-  const editorNama = currentRole==='owner' ? 'Pemilik' : (employeeName || 'Kasir');
+  const editorNama = currentRole==='owner' ? t('Pemilik') : (employeeName || t('Kasir'));
   try{
     await sb.from('edit_log').insert({
       owner_id: shopOwnerId, entity_type: entityType, entity_id: String(entityId),
@@ -78,16 +78,16 @@ async function openEditHistory(entityType, entityId, title){
   const modal = document.getElementById('editHistoryModal');
   const list = document.getElementById('editHistoryList');
   const titleEl = document.getElementById('editHistoryModalTitle');
-  if(titleEl) titleEl.textContent = title || '🕘 Riwayat Edit';
-  list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Memuat...</div>`;
+  if(titleEl) titleEl.textContent = title || t('🕘 Riwayat Edit');
+  list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">${t('Memuat...')}</div>`;
   modal.classList.add('show');
   const { data, error } = await sb.from('edit_log').select('*').eq('entity_type', entityType).eq('entity_id', String(entityId)).order('edited_at', { ascending:false });
   if(error){
-    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Riwayat edit belum tersedia — tabel edit_log mungkin belum dimigrasi (lihat README).</div>`;
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">${t('Riwayat edit belum tersedia — tabel edit_log mungkin belum dimigrasi (lihat README).')}</div>`;
     return;
   }
   if(!data || data.length===0){
-    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">Belum ada riwayat edit untuk data ini.</div>`;
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">${t('Belum ada riwayat edit untuk data ini.')}</div>`;
     return;
   }
   list.innerHTML = data.map(row=>{
@@ -103,13 +103,13 @@ function closeEditHistory(){ document.getElementById('editHistoryModal').classLi
 async function deleteTransaction(id){
   const trx = transactions.find(t=>t.id===id);
   if(!trx) return;
-  if(!confirm('Hapus transaksi ini?')) return;
+  if(!confirm(t('Hapus transaksi ini?'))) return;
   const { error } = await sb.from('transactions').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus transaksi'); return; }
+  if(error){ showToast(t('Gagal menghapus transaksi')); return; }
   transactions = transactions.filter(t=>t.id!==id);
   renderHistory();
-  showToast('Transaksi dihapus', {
-    label: 'Urungkan',
+  showToast(t('Transaksi dihapus'), {
+    label: t('Urungkan'),
     onClick: async ()=>{
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
@@ -117,7 +117,7 @@ async function deleteTransaction(id){
         status: trx.status, catatan: trx.catatan, work_status: trx.workStatus,
         ...(trx.outletId ? { outlet_id: trx.outletId } : {})
       }).select().single();
-      if(err2){ showToast('Gagal mengembalikan transaksi'); return; }
+      if(err2){ showToast(t('Gagal mengembalikan transaksi')); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
@@ -125,7 +125,7 @@ async function deleteTransaction(id){
         outletId: data.outlet_id!=null ? String(data.outlet_id) : null
       });
       renderHistory();
-      showToast('Transaksi dikembalikan');
+      showToast(t('Transaksi dikembalikan'));
     }
   });
 }

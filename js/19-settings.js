@@ -32,9 +32,19 @@ function openSettingsSub(id){
   const titles = {
     langganan:'💳 Langganan Aplikasi', profil:'🏪 Profil Toko', notifikasi:'🔔 Notifikasi',
     keamanan:'🔒 Keamanan Akun', kontak:'📇 Kontak Pelanggan', outlet:'🏬 Outlet / Cabang',
-    printer:'🖨️ Printer Bluetooth', karyawan:'👥 Karyawan / Kasir', admin:'🔐 Admin Platform'
+    printer:'🖨️ Printer Bluetooth', karyawan:'👥 Karyawan / Kasir', bahasa:'🌐 Bahasa / Language',
+    admin:'🔐 Admin Platform'
   };
-  document.getElementById('settingsSubTitle').textContent = titles[id] || 'Pengaturan';
+  document.getElementById('settingsSubTitle').textContent = t(titles[id] || 'Pengaturan');
+  if(id==='bahasa'){
+    const btnId = document.getElementById('langBtnId');
+    const btnEn = document.getElementById('langBtnEn');
+    [ [btnId, currentLang==='id'], [btnEn, currentLang==='en'] ].forEach(([btn, active])=>{
+      if(!btn) return;
+      btn.style.background = active ? 'var(--mist)' : '';
+      btn.style.borderColor = active ? 'var(--suds)' : '';
+    });
+  }
   document.getElementById('settingsModal').querySelector('.modal').scrollTop = 0;
 }
 function closeSettingsSub(){
@@ -49,7 +59,7 @@ async function saveSettingsForm(){
   await persistSettings();
   applySettingsToUI();
   closeSettings();
-  showToast('Pengaturan disimpan');
+  showToast(t('Pengaturan disimpan'));
 }
 function applySettingsToUI(){
   document.getElementById('shopNameLabel').textContent = settings.shopName || 'Laundry Batapas.id';
@@ -63,18 +73,18 @@ function setAccountMsg(msg, ok){
 }
 async function changeAccountEmail(){
   const email = document.getElementById('setEmailBaru').value.trim();
-  if(!email){ setAccountMsg('Isi email baru terlebih dahulu', false); return; }
+  if(!email){ setAccountMsg(t('Isi email baru terlebih dahulu'), false); return; }
   const { error } = await sb.auth.updateUser({ email });
-  if(error){ setAccountMsg('Gagal mengganti email: '+error.message, false); return; }
-  setAccountMsg('Cek email lama & baru untuk konfirmasi perubahan.', true);
+  if(error){ setAccountMsg(t('Gagal mengganti email:')+' '+error.message, false); return; }
+  setAccountMsg(t('Cek email lama & baru untuk konfirmasi perubahan.'), true);
   document.getElementById('setEmailBaru').value='';
 }
 async function changeAccountPassword(){
   const password = document.getElementById('setPasswordBaru').value;
-  if(!password || password.length<6){ setAccountMsg('Password baru minimal 6 karakter', false); return; }
+  if(!password || password.length<6){ setAccountMsg(t('Password baru minimal 6 karakter'), false); return; }
   const { error } = await sb.auth.updateUser({ password });
-  if(error){ setAccountMsg('Gagal mengganti password: '+error.message, false); return; }
-  setAccountMsg('Password berhasil diganti.', true);
+  if(error){ setAccountMsg(t('Gagal mengganti password:')+' '+error.message, false); return; }
+  setAccountMsg(t('Password berhasil diganti.'), true);
   document.getElementById('setPasswordBaru').value='';
 }
 

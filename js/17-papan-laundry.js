@@ -49,7 +49,7 @@ function buildAllWorkItemsRaw(){
     const sub = subscriptions.find(s=>s.id===u.subscriptionId);
     return {
       id:u.id, source:'usage', nama: sub ? sub.nama : '-', hp: sub ? sub.hp : '', outletId: sub ? sub.outletId : null,
-      layanan: sub ? sub.paketNama : 'Laundry Masuk (kg)', beratLabel:`${u.berat} kg`,
+      layanan: sub ? sub.paketNama : t('Laundry Masuk (kg)'), beratLabel:`${u.berat} kg`,
       tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
       lunas: sub ? sub.statusBayar==='lunas' : false
     };
@@ -95,7 +95,7 @@ async function setWorkStatus(id, status, source){
   const item = list.find(x=>x.id===id);
   if(!item) return;
   const { error } = await sb.from(table).update({ work_status: status }).eq('id', id);
-  if(error){ showToast('Gagal memperbarui status kerja'); return; }
+  if(error){ showToast(t('Gagal memperbarui status kerja')); return; }
   item.workStatus = status;
   renderWorkBoard();
   if(status==='selesai' && settings.autoNotifySelesai) sendWorkDoneNotification(id, source);
@@ -107,11 +107,11 @@ async function setWorkStatus(id, status, source){
 function workDoneNotifTextWA(it){
   const hdr = notaHeaderInfo(it.outletId);
   const lines = [];
-  lines.push(`Halo ${it.nama},`);
-  lines.push(`Laundry Anda (${it.layanan}) sudah *SELESAI* dan siap diambil di ${hdr.nama}${hdr.subtitle ? ' - '+hdr.subtitle : ''}.`);
+  lines.push(`${t('Halo')} ${it.nama},`);
+  lines.push(`${t('Laundry Anda')} (${it.layanan}) ${t('sudah *SELESAI* dan siap diambil di')} ${hdr.nama}${hdr.subtitle ? ' - '+hdr.subtitle : ''}.`);
   if(hdr.alamat) lines.push(hdr.alamat);
   lines.push('');
-  lines.push(settings.note || 'Terima kasih telah menggunakan jasa kami');
+  lines.push(settings.note || t('Terima kasih telah menggunakan jasa kami'));
   return lines.join('\n');
 }
 /* Web (bukan app WhatsApp Business resmi/API) tidak bisa kirim pesan tanpa
@@ -120,8 +120,8 @@ function workDoneNotifTextWA(it){
    tombol "Kirim" terakhir tetap perlu diketuk manual di WhatsApp-nya. */
 function sendWorkDoneNotification(id, source){
   const it = buildAllWorkItemsRaw().find(x=>x.id===id && x.source===source);
-  if(!it){ showToast('Data kerjaan tidak ditemukan'); return; }
-  if(!it.hp){ showToast('Nomor WA pelanggan belum diisi — notifikasi tidak dikirim'); return; }
+  if(!it){ showToast(t('Data kerjaan tidak ditemukan')); return; }
+  if(!it.hp){ showToast(t('Nomor WA pelanggan belum diisi — notifikasi tidak dikirim')); return; }
   openWA(normalizePhone(it.hp), workDoneNotifTextWA(it), 'wa');
 }
 async function markPickedUp(id, source){
@@ -130,9 +130,9 @@ async function markPickedUp(id, source){
   const item = list.find(x=>x.id===id);
   if(!item) return;
   const { error } = await sb.from(table).update({ work_status: 'diambil' }).eq('id', id);
-  if(error){ showToast('Gagal menandai sudah diambil'); return; }
+  if(error){ showToast(t('Gagal menandai sudah diambil')); return; }
   item.workStatus = 'diambil';
-  showToast('Ditandai sudah diambil');
+  showToast(t('Ditandai sudah diambil'));
   renderWorkBoard();
 }
 /* Kartu hanya menampilkan 4 info sesuai permintaan: nama pelanggan, jenis
@@ -142,10 +142,10 @@ async function markPickedUp(id, source){
    bukan tanggal masuk. */
 function workBoardCardTopHTML(it){
   const tanggalInfo = it.estimasi
-    ? `Selesai ${fmtDate(it.estimasi)}`
-    : `Selesai ${fmtDate(it.tanggal)} (belum ada estimasi)`;
+    ? `${t('Selesai')} ${fmtDate(it.estimasi)}`
+    : `${t('Selesai')} ${fmtDate(it.tanggal)} (${t('belum ada estimasi')})`;
   const bayarInfo = it.lunas
-    ? `<div class="work-lunas">Lunas</div>`
+    ? `<div class="work-lunas">${t('Lunas')}</div>`
     : `<div class="work-harga">${it.beratLabel || rupiah(it.harga)}</div>`;
   return `
       <div class="work-nama">${escapeHTML(it.nama)}</div>
@@ -158,12 +158,12 @@ function workBoardCardHTML(it){
   return `
     <div class="work-card">${workBoardCardTopHTML(it)}
       <div class="btn-row" style="gap:4px;">
-        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${it.id}','belum','${it.source}')">Belum</button>
-        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">Dikerjakan</button>
-        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${it.id}','selesai','${it.source}')">Selesai</button>
+        <button class="work-pill ${ws==='belum'?'on-belum':''}" onclick="setWorkStatus('${it.id}','belum','${it.source}')">${currentLang==='en'?'Not Started':'Belum'}</button>
+        <button class="work-pill ${ws==='sedang'?'on-sedang':''}" onclick="setWorkStatus('${it.id}','sedang','${it.source}')">${t('Dikerjakan')}</button>
+        <button class="work-pill ${ws==='selesai'?'on-selesai':''}" onclick="setWorkStatus('${it.id}','selesai','${it.source}')">${t('Selesai')}</button>
       </div>
-      ${ws==='selesai' && !settings.autoNotifySelesai ? `<button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="sendWorkDoneNotification('${it.id}','${it.source}')">📣 Kirim Notifikasi</button>` : ''}
-      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">📤 Sudah Diambil</button>` : ''}
+      ${ws==='selesai' && !settings.autoNotifySelesai ? `<button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="sendWorkDoneNotification('${it.id}','${it.source}')">${t('📣 Kirim Notifikasi')}</button>` : ''}
+      ${ws==='selesai' ? `<button class="btn btn-accent btn-sm" style="width:100%;margin-top:6px;font-size:11px;padding:6px 4px;" onclick="markPickedUp('${it.id}','${it.source}')">${t('📤 Sudah Diambil')}</button>` : ''}
     </div>`;
 }
 /* Versi statis kartu khusus untuk gambar yang diunduh — tombol status
@@ -180,7 +180,7 @@ function workBoardCardHTMLForExport(it){
   const realWs = it.workStatus || 'belum';
   const dianggapBeres = it.tanggal < PAPAN_KERJA_MULAI_TANGGAL;
   const ws = (dianggapBeres && realWs!=='diambil') ? 'selesai' : realWs;
-  const statusLabel = { belum:'Belum Dikerjakan', sedang:'Dikerjakan', selesai:'Selesai Dikerjakan', diambil:'✓ Sudah Diambil' }[ws] || ws;
+  const statusLabel = { belum:t('Belum Dikerjakan'), sedang:t('Dikerjakan'), selesai:t('Selesai Dikerjakan'), diambil:t('✓ Sudah Diambil') }[ws] || ws;
   const pillClass = { belum:'on-belum', sedang:'on-sedang', selesai:'on-selesai', diambil:'on-selesai' }[ws] || '';
   const displayIt = dianggapBeres ? { ...it, lunas:true } : it;
   return `
@@ -207,10 +207,10 @@ function renderWorkBoard(){
       .slice().sort((a,b)=>{ const da=workBoardDate(a), db=workBoardDate(b); return da<db?-1:(da>db?1:0); });
     const isToday = day===todayName;
     const body = list.length===0
-      ? `<div class="work-day-empty">Belum ada</div>`
+      ? `<div class="work-day-empty">${t('Belum ada')}</div>`
       : list.map(workBoardCardHTML).join('');
     return `<div class="work-day-col">
-      <div class="work-day-col-header ${isToday?'is-today':''}">${day}${isToday?'<small>Hari Ini</small>':''}</div>
+      <div class="work-day-col-header ${isToday?'is-today':''}">${t(day)}${isToday?'<small>'+t('Hari Ini')+'</small>':''}</div>
       <div class="work-day-col-body">${body}</div>
     </div>`;
   }).join('');
@@ -229,12 +229,12 @@ async function downloadWorkBoardImage(){
   const sampaiEl = document.getElementById('papanUnduhSampai');
   const dari = dariEl ? dariEl.value : '';
   const sampai = sampaiEl ? sampaiEl.value : '';
-  if(!dari || !sampai){ showToast('Isi rentang tanggal dulu'); return; }
-  if(dari > sampai){ showToast('Tanggal "Dari" harus sebelum "Sampai"'); return; }
+  if(!dari || !sampai){ showToast(t('Isi rentang tanggal dulu')); return; }
+  if(dari > sampai){ showToast(t('Tanggal "Dari" harus sebelum "Sampai"')); return; }
   const items = buildWorkItemsForRange(dari, sampai);
-  if(items.length===0){ showToast('Tidak ada cucian di rentang tanggal ini'); return; }
-  if(typeof html2canvas==='undefined'){ showToast('Gagal memuat alat unduh gambar'); return; }
-  showToast('Menyiapkan gambar Daftar Tugas...');
+  if(items.length===0){ showToast(t('Tidak ada cucian di rentang tanggal ini')); return; }
+  if(typeof html2canvas==='undefined'){ showToast(t('Gagal memuat alat unduh gambar')); return; }
+  showToast(t('Menyiapkan gambar Daftar Tugas...'));
   // Rentang lebih dari 7 hari TIDAK memanjang terus ke kanan — dipecah jadi
   // beberapa baris berisi maksimal 7 kolom tanggal, ditumpuk ke bawah
   // (persis seperti kalender berganti minggu), baris terakhir boleh kurang
@@ -248,7 +248,7 @@ async function downloadWorkBoardImage(){
     const cols = row.map(g=>{
       const body = g.items.map(workBoardCardHTMLForExport).join('');
       return `<div class="work-day-col">
-        <div class="work-day-col-header">${indoDayName(g.date)}<small>${fmtDate(g.date)}</small></div>
+        <div class="work-day-col-header">${t(indoDayName(g.date))}<small>${fmtDate(g.date)}</small></div>
         <div class="work-day-col-body">${body}</div>
       </div>`;
     }).join('');
@@ -259,11 +259,11 @@ async function downloadWorkBoardImage(){
     const canvas = await html2canvas(wrap, { backgroundColor:'#EEF5F7', scale:2 });
     const filename = `daftar-pekerjaan-${dari}_sampai_${sampai}.jpg`;
     const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if(!blob){ showToast('Gagal membuat gambar Daftar Tugas'); return; }
+    if(!blob){ showToast(t('Gagal membuat gambar Daftar Tugas')); return; }
     try{
       const file = new File([blob], filename, { type:'image/jpeg' });
       if(navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], title: filename, text:'Daftar Tugas' });
+        await navigator.share({ files:[file], title: filename, text:t('Daftar Tugas') });
         return;
       }
     }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
@@ -272,9 +272,9 @@ async function downloadWorkBoardImage(){
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=> URL.revokeObjectURL(url), 5000);
-    showToast('Gambar Daftar Tugas diunduh');
+    showToast(t('Gambar Daftar Tugas diunduh'));
   }catch(e){
-    showToast('Gagal membuat gambar Daftar Tugas');
+    showToast(t('Gagal membuat gambar Daftar Tugas'));
   }finally{
     wrap.remove();
   }

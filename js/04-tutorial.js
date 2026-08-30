@@ -9,6 +9,10 @@ function toggleTut(btn){
 }
 
 /* ===================== LATIHAN PRAKTIK LANGSUNG (tur spotlight) ===================== */
+/* Catatan: teks di sini TIDAK dibungkus t() langsung di sini karena TOUR_STEPS
+   dievaluasi saat file ini di-load, sebelum js/21-i18n.js (dimuat paling
+   akhir) mendefinisikan t(). Pembungkusan t() dilakukan saat ditampilkan,
+   di showTourStep() di bawah. */
 const TOUR_STEPS = [
   { tab:'baru', el:'#inNama', text:'Ini kolom nama pelanggan. Coba ketik nama di sini — kalau sudah pernah input sebelumnya, akan muncul saran otomatis.' },
   { tab:'baru', el:'#itNama', text:'Di sini kamu pilih atau ketik layanan yang dipesan, misalnya "Cuci + Setrika".' },
@@ -31,16 +35,16 @@ function endGuidedTour(){
 }
 function nextTourStep(){
   tourIndex++;
-  if(tourIndex >= TOUR_STEPS.length){ endGuidedTour(); showToast('Latihan selesai! Sekarang kamu siap pakai aplikasi ini 🎉'); return; }
+  if(tourIndex >= TOUR_STEPS.length){ endGuidedTour(); showToast(t('Latihan selesai! Sekarang kamu siap pakai aplikasi ini 🎉')); return; }
   showTourStep();
 }
 function showTourStep(){
   const step = TOUR_STEPS[tourIndex];
   switchTab(step.tab);
   if(step.pre) step.pre();
-  document.getElementById('tourStepLabel').textContent = `Langkah ${tourIndex+1} dari ${TOUR_STEPS.length}`;
-  document.getElementById('tourText').textContent = step.text;
-  document.getElementById('tourNextBtn').textContent = (tourIndex===TOUR_STEPS.length-1) ? 'Selesai' : 'Lanjut';
+  document.getElementById('tourStepLabel').textContent = `${t('Langkah')} ${tourIndex+1} ${t('dari')} ${TOUR_STEPS.length}`;
+  document.getElementById('tourText').textContent = t(step.text);
+  document.getElementById('tourNextBtn').textContent = (tourIndex===TOUR_STEPS.length-1) ? t('Selesai') : t('Lanjut');
   setTimeout(()=>positionTourSpotlight(step.el), 120);
 }
 function positionTourSpotlight(selector){

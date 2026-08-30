@@ -26,7 +26,7 @@ async function loadOutletsFromDB(){
    besar lintas cabang. */
 function switchOutlet(id){
   if(currentRole==='kasir' && kasirOutletId && String(id)!==kasirOutletId){
-    showToast('Outlet Anda dikunci oleh pemilik toko');
+    showToast(t('Outlet Anda dikunci oleh pemilik toko'));
     closeOutletPicker();
     return;
   }
@@ -55,29 +55,29 @@ async function addOutlet(){
   const nama = document.getElementById('outletNama').value.trim();
   const alamat = document.getElementById('outletAlamat').value.trim();
   const telp = document.getElementById('outletTelp').value.trim();
-  if(!nama){ showToast('Nama outlet wajib diisi'); return; }
+  if(!nama){ showToast(t('Nama outlet wajib diisi')); return; }
   const { data, error } = await sb.from('outlets').insert({ user_id: shopOwnerId, nama, alamat, telp }).select().single();
-  if(error){ showToast('Gagal menambah outlet — pastikan tabel outlets sudah dimigrasi (lihat README)'); return; }
+  if(error){ showToast(t('Gagal menambah outlet — pastikan tabel outlets sudah dimigrasi (lihat README)')); return; }
   outlets.push({ id:data.id, nama:data.nama, alamat:data.alamat||'', telp:data.telp||'' });
   if(!currentOutletId){ currentOutletId = String(data.id); try{ localStorage.setItem('nk_lastOutletId', currentOutletId); }catch(e){} }
   document.getElementById('outletNama').value = '';
   document.getElementById('outletAlamat').value = '';
   document.getElementById('outletTelp').value = '';
-  showToast('Outlet ditambahkan');
+  showToast(t('Outlet ditambahkan'));
   renderOutletManagerList();
   renderOutletSwitcherLabel();
   populateReportOutletFilter();
 }
 async function deleteOutlet(id){
-  if(!confirm('Hapus outlet ini? Data transaksi/paket/pengeluaran yang sudah tercatat di outlet ini TIDAK ikut terhapus, cuma dilepas kaitannya (jadi tanpa outlet).')) return;
+  if(!confirm(t('Hapus outlet ini? Data transaksi/paket/pengeluaran yang sudah tercatat di outlet ini TIDAK ikut terhapus, cuma dilepas kaitannya (jadi tanpa outlet).'))) return;
   const { error } = await sb.from('outlets').delete().eq('id', id);
-  if(error){ showToast('Gagal menghapus outlet'); return; }
+  if(error){ showToast(t('Gagal menghapus outlet')); return; }
   outlets = outlets.filter(o=>String(o.id)!==String(id));
   if(currentOutletId===String(id)){
     currentOutletId = outlets.length>0 ? String(outlets[0].id) : null;
     try{ localStorage.setItem('nk_lastOutletId', currentOutletId||''); }catch(e){}
   }
-  showToast('Outlet dihapus');
+  showToast(t('Outlet dihapus'));
   renderOutletManagerList();
   renderOutletSwitcherLabel();
   populateReportOutletFilter();
@@ -86,7 +86,7 @@ async function deleteOutlet(id){
 function renderOutletManagerList(){
   const el = document.getElementById('outletManagerList');
   if(!el) return;
-  if(outlets.length===0){ el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">Belum ada outlet — toko ini masih mode 1 lokasi.</div>`; return; }
+  if(outlets.length===0){ el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">${t('Belum ada outlet — toko ini masih mode 1 lokasi.')}</div>`; return; }
   el.innerHTML = outlets.map(o=>`
     <div class="item-line" style="align-items:center;">
       <span>${escapeHTML(o.nama)}${o.alamat?` <span style="color:var(--ink-soft);">— ${escapeHTML(o.alamat)}</span>`:''}</span>
@@ -101,10 +101,10 @@ function renderOutletSwitcherLabel(){
   wrap.style.display = 'flex';
   const cur = outlets.find(o=>String(o.id)===currentOutletId);
   const locked = currentRole==='kasir' && !!kasirOutletId;
-  document.getElementById('outletSwitcherLabel').textContent = (cur ? cur.nama : 'Pilih Outlet') + (locked ? ' 🔒' : '');
+  document.getElementById('outletSwitcherLabel').textContent = (cur ? cur.nama : t('Pilih Outlet')) + (locked ? ' 🔒' : '');
 }
 function openOutletPicker(){
-  if(currentRole==='kasir' && kasirOutletId){ showToast('Outlet Anda dikunci oleh pemilik toko'); return; }
+  if(currentRole==='kasir' && kasirOutletId){ showToast(t('Outlet Anda dikunci oleh pemilik toko')); return; }
   const el = document.getElementById('outletPickerList');
   el.innerHTML = outlets.map(o=>`
     <button type="button" class="btn ${String(o.id)===currentOutletId?'btn-primary':'btn-outline'}" style="margin-bottom:8px;" onclick="switchOutlet('${o.id}')">${escapeHTML(o.nama)}</button>
@@ -116,7 +116,7 @@ function populateReportOutletFilter(){
   const sel = document.getElementById('reportOutletFilterSelect');
   if(!sel) return;
   const prev = sel.value;
-  sel.innerHTML = '<option value="">Semua Outlet</option>' + outlets.map(o=>`<option value="${o.id}">${escapeHTML(o.nama)}</option>`).join('');
+  sel.innerHTML = `<option value="">${t('Semua Outlet')}</option>` + outlets.map(o=>`<option value="${o.id}">${escapeHTML(o.nama)}</option>`).join('');
   sel.value = outlets.some(o=>String(o.id)===prev) ? prev : '';
   reportOutletFilter = sel.value;
   const wrap = document.getElementById('reportOutletFilterWrap');
@@ -145,7 +145,7 @@ function notaHeaderInfo(outletId){
    perlu diedit di satu tempat (appBranding, lihat loadAppBranding()). */
 function notaFooterLinesWA(){
   return [
-    `*dikembangkan oleh ${appBranding.nama}*`,
+    `*${t('dikembangkan oleh')} ${appBranding.nama}*`,
     `_${appBranding.tagline}_`,
     `🟢 WhatsApp: ${appBranding.wa}`,
     `📧 ${appBranding.email}`,
@@ -153,7 +153,7 @@ function notaFooterLinesWA(){
 }
 function notaFooterLinesPDF(){
   return [
-    { t:`dikembangkan oleh ${appBranding.nama}`, c:true, b:true, s:7 },
+    { t:`${t('dikembangkan oleh')} ${appBranding.nama}`, c:true, b:true, s:7 },
     { t:appBranding.tagline, c:true, s:6, it:true },
     { t:appBranding.wa, c:true, s:6, icon:'wa' },
     { t:appBranding.email, c:true, s:6, icon:'email' },
@@ -164,7 +164,7 @@ async function persistSettings(){
     user_id: shopOwnerId, shop_name: settings.shopName, address: settings.address,
     phone: settings.phone, note: settings.note
   });
-  if(error){ showToast('Gagal menyimpan pengaturan'); }
+  if(error){ showToast(t('Gagal menyimpan pengaturan')); }
 }
 /* Upsert lengkap termasuk logo — dipakai terpisah dari persistSettings() supaya
    simpan Nama/Alamat/Telepon/Catatan tetap jalan normal walau kolom logo_url
@@ -191,33 +191,33 @@ async function toggleAutoNotifySelesai(checked){
     settings.autoNotifySelesai = prev;
     const chk = document.getElementById('setAutoNotifySelesai');
     if(chk) chk.checked = prev;
-    showToast('Gagal menyimpan — kolom auto_notify_selesai mungkin belum ada di tabel settings (lihat README)');
+    showToast(t('Gagal menyimpan — kolom auto_notify_selesai mungkin belum ada di tabel settings (lihat README)'));
     return;
   }
-  showToast(checked ? 'Notifikasi WA otomatis diaktifkan' : 'Notifikasi WA otomatis dimatikan');
+  showToast(checked ? t('Notifikasi WA otomatis diaktifkan') : t('Notifikasi WA otomatis dimatikan'));
   renderWorkBoard();
 }
 async function saveShopLogo(dataUri){
   settings.logoUrl = dataUri;
   const error = await persistSettingsWithLogo();
-  if(error){ showToast('Gagal menyimpan logo — kolom logo_url mungkin belum ada di tabel settings'); return; }
+  if(error){ showToast(t('Gagal menyimpan logo — kolom logo_url mungkin belum ada di tabel settings')); return; }
   applySettingsToUI();
-  showToast('Logo toko disimpan');
+  showToast(t('Logo toko disimpan'));
 }
 async function resetShopLogo(){
-  if(!confirm('Kembalikan logo toko ke logo default aplikasi?')) return;
+  if(!confirm(t('Kembalikan logo toko ke logo default aplikasi?'))) return;
   settings.logoUrl = null;
   const error = await persistSettingsWithLogo();
-  if(error){ showToast('Gagal reset logo — kolom logo_url mungkin belum ada di tabel settings'); return; }
+  if(error){ showToast(t('Gagal reset logo — kolom logo_url mungkin belum ada di tabel settings')); return; }
   const preview = document.getElementById('logoPreviewImg');
   if(preview) preview.src = shopLogoSrc();
   applySettingsToUI();
-  showToast('Logo dikembalikan ke default');
+  showToast(t('Logo dikembalikan ke default'));
 }
 function handleLogoFileChange(event){
   const file = event.target.files && event.target.files[0];
   if(!file) return;
-  if(!file.type.startsWith('image/')){ showToast('Pilih berkas gambar (JPG/PNG)'); event.target.value=''; return; }
+  if(!file.type.startsWith('image/')){ showToast(t('Pilih berkas gambar (JPG/PNG)')); event.target.value=''; return; }
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();
@@ -234,10 +234,10 @@ function handleLogoFileChange(event){
       if(preview) preview.src = dataUri;
       await saveShopLogo(dataUri);
     };
-    img.onerror = () => showToast('Gagal membaca gambar');
+    img.onerror = () => showToast(t('Gagal membaca gambar'));
     img.src = reader.result;
   };
-  reader.onerror = () => showToast('Gagal membaca berkas');
+  reader.onerror = () => showToast(t('Gagal membaca berkas'));
   reader.readAsDataURL(file);
   event.target.value = '';
 }
