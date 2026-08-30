@@ -1601,6 +1601,36 @@
 <script src="js/20-catatan.js"></script>
 <script src="js/21-i18n.js"></script>
 <script>
+  /* Listener sesi login SENGAJA ditaruh di <script> paling akhir ini (bukan
+     di js/01-auth.js tempat fungsi2 auth lain berada) -- supabase-js bisa
+     memicu callback ini lewat microtask sesaat setelah satu <script src>
+     selesai dieksekusi, SEBELUM <script src> berikutnya sempat dimuat. Kalau
+     listener ini didaftarkan lebih awal (mis. di 01-auth.js, urutan #2 dari
+     22 <script> tag), callback bisa keburu jalan sebelum resolveRoleAndInit()
+     (didefinisikan belakangan di js/02-init-data.js) sempat ada, menyebabkan
+     "ReferenceError: resolveRoleAndInit is not defined" dan user gagal
+     auto-login (harus masuk ulang terus meski sesinya sebenarnya valid).
+     Didaftarkan di sini (paling akhir dari SEMUA <script src="js/*.js">)
+     menjamin seluruh fungsi lain sudah pasti terdefinisi lebih dulu, apa pun
+     secepat apa callback-nya terpicu. */
+  if(window.location.hash.includes('type=recovery')){
+    document.getElementById('newPasswordModal').classList.add('show');
+  }
+  sb.auth.onAuthStateChange((event, session) => {
+    if(event === 'PASSWORD_RECOVERY'){
+      document.getElementById('newPasswordModal').classList.add('show');
+      return;
+    }
+    if(session && session.user){
+      currentUser = session.user;
+      document.getElementById('authScreen').classList.add('hidden');
+      resolveRoleAndInit();
+    } else {
+      currentUser = null;
+      document.getElementById('authScreen').classList.remove('hidden');
+    }
+  });
+
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(()=>{});
