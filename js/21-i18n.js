@@ -976,6 +976,17 @@ if(currentLang === 'en'){
   document.documentElement.lang = 'id';
 }
 
+/* Tombol pilih bahasa di layar login (pojok kanan atas, kelihatan sebelum
+   sempat login) -- disorot sesuai currentLang begitu halaman dimuat. Panel
+   Bahasa di Pengaturan (untuk yang sudah login) punya pasangan tombol sendiri
+   dengan id berbeda (langBtnId/langBtnEn), disorot lewat openSettingsSub(). */
+(function highlightAuthLangButtons(){
+  const btnId = document.getElementById('authLangBtnId');
+  const btnEn = document.getElementById('authLangBtnEn');
+  if(btnId) btnId.classList.toggle('active', currentLang === 'id');
+  if(btnEn) btnEn.classList.toggle('active', currentLang === 'en');
+})();
+
 /* Ganti bahasa tampilan lalu reload — cara termudah & paling aman untuk
    memastikan SELURUH halaman (termasuk konten yang sudah dirender JS sejak
    load) konsisten satu bahasa, tanpa perlu kamus balik (en->id) atau
