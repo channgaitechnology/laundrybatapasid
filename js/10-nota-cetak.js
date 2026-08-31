@@ -70,9 +70,7 @@ function tempoUsageNotaTextWA(usage, s){
   lines.push(`*${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}*`);
   lines.push('-------------------------------');
   lines.push(`*${t('Rekap Riwayat Transaksi (Belum Ditagih)')}*`);
-  extras.forEach((u,i)=>{
-    lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
-  });
+  lines.push(...extraGroupLinesWA(extras));
   lines.push('-------------------------------');
   lines.push(`*${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}*`);
   lines.push(`${t('Sudah Dibayar')} : ${rupiah(s.dp||0)}`);
@@ -109,9 +107,7 @@ function tempoBatchUsageNotaTextWA(newItems, s){
   });
   lines.push('-------------------------------');
   lines.push(`*${t('Rekap Riwayat Transaksi (Belum Ditagih)')}*`);
-  extras.forEach((u,i)=>{
-    lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
-  });
+  lines.push(...extraGroupLinesWA(extras));
   lines.push('-------------------------------');
   lines.push(`*${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}*`);
   lines.push(`${t('Sudah Dibayar')} : ${rupiah(s.dp||0)}`);
@@ -206,9 +202,7 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:11});
   L.push({t: div, s:9});
   L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
-  extras.forEach((u,i)=>{
-    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
-  });
+  L.push(...extraGroupLinesPDF(extras));
   L.push({t: div, s:9});
   L.push({t:`${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}`, b:true, s:9});
   L.push({t:`${t('Sudah Dibayar')}          : ${rupiah(s.dp||0)}`, s:9});
@@ -244,9 +238,7 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   });
   L.push({t: div, s:9});
   L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
-  extras.forEach((u,i)=>{
-    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
-  });
+  L.push(...extraGroupLinesPDF(extras));
   L.push({t: div, s:9});
   L.push({t:`${t('Total Tagihan Berjalan')} : ${rupiah(totalHarga)}`, b:true, s:9});
   L.push({t:`${t('Sudah Dibayar')}          : ${rupiah(s.dp||0)}`, s:9});
