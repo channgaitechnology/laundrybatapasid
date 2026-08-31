@@ -8,14 +8,19 @@ function renderReport(){
 
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
-  const totalLunas = list.filter(t=>t.status==='lunas').reduce((s,t)=>s+t.total,0);
+  /* "Sudah Lunas" = kas yang BENAR-BENAR sudah diterima (lihat
+     trxCashReceived()), bukan cuma total transaksi berstatus lunas --
+     supaya DP yang sudah diterima dari transaksi yang masih "Belum Lunas"
+     tetap kehitung sebagai uang masuk, dan Sudah Lunas + Belum Lunas selalu
+     pas dengan Total Omzet (identitas dasar: omzet = kas diterima + piutang). */
+  const totalLunas = list.reduce((s,t)=>s+trxCashReceived(t),0);
   /* Tagihan Paket Bulanan/Tempo yang masih berjalan (belum pernah ditandai
      lunas) tidak tersimpan sebagai baris `transactions` sama sekali, jadi
      tidak pernah kehitung tanpa ini -- nilainya SAAT INI JUGA (bukan
      dipotong sesuai bulan yang sedang dipilih), sama seperti "Sisa Bayar"
      yang tampil di halaman detail pelanggan itu sendiri. */
   const totalBelumLangganan = visibleReportSubscriptions().reduce((sum,s)=>sum+subscriptionOutstanding(s), 0);
-  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-(t.dp||0)),0) + totalBelumLangganan;
+  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-trxCashReceived(t)),0) + totalBelumLangganan;
 
   document.getElementById('stTrx').textContent = totalTrx;
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
@@ -225,8 +230,11 @@ function renderPerPelangganReport(){
 
   const totalTrx = list.length + subsTrxCount;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
-  const totalLunas = lunasList.reduce((s,t)=>s+t.total,0);
-  const totalBelum = belumTrxList.reduce((s,t)=>s+(t.total-(t.dp||0)),0) + subsOutstandingTotal;
+  /* Sama seperti renderReport(): "Sudah Lunas" = kas yang benar-benar sudah
+     diterima (termasuk DP dari transaksi yang masih "Belum Lunas"), bukan
+     cuma total transaksi berstatus lunas -- lihat trxCashReceived(). */
+  const totalLunas = list.reduce((s,t)=>s+trxCashReceived(t),0);
+  const totalBelum = belumTrxList.reduce((s,t)=>s+(t.total-trxCashReceived(t)),0) + subsOutstandingTotal;
 
   document.getElementById('perStTrx').textContent = totalTrx;
   document.getElementById('perStOmzet').textContent = rupiah(totalOmzet);
@@ -401,7 +409,12 @@ function renderLabaRugi(){
   }
   const trxList = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const expList = visibleReportExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
-  const totalOmzet = trxList.reduce((s,t)=>s+t.total,0);
+  /* PENTING: Laba Rugi harus berbasis kas (uang yang benar-benar diterima),
+     BUKAN nilai order kotor (Omzet) yang belum tentu sudah dibayar --
+     kalau tidak, "Untung" bisa tampil padahal pelanggannya belum bayar
+     sepeser pun (dan tidak pernah "rugi" kalau piutangnya macet). Pakai
+     trxCashReceived() yang sama dengan kartu "Sudah Lunas" di Laporan. */
+  const totalOmzet = trxList.reduce((s,t)=>s+trxCashReceived(t),0);
   const totalPengeluaran = expList.reduce((s,e)=>s+e.jumlah,0);
   const pendapatanBersih = totalOmzet - totalPengeluaran;
 
@@ -497,9 +510,11 @@ function renderPeringkatPelanggan(){
   if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
   const list = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const byNama = {};
+  /* "Pemasukan" -> kas yang benar-benar diterima (trxCashReceived()), bukan
+     nilai order kotor, konsisten dengan Laporan utama & Laba Rugi. */
   list.forEach(t=>{
     if(!byNama[t.nama]) byNama[t.nama] = { nama:t.nama, total:0, count:0 };
-    byNama[t.nama].total += t.total;
+    byNama[t.nama].total += trxCashReceived(t);
     byNama[t.nama].count += 1;
   });
   const ranked = Object.values(byNama).sort((a,b)=>b.total-a.total);

@@ -670,11 +670,12 @@ async function markSubsLunas(){
     items.push({ nama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal });
   });
   const today = todayISO();
+  const kunjunganCount = tempo ? groupExtrasIntoTransactions(extras).length : 0;
   const catatan = tempo
-    ? `${t('Pembayaran Tempo (Bayar Nanti) - rekap')} ${extras.length} ${currentLang==='en' ? (extras.length===1?'visit':'visits') : t('kunjungan')}`
+    ? `${t('Pembayaran Tempo (Bayar Nanti) - rekap')} ${kunjunganCount} ${currentLang==='en' ? (kunjunganCount===1?'visit':'visits') : t('kunjungan')}`
     : `${t('Pembayaran Paket Bulanan periode')} ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`;
   const { data, error } = await sb.from('transactions').insert({
-    user_id: shopOwnerId, kode: nextKode(), nama:s.nama, hp:s.hp, tanggal: today,
+    user_id: shopOwnerId, kode: await nextKode(), nama:s.nama, hp:s.hp, tanggal: today,
     estimasi:null, items, diskon:0, total: calc.totalTagihan, dp: calc.totalTagihan,
     status:'lunas', catatan
   }).select().single();

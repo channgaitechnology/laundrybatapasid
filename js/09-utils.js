@@ -9,6 +9,16 @@ function fmtDate(iso){
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+/* Uang yang BENAR-BENAR sudah diterima kas dari satu transaksi, apapun
+   statusnya. Kalau status "lunas", submitTransaction()/toggleLunas()/
+   markSubsLunas() selalu menyimpan dp >= total (dipaksa disamakan kalau
+   kasir tidak isi manual) -- jadi field `dp` SELALU merepresentasikan kas
+   yang sudah diterima, baik untuk transaksi lunas maupun yang masih
+   sebagian dibayar (DP). Dipakai di Laporan/Laba Rugi supaya "Sudah
+   Lunas"/"Pemasukan" mencerminkan uang yang benar-benar masuk kas, BUKAN
+   nilai order kotor (Omzet) yang belum tentu sudah dibayar -- dan supaya
+   Sudah Lunas + Belum Lunas selalu pas dengan Total Omzet/Belanja. */
+function trxCashReceived(t){ return t.dp||0; }
 function sortByTanggalAsc(list){
   return list.slice().sort((a,b)=> a.tanggal<b.tanggal?-1 : a.tanggal>b.tanggal?1 : 0);
 }

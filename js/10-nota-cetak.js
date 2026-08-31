@@ -722,7 +722,20 @@ async function downloadUsageNotaImage(){
   await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
   closeUsageNotaOptions();
 }
-function nextKode(){
+/* Nomor nota diambil dari sequence di database (fungsi next_transaction_kode(),
+   lihat README) supaya DIJAMIN unik & urut -- generate dari panjang array
+   transactions di memori (cara lama) berisiko nomor KEMBAR: bisa terjadi
+   kalau ada transaksi lama yang dihapus permanen (panjang array mengecil,
+   nomor lama terpakai lagi), atau kalau 2 kasir/device menyimpan transaksi
+   nyaris bersamaan (race condition, keduanya baca panjang array yang sama
+   sebelum salah satu selesai tersimpan). Kalau migrasi SQL-nya belum
+   dijalankan, tetap jalan pakai cara lama (fallback) supaya app tidak macet
+   total -- tapi risiko nomor kembar di atas tetap ada sampai migrasi dijalankan. */
+async function nextKode(){
+  try{
+    const { data, error } = await sb.rpc('next_transaction_kode');
+    if(!error && data) return data;
+  }catch(e){ /* lanjut ke fallback di bawah */ }
   const n = transactions.length + 1;
   return 'LND-' + String(n).padStart(4,'0');
 }

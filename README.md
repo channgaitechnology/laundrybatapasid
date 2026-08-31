@@ -547,6 +547,51 @@ diam-diam gagal dan grid Catatan tampil kosong (bisa dibuka, tapi belum
 bisa menyimpan sampai migrasi ini dijalankan), tidak memengaruhi fitur
 lain.
 
+### Nomor Nota (kode transaksi) berbasis database
+
+Sebelumnya nomor nota (`LND-0001`, `LND-0002`, dst.) dibuat dari **panjang
+array transaksi di memori** (`transactions.length + 1`) — ini berisiko
+menghasilkan **nomor kembar** (dua transaksi berbeda punya kode sama):
+kalau ada transaksi lama yang dihapus permanen (bukan lewat "Urungkan"),
+atau kalau 2 kasir/perangkat menyimpan transaksi hampir bersamaan (race
+condition), keduanya bisa menghitung nomor berikutnya yang sama sebelum
+salah satu selesai tersimpan. Nomor nota yang unik & urut adalah syarat
+dasar pembukuan yang bisa diaudit, jadi ini diperbaiki dengan memindahkan
+penomoran ke **sequence di database** — dijamin unik meski diakses
+bersamaan dari banyak perangkat.
+
+Jalankan sekali di Supabase SQL Editor:
+
+```sql
+create sequence if not exists transactions_kode_seq;
+
+-- Lanjutkan dari nomor terbesar yang sudah ada (aman untuk toko yang sudah
+-- punya banyak transaksi lama), atau mulai dari 1 kalau belum ada transaksi.
+select setval(
+  'transactions_kode_seq',
+  coalesce(
+    (select max(substring(kode from '[0-9]+$')::bigint) from transactions where kode ~ '^LND-[0-9]+$'),
+    0
+  )
+);
+
+create or replace function next_transaction_kode()
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select 'LND-' || lpad(nextval('transactions_kode_seq')::text, 4, '0');
+$$;
+
+grant execute on function next_transaction_kode() to authenticated;
+```
+
+Aman dijalankan kapan saja — kalau migrasi ini belum dijalankan,
+`nextKode()` otomatis balik ke cara lama (panjang array) supaya app tetap
+bisa dipakai, TAPI risiko nomor kembar di atas tetap ada sampai migrasi
+ini benar-benar dijalankan. Jalankan migrasi ini **sesegera mungkin**.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
