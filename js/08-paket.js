@@ -320,6 +320,37 @@ async function refreshSubsDetail(){
 }
 /* Nomor urut 2 digit (01, 02, ...) dari tanggal tertua ke termuda. */
 function padNo(n){ return String(n).padStart(2,'0'); }
+/* Hitung sisa tagihan (belum lunas) satu pelanggan Paket Bulanan/Tempo SAAT
+   INI JUGA, dari allWorkUsage yang sudah selalu sinkron di seluruh app (di-
+   push/filter tiap kali ada aksi tambah/hapus pemakaian) -- tanpa perlu query
+   database baru. Rumusnya sama persis dengan _calc di refreshSubsDetail(),
+   supaya angkanya selalu cocok dengan yang tampil di halaman detail pelanggan
+   itu sendiri. Dipakai Laporan supaya tagihan yang masih berjalan (belum
+   ditandai lunas, jadi belum pernah masuk tabel transactions) ikut kehitung
+   di kartu "Belum Lunas". */
+function subscriptionOutstanding(s){
+  const usage = allWorkUsage.filter(u=>u.subscriptionId===s.id);
+  const terpakai = usage.filter(u=>u.type==='pemakaian').reduce((sum,u)=>sum+u.berat,0);
+  const extraTotal = usage.filter(u=>u.type==='layanan_tambahan').reduce((sum,u)=>sum+u.subtotal,0);
+  const excessKg = Math.max(terpakai - s.kuotaKg, 0);
+  const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
+  const excessCost = excessKg * excessRate;
+  const totalTagihan = s.hargaPaket + excessCost + extraTotal;
+  return Math.max(totalTagihan - (s.dp||0), 0);
+}
+/* Rincian tagihan berjalan satu pelanggan (dipakai Laporan Per Pelanggan) --
+   sama seperti subscriptionOutstanding() tapi juga mengembalikan detail per
+   baris (kelompok layanan tambahan + kelebihan kuota) untuk ditampilkan,
+   bukan cuma total akhirnya. */
+function subscriptionOutstandingBreakdown(s){
+  const usage = allWorkUsage.filter(u=>u.subscriptionId===s.id);
+  const extras = usage.filter(u=>u.type==='layanan_tambahan');
+  const terpakai = usage.filter(u=>u.type==='pemakaian').reduce((sum,u)=>sum+u.berat,0);
+  const excessKg = Math.max(terpakai - s.kuotaKg, 0);
+  const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
+  const excessCost = excessKg * excessRate;
+  return { groups: groupExtrasIntoTransactions(extras), excessKg, excessCost, dp: s.dp||0, outstanding: subscriptionOutstanding(s) };
+}
 /* Kelompokkan baris layanan_tambahan (Tempo) yang dicatat SEKALIGUS dalam satu
    kunjungan (batch_id sama, dari submitExtraServiceBatch()) jadi satu
    "transaksi" — dipakai baik oleh tampilan Rekap Riwayat Transaksi di layar

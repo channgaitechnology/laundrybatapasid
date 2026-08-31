@@ -48,6 +48,9 @@ function visibleExpenses(){
 function visibleReportTransactions(){
   return reportOutletFilter ? transactions.filter(t=>String(t.outletId)===reportOutletFilter) : transactions;
 }
+function visibleReportSubscriptions(){
+  return reportOutletFilter ? subscriptions.filter(s=>String(s.outletId)===reportOutletFilter) : subscriptions;
+}
 function visibleReportExpenses(){
   return reportOutletFilter ? expenses.filter(e=>String(e.outletId)===reportOutletFilter) : expenses;
 }

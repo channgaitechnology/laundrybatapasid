@@ -274,6 +274,11 @@ const I18N_EN = {
   'Tampilkan Laporan': 'Show Report',
   'Jumlah Transaksi': 'Number of Transactions',
   'Total Belanja': 'Total Spent',
+  'Tidak ada transaksi lunas di periode ini.': 'No paid transactions in this period.',
+  'Tidak ada tagihan belum lunas di periode ini.': 'No unpaid bills in this period.',
+  'Sisa Tagihan Saat Ini': 'Current Outstanding Balance',
+  'Termasuk tagihan Paket Bulanan/Tempo yang masih berjalan — nilai saat ini, tidak tergantung rentang tanggal di atas.':
+    'Includes running Monthly Package/Tempo bills — the current balance, regardless of the date range above.',
   'Peringkat Pemasukan Pelanggan': 'Top Customers by Revenue',
   'Semua Waktu': 'All Time',
   'Diurutkan dari pelanggan dengan total pembayaran terbanyak.': 'Sorted by customers with the highest total payments.',

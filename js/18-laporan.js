@@ -9,7 +9,13 @@ function renderReport(){
   const totalTrx = list.length;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const totalLunas = list.filter(t=>t.status==='lunas').reduce((s,t)=>s+t.total,0);
-  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-(t.dp||0)),0);
+  /* Tagihan Paket Bulanan/Tempo yang masih berjalan (belum pernah ditandai
+     lunas) tidak tersimpan sebagai baris `transactions` sama sekali, jadi
+     tidak pernah kehitung tanpa ini -- nilainya SAAT INI JUGA (bukan
+     dipotong sesuai bulan yang sedang dipilih), sama seperti "Sisa Bayar"
+     yang tampil di halaman detail pelanggan itu sendiri. */
+  const totalBelumLangganan = visibleReportSubscriptions().reduce((sum,s)=>sum+subscriptionOutstanding(s), 0);
+  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-(t.dp||0)),0) + totalBelumLangganan;
 
   document.getElementById('stTrx').textContent = totalTrx;
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
@@ -122,7 +128,7 @@ function populatePerNamaSelect(){
   const prev = sel.value;
   const namaSet = new Set();
   visibleReportTransactions().forEach(t=>{ if(t.nama) namaSet.add(t.nama); });
-  subscriptions.forEach(s=>{ if(s.nama) namaSet.add(s.nama); });
+  visibleReportSubscriptions().forEach(s=>{ if(s.nama) namaSet.add(s.nama); });
   const namaList = Array.from(namaSet).sort((a,b)=>a.localeCompare(b));
   if(namaList.length===0){
     sel.innerHTML = `<option value="">${t('Belum ada data pelanggan')}</option>`;
@@ -160,6 +166,45 @@ function getPerPeriodeRange(){
   return null;
 }
 var perReportCache = null;
+/* Baris HTML rincian tagihan Paket Bulanan/Tempo yang masih berjalan (belum
+   pernah ditandai lunas) milik satu pelanggan -- dipakai di bagian "Belum
+   Lunas" Laporan Per Pelanggan. Nilainya SAAT INI JUGA (lihat catatan di
+   subscriptionOutstanding()), bukan dipotong sesuai rentang tanggal laporan. */
+function subsOutstandingBlockHTML(s, bd){
+  const rows = [];
+  bd.groups.forEach(g=>{
+    if(g.items.length===1){
+      const u = g.items[0];
+      rows.push(`<div class="item-line" style="align-items:center;">
+        <span>${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})</span>
+        <span>${rupiah(u.subtotal)}</span>
+      </div>`);
+    } else {
+      const bullets = g.items.map(u=>`<div style="font-size:12px;color:var(--ink-soft);padding:2px 0 2px 20px;">• ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan}) — ${rupiah(u.subtotal)}</div>`).join('');
+      rows.push(`<div class="item-line" style="align-items:center;">
+        <span>${fmtDate(g.tanggal)} — ${t('Transaksi')} (${g.items.length} ${currentLang==='en'?'services':t('layanan')})</span>
+        <span>${rupiah(g.total)}</span>
+      </div>${bullets}`);
+    }
+  });
+  if(bd.excessCost>0){
+    rows.push(`<div class="item-line" style="align-items:center;">
+      <span>${t('Kelebihan Kuota')} — ${fmtKg(bd.excessKg)} kg</span>
+      <span>${rupiah(bd.excessCost)}</span>
+    </div>`);
+  }
+  if(bd.dp>0){
+    rows.push(`<div class="item-line" style="align-items:center;color:var(--ink-soft);">
+      <span>${t('Sudah Dibayar')} (DP)</span>
+      <span>-${rupiah(bd.dp)}</span>
+    </div>`);
+  }
+  rows.push(`<div class="item-line" style="align-items:center;font-weight:800;border-top:1px solid var(--line);padding-top:6px;margin-top:2px;">
+    <span>${t('Sisa Tagihan Saat Ini')} — ${escapeHTML(s.paketNama)}</span>
+    <span>${rupiah(bd.outstanding)}</span>
+  </div>`);
+  return rows.join('');
+}
 function renderPerPelangganReport(){
   const nama = document.getElementById('perNama').value;
   if(!nama){ showToast(t('Pilih pelanggan dulu')); return; }
@@ -167,10 +212,21 @@ function renderPerPelangganReport(){
   if(!range){ showToast(t('Lengkapi periode laporan dulu')); return; }
 
   const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
-  const totalTrx = list.length;
+  const lunasList = list.filter(t=>t.status==='lunas');
+  const belumTrxList = list.filter(t=>t.status==='belum');
+
+  /* Pelanggan Paket Bulanan/Tempo yang tagihannya masih berjalan (belum
+     pernah ditandai lunas) tidak punya baris di `transactions` sama sekali
+     -- lihat subscriptionOutstandingBreakdown(). */
+  const subsForNama = visibleReportSubscriptions().filter(s=>s.nama===nama);
+  const subsBreakdowns = subsForNama.map(s=>({ s, bd: subscriptionOutstandingBreakdown(s) })).filter(x=>x.bd.outstanding>0);
+  const subsTrxCount = subsBreakdowns.reduce((sum,x)=>sum+x.bd.groups.length+(x.bd.excessCost>0?1:0), 0);
+  const subsOutstandingTotal = subsBreakdowns.reduce((sum,x)=>sum+x.bd.outstanding, 0);
+
+  const totalTrx = list.length + subsTrxCount;
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
-  const totalLunas = list.filter(t=>t.status==='lunas').reduce((s,t)=>s+t.total,0);
-  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-(t.dp||0)),0);
+  const totalLunas = lunasList.reduce((s,t)=>s+t.total,0);
+  const totalBelum = belumTrxList.reduce((s,t)=>s+(t.total-(t.dp||0)),0) + subsOutstandingTotal;
 
   document.getElementById('perStTrx').textContent = totalTrx;
   document.getElementById('perStOmzet').textContent = rupiah(totalOmzet);
@@ -178,27 +234,47 @@ function renderPerPelangganReport(){
   document.getElementById('perStBelum').textContent = rupiah(totalBelum);
 
   const resultList = document.getElementById('perResultList');
-  if(list.length===0){
+  if(list.length===0 && subsBreakdowns.length===0){
     resultList.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
       <h3>${t('Tidak ada transaksi')}</h3>
       <p>${t('Tidak ada transaksi untuk pelanggan ini di periode tersebut.')}</p>
     </div>`;
   } else {
-    resultList.innerHTML = list.slice().reverse().map(trx=>`
+    const lunasHTML = lunasList.length===0
+      ? `<div style="font-size:12.5px;color:var(--ink-soft);padding:6px 0;">${t('Tidak ada transaksi lunas di periode ini.')}</div>`
+      : lunasList.slice().reverse().map(trx=>`
+        <div class="item-line" style="align-items:center;">
+          <span>${fmtDate(trx.tanggal)} — ${trx.kode}</span>
+          <span>${rupiah(trx.total)}</span>
+        </div>
+      `).join('');
+
+    const belumTrxHTML = belumTrxList.slice().reverse().map(trx=>`
       <div class="item-line" style="align-items:center;">
-        <span>${fmtDate(trx.tanggal)} — ${trx.kode} <span class="badge ${trx.status==='lunas'?'badge-lunas':'badge-belum'}" style="margin-left:6px;">${trx.status==='lunas'?t('Lunas'):t('Belum')}</span></span>
+        <span>${fmtDate(trx.tanggal)} — ${trx.kode}</span>
         <span>${rupiah(trx.total)}</span>
       </div>
     `).join('');
+    const subsHTML = subsBreakdowns.map(x=>subsOutstandingBlockHTML(x.s, x.bd)).join('');
+    const belumHTML = (belumTrxHTML || subsHTML) ? (belumTrxHTML + subsHTML)
+      : `<div style="font-size:12.5px;color:var(--ink-soft);padding:6px 0;">${t('Tidak ada tagihan belum lunas di periode ini.')}</div>`;
+
+    resultList.innerHTML = `
+      <div class="section-title">${t('Lunas')}</div>
+      ${lunasHTML}
+      <div class="section-title" style="margin-top:14px;">${t('Belum Lunas')}</div>
+      ${subsBreakdowns.length>0 ? `<div style="font-size:11px;color:var(--ink-soft);margin:-4px 0 8px;">${t('Termasuk tagihan Paket Bulanan/Tempo yang masih berjalan — nilai saat ini, tidak tergantung rentang tanggal di atas.')}</div>` : ''}
+      ${belumHTML}
+    `;
   }
   document.getElementById('perResultBox').style.display = 'block';
-  perReportCache = { nama, range, list, totalTrx, totalOmzet, totalLunas, totalBelum };
+  perReportCache = { nama, range, lunasList, belumTrxList, subsBreakdowns, totalTrx, totalOmzet, totalLunas, totalBelum };
 }
 function downloadPerPelangganPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
   if(!perReportCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
-  const { nama, range, list, totalOmzet } = perReportCache;
+  const { nama, range, lunasList, belumTrxList, subsBreakdowns, totalOmzet, totalBelum } = perReportCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   const colX = { kode:14, tgl:50, status:130, total:196 };
@@ -213,30 +289,68 @@ function downloadPerPelangganPDF(){
   doc.text(`${t('Periode:')} ${range.label}`, 14, 36);
 
   let y = 46;
-  doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
-  doc.text(t('No. Nota'), colX.kode, y);
-  doc.text(t('Tanggal'), colX.tgl, y);
-  doc.text(t('Status'), colX.status, y);
-  doc.text(t('Total'), colX.total, y, { align:'right' });
-  y += 2.5;
-  doc.setLineWidth(0.4);
-  doc.line(14, y, 196, y);
-  y += 6;
+  const ensureRoom = ()=>{ if(y > 280){ doc.addPage(); y = 20; } };
+  const colHeader = ()=>{
+    ensureRoom();
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text(t('No. Nota'), colX.kode, y);
+    doc.text(t('Tanggal'), colX.tgl, y);
+    doc.text(t('Status'), colX.status, y);
+    doc.text(t('Total'), colX.total, y, { align:'right' });
+    y += 2.5;
+    doc.setLineWidth(0.4);
+    doc.line(14, y, 196, y);
+    y += 6;
+    doc.setFont('helvetica','normal');
+  };
+  const row = (kode, tanggal, statusLabel, total, bold)=>{
+    ensureRoom();
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.text(kode || '-', colX.kode, y);
+    if(tanggal) doc.text(fmtDate(tanggal), colX.tgl, y);
+    if(statusLabel) doc.text(statusLabel, colX.status, y);
+    doc.text(rupiah(total), colX.total, y, { align:'right' });
+    y += 6.5;
+  };
+  const sectionTitle = (text)=>{
+    ensureRoom();
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+    doc.text(text, 14, y);
+    y += 6;
+  };
 
-  doc.setFont('helvetica','normal');
-  if(list.length===0){
-    doc.text(t('Tidak ada transaksi pada periode ini.'), 14, y);
+  sectionTitle(t('Lunas'));
+  colHeader();
+  if(lunasList.length===0){
+    doc.text(t('Tidak ada transaksi lunas di periode ini.'), 14, y);
+    y += 8;
+  } else {
+    lunasList.forEach(trx=> row(trx.kode, trx.tanggal, t('Lunas'), trx.total));
+    y += 4;
+  }
+
+  sectionTitle(t('Belum Lunas'));
+  colHeader();
+  let anyBelum = false;
+  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total); });
+  subsBreakdowns.forEach(({ s, bd })=>{
+    bd.groups.forEach(g=>{
+      anyBelum = true;
+      const label = g.items.length===1
+        ? `${g.items[0].layananNama} (${g.items[0].qty} ${g.items[0].satuan})`
+        : `${t('Transaksi')} (${g.items.length} ${currentLang==='en'?'services':t('layanan')})`;
+      row(label, g.tanggal, t('Belum Lunas'), g.total);
+    });
+    if(bd.excessCost>0){ anyBelum = true; row(t('Kelebihan Kuota'), s.tanggalMulai, t('Belum Lunas'), bd.excessCost); }
+    if(bd.dp>0){ anyBelum = true; row(`${t('Sudah Dibayar')} (DP)`, s.tanggalMulai, '-', -bd.dp); }
+    row(`${t('Sisa Tagihan Saat Ini')} — ${s.paketNama}`, null, null, bd.outstanding, true);
+  });
+  if(!anyBelum){
+    doc.text(t('Tidak ada tagihan belum lunas di periode ini.'), 14, y);
     y += 6;
   }
-  list.forEach(row=>{
-    if(y > 280){ doc.addPage(); y = 20; }
-    doc.text(row.kode || '-', colX.kode, y);
-    doc.text(fmtDate(row.tanggal), colX.tgl, y);
-    doc.text(row.status==='lunas' ? t('Lunas') : t('Belum Lunas'), colX.status, y);
-    doc.text(rupiah(row.total), colX.total, y, { align:'right' });
-    y += 6.5;
-  });
 
+  ensureRoom();
   y += 3;
   doc.setLineWidth(0.6);
   doc.line(14, y, 196, y);
@@ -244,6 +358,9 @@ function downloadPerPelangganPDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
   doc.text(t('Total Belanja'), colX.status, y);
   doc.text(rupiah(totalOmzet), colX.total, y, { align:'right' });
+  y += 7;
+  doc.text(t('Belum Lunas'), colX.status, y);
+  doc.text(rupiah(totalBelum), colX.total, y, { align:'right' });
 
   doc.save(`Laporan-${nama.replace(/[^a-zA-Z0-9]/g,'_')}-${range.dari}_${range.sampai}.pdf`);
 }
