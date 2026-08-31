@@ -190,6 +190,23 @@ kode selalu mengirim kolom `estimasi` saat menyimpan. Jalankan migrasi ini
 **sebelum** memakai app versi terbaru supaya fitur Paket Bulanan/Tempo
 tidak terganggu.
 
+Supaya beberapa layanan tambahan Tempo yang dicatat SEKALIGUS dalam satu
+kunjungan (mis. "Cuci setrika" + "Handuk") tampil sebagai **1 transaksi**
+bernomor (dengan rincian per-layanan sebagai bullet), bukan baris bernomor
+terpisah-pisah, tabel `subscription_usage` butuh 1 kolom tambahan:
+
+```sql
+alter table subscription_usage add column if not exists batch_id text;
+```
+
+⚠️ Sama seperti migrasi `estimasi`/`work_status` di atas: kode selalu
+mengirim kolom `batch_id` saat menyimpan beberapa layanan tambahan Tempo
+sekaligus, jadi kalau kolom ini belum ada, "Simpan & Buat Nota" di halaman
+Tempo akan **gagal total** dengan toast error. Jalankan migrasi ini
+**sebelum** memakai app versi terbaru. Catatan lama (sebelum kolom ini ada)
+otomatis tetap ditampilkan sebagai transaksi tersendiri satu per satu, tidak
+akan tergabung salah dengan catatan lain.
+
 Fitur **Multi-Outlet** (Pengaturan → Outlet/Cabang) — **opsional/opt-in**,
 tidak wajib dipakai. Selama toko belum pernah bikin outlet, app jalan
 persis seperti sebelumnya (single-lokasi, tidak ada switcher/filter outlet

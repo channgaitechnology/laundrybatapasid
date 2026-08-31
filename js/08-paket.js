@@ -62,13 +62,14 @@ async function loadAllWorkUsage(){
 async function loadAllUsageTotals(){
   if(subscriptions.length===0) return;
   const ids = subscriptions.map(s=>s.id);
-  const { data, error } = await sb.from('subscription_usage').select('subscription_id, berat_kg, type, subtotal').in('subscription_id', ids);
+  const { data, error } = await sb.from('subscription_usage').select('id, subscription_id, berat_kg, type, subtotal, batch_id').in('subscription_id', ids);
   if(error) return;
-  const totals = {}, tempoTotals = {}, tempoCounts = {};
+  const totals = {}, tempoTotals = {}, tempoGroupKeys = {};
   (data||[]).forEach(row=>{
     if(row.type === 'layanan_tambahan'){
       tempoTotals[row.subscription_id] = (tempoTotals[row.subscription_id]||0) + Number(row.subtotal||0);
-      tempoCounts[row.subscription_id] = (tempoCounts[row.subscription_id]||0) + 1;
+      if(!tempoGroupKeys[row.subscription_id]) tempoGroupKeys[row.subscription_id] = new Set();
+      tempoGroupKeys[row.subscription_id].add(row.batch_id || row.id);
       return;
     }
     totals[row.subscription_id] = (totals[row.subscription_id]||0) + Number(row.berat_kg||0);
@@ -76,7 +77,7 @@ async function loadAllUsageTotals(){
   subscriptions.forEach(s=>{
     s.terpakai = totals[s.id] || 0;
     s.tempoTotal = tempoTotals[s.id] || 0;
-    s.tempoCount = tempoCounts[s.id] || 0;
+    s.tempoCount = tempoGroupKeys[s.id] ? tempoGroupKeys[s.id].size : 0;
   });
 }
 function renderSubscriptions(){
@@ -258,7 +259,7 @@ async function refreshSubsDetail(){
     id:r.id, tanggal:r.tanggal, estimasi:r.estimasi||null, berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
     type: r.type || 'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
     satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
-    workStatus: r.work_status || 'belum'
+    workStatus: r.work_status || 'belum', batchId: r.batch_id || null
   }));
 
   const tempo = isTempo(s);
@@ -290,9 +291,10 @@ async function refreshSubsDetail(){
   document.getElementById('btnMarkLunas').textContent = tempo ? t('✅ Tandai Lunas & Mulai Baru') : t('✅ Tandai Lunas');
 
   if(tempo){
-    document.getElementById('subsTempoKunjungan').textContent = extraList.length;
+    const kunjunganCount = groupExtrasIntoTransactions(extraList).length;
+    document.getElementById('subsTempoKunjungan').textContent = kunjunganCount;
     document.getElementById('subsTempoBelum').textContent = rupiah(sisaBayar);
-    document.getElementById('subsDetailPeriode').textContent = `${t('Terdaftar sejak')} ${fmtDate(s.tanggalMulai)} · ${extraList.length} ${t('kunjungan tercatat')}`;
+    document.getElementById('subsDetailPeriode').textContent = `${t('Terdaftar sejak')} ${fmtDate(s.tanggalMulai)} · ${kunjunganCount} ${t('kunjungan tercatat')}`;
   } else {
     document.getElementById('subsDetailPeriode').textContent = `${t('Periode:')} ${fmtDate(s.tanggalMulai)} – ${fmtDate(s.tanggalSelesai)}`;
     document.getElementById('subsDetailKuota').textContent = `${fmtKg(s.kuotaKg)} kg`;
@@ -318,6 +320,71 @@ async function refreshSubsDetail(){
 }
 /* Nomor urut 2 digit (01, 02, ...) dari tanggal tertua ke termuda. */
 function padNo(n){ return String(n).padStart(2,'0'); }
+/* Kelompokkan baris layanan_tambahan (Tempo) yang dicatat SEKALIGUS dalam satu
+   kunjungan (batch_id sama, dari submitExtraServiceBatch()) jadi satu
+   "transaksi" — dipakai baik oleh tampilan Rekap Riwayat Transaksi di layar
+   maupun teks WA/PDF notanya, supaya nomor urutnya konsisten (1 kunjungan =
+   1 nomor, dirinci per-layanan, bukan 1 baris layanan = 1 nomor terpisah).
+   Item lama tanpa batch_id (dari sebelum kolom ini ada) tetap dianggap
+   transaksi tersendiri satu per satu, tidak digabung sembarangan. */
+function groupExtrasIntoTransactions(extras){
+  const groups = [];
+  const indexByKey = new Map();
+  extras.forEach(u=>{
+    const key = u.batchId || `single-${u.id}`;
+    if(!indexByKey.has(key)){
+      indexByKey.set(key, groups.length);
+      groups.push({ tanggal:u.tanggal, items:[] });
+    }
+    const g = groups[indexByKey.get(key)];
+    g.items.push(u);
+    if(u.tanggal > g.tanggal) g.tanggal = u.tanggal;
+  });
+  groups.forEach(g=>{ g.total = g.items.reduce((sum,u)=>sum+u.subtotal,0); });
+  return groups;
+}
+/* ID acak untuk menandai satu kelompok layanan tambahan yang disimpan
+   sekaligus lewat submitExtraServiceBatch() (lihat groupExtrasIntoTransactions
+   di atas) — cukup unik, tidak perlu format UUID resmi. */
+function newBatchId(){
+  return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+}
+/* Baris teks WA untuk blok "Rekap Riwayat Transaksi (Belum Ditagih)" — dipakai
+   di semua nota Tempo (invoice rekap, nota per-kunjungan, nota batch) supaya
+   penomoran & bullet rinciannya selalu konsisten satu sama lain. */
+function extraGroupLinesWA(extras){
+  const out = [];
+  groupExtrasIntoTransactions(extras).forEach((g,i)=>{
+    if(g.items.length===1){
+      const u = g.items[0];
+      out.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+      return;
+    }
+    const label = currentLang==='en' ? 'services' : t('layanan');
+    out.push(`${padNo(i+1)}. ${fmtDate(g.tanggal)} — ${t('Transaksi')} (${g.items.length} ${label}) : ${rupiah(g.total)}`);
+    g.items.forEach(u=>{
+      out.push(`    • ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+    });
+  });
+  return out;
+}
+/* Versi PDF/JPG/Bluetooth (array `{t,s,indent}`) dari extraGroupLinesWA(). */
+function extraGroupLinesPDF(extras){
+  const out = [];
+  groupExtrasIntoTransactions(extras).forEach((g,i)=>{
+    if(g.items.length===1){
+      const u = g.items[0];
+      out.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
+      return;
+    }
+    const label = currentLang==='en' ? 'services' : t('layanan');
+    out.push({t:`${padNo(i+1)}. ${fmtDate(g.tanggal)} — ${t('Transaksi')} (${g.items.length} ${label}) : ${rupiah(g.total)}`, s:8, indent:4});
+    g.items.forEach(u=>{
+      out.push({t:`    - ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:6});
+    });
+  });
+  return out;
+}
 function renderUsageList(){
   const el = document.getElementById('usageList');
   if(currentUsageList.length===0){
@@ -341,12 +408,35 @@ function renderUsageList(){
         <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');
-  const extraHTML = extraList.map((u,i)=>`<div class="item-line" style="align-items:center;">
-      ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})`)}
-      <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(u.subtotal)}
-        <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
-      </span>
-    </div>`).join('');
+  const extraGroups = groupExtrasIntoTransactions(extraList);
+  const extraHTML = extraGroups.map((g,i)=>{
+    if(g.items.length===1){
+      const u = g.items[0];
+      return `<div class="item-line" style="align-items:center;">
+        ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})`)}
+        <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(u.subtotal)}
+          <button onclick="openBatchUsageNotaOptions(['${u.id}'])" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="${t('Kirim nota')}">🧾</button>
+          <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
+        </span>
+      </div>`;
+    }
+    const bulletsHTML = g.items.map(u=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0 3px 20px;font-size:12.5px;color:var(--ink-soft);">
+        <span>• ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})</span>
+        <span style="display:flex;align-items:center;gap:6px;flex:none;">${rupiah(u.subtotal)}
+          <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;">✕</button>
+        </span>
+      </div>`).join('');
+    const ids = g.items.map(u=>`'${u.id}'`).join(',');
+    return `<div>
+      <div class="item-line" style="align-items:center;">
+        ${numberedLabel(i+1, `${fmtDate(g.tanggal)} — ${t('Transaksi')} (${g.items.length} ${currentLang==='en' ? 'services' : t('layanan')})`)}
+        <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(g.total)}
+          <button onclick="openBatchUsageNotaOptions([${ids}])" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="${t('Kirim nota')}">🧾</button>
+        </span>
+      </div>
+      ${bulletsHTML}
+    </div>`;
+  }).join('');
   const sectionLabel = (text)=> `<div class="section-title" style="margin:0 0 6px;">${text}</div>`;
 
   /* Kalau dua-duanya ada (Paket Bulanan dengan layanan tambahan), pisahkan jadi dua
@@ -474,15 +564,17 @@ function removeExtraDraftItem(idx){
 async function submitExtraServiceBatch(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s || draftExtraItems.length===0){ showToast(t('Tambahkan minimal 1 layanan dulu')); return; }
+  const batchId = newBatchId();
   const insertedIds = [];
   for(const it of draftExtraItems){
     const { data, error } = await sb.from('subscription_usage').insert({
       subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,
-      type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal
+      type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal,
+      batch_id: batchId
     }).select().single();
     if(error){ showToast(t('Gagal menyimpan salah satu layanan, coba lagi')); return; }
     insertedIds.push(data.id);
-    allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+    allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum', batchId });
   }
   draftExtraItems = [];
   renderExtraDraftList();
@@ -610,9 +702,7 @@ function subsInvoiceTextWA(s){
     }
     lines.push('-------------------------------');
     lines.push(`*${t('Rekap Riwayat Transaksi (Belum Ditagih)')}*`);
-    extras.forEach((u,i)=>{
-      lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
-    });
+    lines.push(...extraGroupLinesWA(extras));
   } else {
     lines.push(`${t('Paket')}      : ${s.paketNama}`);
     lines.push(`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
@@ -663,9 +753,7 @@ function buildSubsInvoicePDFLines(s){
     }
     L.push({t: div, s:9});
     L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
-    extras.forEach((u,i)=>{
-      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
-    });
+    L.push(...extraGroupLinesPDF(extras));
   } else {
     L.push({t:`${t('Paket')}      : ${s.paketNama}`, s:9, indent:13});
     L.push({t:`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
