@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>48 Hukum Kekuasaan — Pelacak Disiplin</title>
 <meta name="description" content="Aplikasi pribadi untuk mempelajari, mengingat, dan menerapkan 48 Laws of Power secara konsisten dalam bisnis dan kehidupan.">
+<link rel="manifest" href="lop-manifest.json">
+<meta name="theme-color" content="#0B0A08">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="48 Hukum">
+<link rel="icon" href="icons/lop-icon-192.png">
+<link rel="apple-touch-icon" href="icons/lop-icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -54,6 +61,25 @@
   header.top .txt{flex:1;min-width:0;}
   header.top h1{font-size:19px;margin:0;letter-spacing:.2px;}
   header.top p{margin:2px 0 0;color:var(--ink-soft);font-size:12.5px;}
+
+  .install-banner{
+    display:none;align-items:center;gap:12px;
+    background:var(--surface);border:1px solid var(--gold-soft);border-radius:12px;
+    padding:12px 14px;margin:14px 0;
+  }
+  .install-banner.show{display:flex;}
+  .install-banner .ico{font-size:22px;flex:none;}
+  .install-banner .txt2{flex:1;min-width:0;font-size:12.5px;color:var(--ink-soft);}
+  .install-banner .txt2 b{color:var(--ink);display:block;font-size:13.5px;margin-bottom:1px;}
+  .install-banner .acts{display:flex;flex-direction:column;gap:6px;flex:none;}
+  .install-banner .close-x{position:static;font-size:16px;}
+
+  .install-box{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;}
+  .install-status{
+    font-size:12.5px;color:var(--good);display:flex;align-items:center;gap:6px;
+  }
+  .ios-steps{font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin:8px 0 0;padding-left:18px;}
+  .ios-steps b{color:var(--ink);}
 
   nav.tabs{
     position:sticky;top:0;z-index:20;background:var(--bg);
@@ -225,6 +251,15 @@
     </div>
   </header>
 
+  <div class="install-banner" id="installBanner">
+    <div class="ico">📲</div>
+    <div class="txt2"><b>Pasang di layar utama</b>Akses lebih cepat, terasa seperti aplikasi asli.</div>
+    <div class="acts">
+      <button class="btn small" id="installBannerBtn">Pasang</button>
+      <button class="btn ghost small close-x" id="installBannerClose">Nanti saja</button>
+    </div>
+  </div>
+
   <nav class="tabs">
     <button data-view="today" class="active">Hari Ini</button>
     <button data-view="list">Semua Hukum</button>
@@ -289,6 +324,22 @@
 
   <!-- PENGATURAN -->
   <section id="view-settings" class="view">
+    <div class="card" id="installCard">
+      <h3 style="margin:0 0 10px;font-size:14px;">Pasang sebagai Aplikasi</h3>
+      <div id="installCardBody">
+        <div class="install-box">
+          <p class="hint" style="margin:0;flex:1;min-width:200px;">Pasang ke layar utama HP/laptop Anda agar bisa dibuka langsung seperti aplikasi, tanpa buka browser dan cari-cari tab.</p>
+          <button class="btn" id="installSettingsBtn" style="display:none;">Pasang ke Layar Utama</button>
+        </div>
+        <div class="install-status" id="installedStatus" style="display:none;">✓ Aplikasi ini sudah terpasang di perangkat Anda</div>
+        <ol class="ios-steps" id="iosSteps" style="display:none;">
+          <li>Buka halaman ini di Safari (bukan aplikasi lain).</li>
+          <li>Ketuk ikon <b>Bagikan</b> (kotak dengan panah ke atas) di bar bawah/atas.</li>
+          <li>Pilih <b>"Tambah ke Layar Utama"</b> (Add to Home Screen).</li>
+        </ol>
+      </div>
+    </div>
+
     <div class="card">
       <div class="field">
         <div class="row-between">
@@ -726,9 +777,71 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
   toast("Semua data telah direset.");
 });
 
+/* ---------- INSTALL PWA ---------- */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+
+let deferredInstallPrompt = null;
+
+function isIOSDevice(){
+  const ua = navigator.userAgent;
+  const iOSDevice = /iPad|iPhone|iPod/.test(ua);
+  const iPadOS13Up = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return iOSDevice || iPadOS13Up;
+}
+function isStandaloneMode(){
+  return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+}
+
+function updateInstallUI(){
+  const standalone = isStandaloneMode();
+  const dismissed = localStorage.getItem("lop48_install_dismissed") === "1";
+
+  document.getElementById("installedStatus").style.display = standalone ? "flex" : "none";
+  document.querySelector("#installCardBody .install-box").style.display = standalone ? "none" : "flex";
+  document.getElementById("installSettingsBtn").style.display = (!standalone && deferredInstallPrompt) ? "inline-flex" : "none";
+  document.getElementById("iosSteps").style.display = (!standalone && isIOSDevice() && !deferredInstallPrompt) ? "block" : "none";
+
+  const banner = document.getElementById("installBanner");
+  if(!standalone && deferredInstallPrompt && !dismissed){
+    banner.classList.add("show");
+  } else {
+    banner.classList.remove("show");
+  }
+}
+
+async function triggerInstall(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  updateInstallUI();
+}
+
+window.addEventListener("beforeinstallprompt", (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  updateInstallUI();
+});
+window.addEventListener("appinstalled", ()=>{
+  deferredInstallPrompt = null;
+  localStorage.setItem("lop48_install_dismissed", "1");
+  updateInstallUI();
+  toast("Aplikasi berhasil dipasang di layar utama.");
+});
+
+document.getElementById("installBannerBtn").addEventListener("click", triggerInstall);
+document.getElementById("installSettingsBtn").addEventListener("click", triggerInstall);
+document.getElementById("installBannerClose").addEventListener("click", ()=>{
+  localStorage.setItem("lop48_install_dismissed", "1");
+  document.getElementById("installBanner").classList.remove("show");
+});
+
 /* ---------- INIT ---------- */
 renderToday();
 renderList();
+updateInstallUI();
 </script>
 </body>
 </html>
