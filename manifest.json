@@ -1,11 +1,15 @@
 {
+  "id": "/",
   "name": "Laundry Batapas.id",
   "short_name": "Batapas.id",
   "description": "Aplikasi kasir & nota untuk usaha laundry",
+  "lang": "id",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#EEF5F7",
   "theme_color": "#0D4F68",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -18,6 +22,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
