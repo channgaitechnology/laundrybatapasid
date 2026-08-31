@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>48 Hukum Kekuasaan — Pelacak Disiplin</title>
+<meta name="description" content="Aplikasi pribadi untuk mempelajari, mengingat, dan menerapkan 48 Laws of Power secara konsisten dalam bisnis dan kehidupan.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0A08;
+    --bg-soft:#131110;
+    --surface:#1B1815;
+    --surface-2:#221E19;
+    --border:#332C22;
+    --gold:#D4AF37;
+    --gold-soft:#8C7126;
+    --ink:#EDE8DD;
+    --ink-soft:#B4AB9B;
+    --ink-faint:#78705F;
+    --danger:#B4453E;
+    --good:#4E8B5C;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  a{color:var(--gold);}
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+
+  .wrap{max-width:820px;margin:0 auto;padding:20px 16px 90px;}
+
+  header.top{
+    display:flex;align-items:center;gap:14px;padding:8px 2px 20px;
+    border-bottom:1px solid var(--border);margin-bottom:18px;
+  }
+  header.top .crest{
+    width:46px;height:46px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #3a3222, #14110d);
+    border:1px solid var(--gold-soft);
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px;color:var(--gold);flex:none;
+  }
+  header.top .txt{flex:1;min-width:0;}
+  header.top h1{font-size:19px;margin:0;letter-spacing:.2px;}
+  header.top p{margin:2px 0 0;color:var(--ink-soft);font-size:12.5px;}
+
+  nav.tabs{
+    position:sticky;top:0;z-index:20;background:var(--bg);
+    display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 0 14px;margin-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+  @media(max-width:420px){
+    nav.tabs{grid-template-columns:repeat(2,1fr);}
+  }
+  nav.tabs button{
+    min-width:0;background:transparent;border:1px solid transparent;color:var(--ink-soft);
+    padding:9px 4px;border-radius:10px;font-size:12px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    transition:.15s;
+  }
+  nav.tabs button.active{background:var(--surface);color:var(--gold);border-color:var(--border);}
+
+  .view{display:none;}
+  .view.active{display:block;animation:fade .2s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px;margin-bottom:14px;
+  }
+
+  /* --- Hari Ini --- */
+  .today-card{
+    background:linear-gradient(160deg,#1c1811,#141210);
+    border:1px solid var(--gold-soft);
+  }
+  .today-card .kicker{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+  }
+  .today-card .kicker span.label{
+    font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);font-weight:700;
+  }
+  .streak-pill{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:999px;
+    padding:4px 11px;font-size:12.5px;color:var(--ink-soft);font-weight:600;
+  }
+  .today-card h2{font-size:21px;margin:0 0 8px;color:var(--ink);}
+  .today-card .num{color:var(--gold-soft);font-weight:700;margin-right:6px;}
+  .today-card .core{color:var(--ink-soft);margin:0 0 10px;}
+  .today-card .tip{
+    background:var(--surface-2);border-left:3px solid var(--gold-soft);
+    padding:10px 12px;border-radius:8px;font-size:13.5px;color:var(--ink);margin-bottom:14px;
+  }
+  .today-card .tip b{color:var(--gold);font-size:12px;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:4px;}
+
+  textarea, input[type=text], input[type=time], input[type=date]{
+    width:100%;background:var(--bg-soft);border:1px solid var(--border);color:var(--ink);
+    border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13.5px;resize:vertical;
+  }
+  textarea:focus, input:focus{outline:none;border-color:var(--gold-soft);}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--gold);color:#1a1508;border:none;border-radius:9px;
+    padding:10px 16px;font-weight:700;font-size:13.5px;transition:.15s;
+  }
+  .btn:hover{background:#e6c14e;}
+  .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--border);}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--gold-soft);}
+  .btn.danger{background:var(--danger);color:#fff;}
+  .btn.small{padding:6px 11px;font-size:12px;border-radius:7px;}
+  .btn:disabled{opacity:.5;cursor:default;}
+
+  .applied-badge{
+    display:flex;align-items:center;gap:8px;background:rgba(78,139,92,.12);
+    border:1px solid var(--good);color:#9BD1A6;padding:9px 12px;border-radius:9px;font-size:13px;margin-bottom:10px;
+  }
+
+  .motiv{color:var(--ink-faint);font-size:12px;font-style:italic;margin-top:16px;text-align:center;}
+
+  /* --- Semua Hukum --- */
+  .search-row{display:flex;gap:8px;margin-bottom:14px;}
+  .law-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  .law-item{
+    background:var(--surface);border:1px solid var(--border);border-radius:11px;
+    padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.15s;
+  }
+  .law-item:hover{border-color:var(--gold-soft);}
+  .law-item .n{
+    width:32px;height:32px;border-radius:50%;background:var(--surface-2);color:var(--gold);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:none;
+    border:1px solid var(--border);
+  }
+  .law-item .t{flex:1;min-width:0;}
+  .law-item .t .ttl{font-weight:600;font-size:13.5px;color:var(--ink);}
+  .law-item .t .sub{font-size:12px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .star{background:none;border:none;font-size:16px;color:var(--ink-faint);padding:4px;}
+  .star.active{color:var(--gold);}
+
+  .empty{color:var(--ink-faint);text-align:center;padding:30px 10px;font-size:13px;}
+
+  /* --- modal --- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:50;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--surface);border:1px solid var(--border);border-top-left-radius:18px;border-top-right-radius:18px;
+    max-width:820px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 20px calc(22px + env(safe-area-inset-bottom));
+    animation:slideup .2s ease;
+  }
+  @media(min-width:640px){
+    .overlay{align-items:center;}
+    .modal{border-radius:18px;max-width:520px;}
+  }
+  @keyframes slideup{from{transform:translateY(30px);opacity:0;}to{transform:none;opacity:1;}}
+  .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;}
+  .modal-head h3{margin:0;font-size:18px;}
+  .close-x{background:none;border:none;color:var(--ink-faint);font-size:20px;line-height:1;padding:2px 6px;}
+
+  /* --- progres --- */
+  .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+  .stat-box{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px;text-align:center;}
+  .stat-box .v{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;color:var(--gold);}
+  .stat-box .l{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  .heatmap{display:grid;grid-template-columns:repeat(15,1fr);gap:5px;margin:10px 0 4px;}
+  .heatmap .d{aspect-ratio:1;border-radius:4px;background:var(--surface-2);border:1px solid var(--border);}
+  .heatmap .d.on{background:var(--gold-soft);border-color:var(--gold);}
+
+  .journal-item{
+    display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);
+  }
+  .journal-item:last-child{border-bottom:none;}
+  .journal-item .meta{font-size:11.5px;color:var(--ink-faint);margin-bottom:3px;}
+  .journal-item .txt{font-size:13px;color:var(--ink);}
+  .journal-item .note{font-size:12.5px;color:var(--ink-soft);margin-top:3px;font-style:italic;}
+  .del-btn{background:none;border:none;color:var(--ink-faint);font-size:16px;flex:none;}
+  .del-btn:hover{color:var(--danger);}
+
+  /* --- pengaturan --- */
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field .hint{font-size:11.5px;color:var(--ink-faint);margin-top:5px;}
+  .row-between{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .switch{position:relative;width:42px;height:24px;flex:none;}
+  .switch input{opacity:0;width:0;height:0;}
+  .switch .track{position:absolute;inset:0;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;transition:.15s;}
+  .switch .track:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:2.5px;background:var(--ink-faint);border-radius:50%;transition:.15s;}
+  .switch input:checked + .track{background:rgba(212,175,55,.25);border-color:var(--gold-soft);}
+  .switch input:checked + .track:before{transform:translateX(18px);background:var(--gold);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .ethics-note{
+    font-size:12px;color:var(--ink-faint);background:var(--surface);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;margin-top:6px;
+  }
+  #importFile{display:none;}
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--surface-2);border:1px solid var(--gold-soft);color:var(--ink);
+    padding:9px 16px;border-radius:999px;font-size:12.5px;z-index:80;opacity:0;pointer-events:none;transition:.25s;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,-6px);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="crest">♛</div>
+    <div class="txt">
+      <h1>48 Hukum Kekuasaan</h1>
+      <p>Pelacak disiplin &amp; komitmen pribadi — data tersimpan di perangkat ini</p>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-view="today" class="active">Hari Ini</button>
+    <button data-view="list">Semua Hukum</button>
+    <button data-view="progress">Progres</button>
+    <button data-view="settings">Pengaturan</button>
+  </nav>
+
+  <!-- HARI INI -->
+  <section id="view-today" class="view active">
+    <div class="card today-card">
+      <div class="kicker">
+        <span class="label">Hukum Hari Ini</span>
+        <span class="streak-pill" id="streakPill">🔥 0 hari beruntun</span>
+      </div>
+      <h2><span class="num" id="todayNum">#1</span><span id="todayTitle"></span></h2>
+      <p class="core" id="todayCore"></p>
+      <div class="tip"><b>Cara menerapkan</b><span id="todayTip"></span></div>
+
+      <div id="todayLoggedBox" style="display:none">
+        <div class="applied-badge">✓ Sudah Anda catat hari ini</div>
+        <p class="core" id="todayNoteView" style="margin-bottom:10px"></p>
+        <button class="btn ghost small" id="editTodayBtn">Ubah catatan</button>
+      </div>
+
+      <div id="todayFormBox">
+        <label style="font-size:12px;color:var(--ink-soft);font-weight:600;">Catatan penerapan hari ini (opsional)</label>
+        <textarea id="todayNote" rows="3" placeholder="Contoh: saya diam dulu sebelum menjawab keluhan pelanggan tadi..." style="margin:6px 0 10px;"></textarea>
+        <button class="btn" id="markAppliedBtn">Tandai sudah diterapkan hari ini</button>
+      </div>
+    </div>
+
+    <p class="motiv" id="motivLine"></p>
+  </section>
+
+  <!-- SEMUA HUKUM -->
+  <section id="view-list" class="view">
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Cari hukum (nomor atau kata kunci)...">
+    </div>
+    <div class="law-grid" id="lawGrid"></div>
+  </section>
+
+  <!-- PROGRES -->
+  <section id="view-progress" class="view">
+    <div class="stat-grid">
+      <div class="stat-box"><div class="v" id="statStreak">0</div><div class="l">Streak saat ini</div></div>
+      <div class="stat-box"><div class="v" id="statBest">0</div><div class="l">Streak terpanjang</div></div>
+      <div class="stat-box"><div class="v" id="statUnique">0/48</div><div class="l">Hukum pernah diterapkan</div></div>
+      <div class="stat-box"><div class="v" id="statTotal">0</div><div class="l">Total catatan</div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px;font-size:14px;">30 Hari Terakhir</h3>
+      <div class="heatmap" id="heatmap"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:14px;">Riwayat Jurnal</h3>
+      <div id="journalList"></div>
+    </div>
+  </section>
+
+  <!-- PENGATURAN -->
+  <section id="view-settings" class="view">
+    <div class="card">
+      <div class="field">
+        <div class="row-between">
+          <label style="margin:0">Pengingat harian</label>
+          <label class="switch"><input type="checkbox" id="reminderToggle"><span class="track"></span></label>
+        </div>
+        <p class="hint">Menampilkan notifikasi browser pada jam yang Anda tentukan, selama halaman ini terbuka di tab browser. Ini bukan notifikasi push server, jadi tidak akan muncul kalau tab/browser tertutup.</p>
+      </div>
+      <div class="field">
+        <label>Jam pengingat</label>
+        <input type="time" id="reminderTime" value="08:00">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px;">Cadangan Data</h3>
+      <p class="hint" style="margin:0 0 12px;">Semua data (jurnal, favorit, pengaturan) hanya tersimpan di browser perangkat ini. Ekspor secara berkala agar tidak hilang.</p>
+      <div class="btn-row">
+        <button class="btn ghost" id="exportBtn">Ekspor Data (.json)</button>
+        <button class="btn ghost" id="importBtn">Impor Data</button>
+        <input type="file" id="importFile" accept="application/json">
+        <button class="btn danger" id="resetBtn">Reset Semua Data</button>
+      </div>
+    </div>
+
+    <div class="ethics-note">
+      <b style="color:var(--ink-soft)">Catatan:</b> Buku ini berisi strategi yang kontroversial dan sebagian bersifat manipulatif. Aplikasi ini menyajikan interpretasi yang diarahkan untuk penggunaan yang etis dalam bisnis dan kehidupan sehari-hari — gunakan penilaian pribadi Anda dan tetap junjung integritas.
+    </div>
+  </section>
+</div>
+
+<!-- MODAL DETAIL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3><span class="num" id="modalNum" style="color:var(--gold-soft)"></span><span id="modalTitle"></span></h3>
+      <button class="close-x" id="closeModal">✕</button>
+    </div>
+    <p class="core" id="modalCore"></p>
+    <div class="tip"><b>Cara menerapkan</b><span id="modalTip"></span></div>
+    <div class="btn-row">
+      <button class="btn ghost small" id="modalFav">☆ Favoritkan</button>
+      <button class="btn small" id="modalApply">Tandai diterapkan hari ini</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LAWS = [
+{n:1,title:"Jangan Menyaingi Atasan atau Klien Besar",core:"Buat orang yang lebih berkuasa dari Anda merasa nyaman dan tetap terlihat unggul di ruang publik.",tip:"Saat rapat dengan atasan atau klien besar, sampaikan ide penting secara pribadi lebih dulu agar mereka bisa menyampaikannya sebagai keputusan mereka sendiri."},
+{n:2,title:"Jangan Terlalu Bergantung pada Teman, Bangun Kredibilitas lewat Kompetensi",core:"Kedekatan personal bisa membuat kerja sama longgar dan rawan cemburu; orang yang harus membuktikan diri sering bekerja lebih keras.",tip:"Nilai mitra dan karyawan berdasarkan kompetensi dan rekam jejak nyata, bukan sekadar kedekatan pertemanan."},
+{n:3,title:"Jaga Kerahasiaan Rencana",core:"Rencana besar yang bocor terlalu dini memberi waktu bagi pihak lain untuk menghalangi atau meniru.",tip:"Rahasiakan strategi ekspansi atau produk baru sampai benar-benar siap dieksekusi."},
+{n:4,title:"Bicara Seperlunya Saja",core:"Bicara berlebihan membuka celah kesalahan dan mengurangi wibawa; ucapan singkat terasa lebih tegas.",tip:"Dalam negosiasi, sampaikan poin utama secara ringkas lalu diam — biarkan lawan bicara mengisi keheningan."},
+{n:5,title:"Jaga Reputasi Sekuat Tenaga",core:"Reputasi adalah modal sosial utama; sekali runtuh, butuh waktu lama dan biaya besar untuk memulihkannya.",tip:"Tangani keluhan pelanggan secepat mungkin sebelum menjadi ulasan negatif yang menyebar."},
+{n:6,title:"Bangun Daya Tarik yang Diingat",core:"Sesuatu yang tidak menonjol mudah dilupakan; tampil khas membuat Anda tetap relevan di benak orang.",tip:"Ciptakan ciri khas komunikasi atau brand yang konsisten agar orang langsung mengasosiasikan sesuatu dengan Anda."},
+{n:7,title:"Delegasikan dengan Bijak, Bagikan Kredit secara Adil",core:"Memanfaatkan keahlian tim secara maksimal jauh lebih efektif daripada mengerjakan semuanya sendiri.",tip:"Percayakan tugas sesuai keahlian anggota tim, dan akui kontribusi mereka secara terbuka agar loyalitas terjaga."},
+{n:8,title:"Buat Orang Lain yang Mendekat ke Anda",core:"Pihak yang sabar dan punya nilai jelas biasanya memegang kendali lebih besar daripada yang terus mengejar-ngejar.",tip:"Bangun portofolio dan reputasi yang kuat sehingga klien serta peluang datang menghampiri, bukan Anda yang selalu mengejar."},
+{n:9,title:"Menang lewat Bukti Nyata, Bukan Perdebatan",core:"Argumen memicu ego dan sikap defensif; hasil nyata jauh lebih meyakinkan dan sulit dibantah.",tip:"Daripada berdebat soal metode kerja terbaik, tunjukkan hasilnya lewat proyek percobaan kecil."},
+{n:10,title:"Jauhi Lingkungan yang Toxic dan Selalu Mengeluh",core:"Energi negatif dan pola pikir gagal bisa menular serta menurunkan motivasi Anda.",tip:"Batasi waktu dengan rekan atau klien yang terus-menerus toxic; perbanyak interaksi dengan orang yang berkembang."},
+{n:11,title:"Jadilah Sosok yang Dibutuhkan",core:"Kalau Anda sulit digantikan dalam suatu peran, posisi tawar Anda menjadi jauh lebih kuat.",tip:"Kembangkan keahlian spesifik yang sulit dicari penggantinya di tim atau industri Anda."},
+{n:12,title:"Kejujuran dan Kebaikan yang Tulus Membangun Kepercayaan",core:"Sikap jujur dan murah hati yang konsisten meruntuhkan kecurigaan dan mempererat hubungan bisnis.",tip:"Berikan sedikit kelonggaran atau bonus tanpa diminta kepada klien setia untuk memperkuat hubungan jangka panjang."},
+{n:13,title:"Tawarkan Manfaat, Bukan Sekadar Meminta Belas Kasihan",core:"Orang lebih tergerak membantu bila mereka juga mendapat keuntungan, dibanding hanya diminta kasihan.",tip:"Saat meminta kerja sama atau investasi, jelaskan keuntungan konkret bagi pihak lain, bukan hanya kebutuhan Anda."},
+{n:14,title:"Kenali Kompetitor dan Pasar Secara Mendalam",core:"Memahami langkah lawan dan pasar secara detail memberi Anda keunggulan strategis, selama dilakukan lewat riset yang wajar.",tip:"Lakukan riset kompetitor secara rutin: harga, layanan, ulasan pelanggan mereka — lalu jadikan bahan perbaikan."},
+{n:15,title:"Selesaikan Masalah Secara Tuntas",core:"Masalah atau konflik yang dibiarkan setengah selesai cenderung muncul kembali dan lebih merepotkan.",tip:"Selesaikan sengketa kontrak atau konflik internal sampai tuntas dan jelas, jangan digantung berlarut-larut."},
+{n:16,title:"Ketiadaan Bisa Meningkatkan Rasa Hormat",core:"Kehadiran yang berlebihan menurunkan nilai; sedikit kelangkaan justru menambah rasa dihargai.",tip:"Jangan selalu bisa dihubungi 24/7; batasi respons di luar jam kerja agar waktu dan perhatian Anda tetap bernilai."},
+{n:17,title:"Jangan Terlalu Mudah Ditebak",core:"Pola yang terlalu mudah diprediksi membuat orang lain mudah mengendalikan atau meremehkan Anda.",tip:"Variasikan pendekatan negosiasi atau strategi promosi agar kompetitor tidak mudah menyalin dan mengungguli Anda."},
+{n:18,title:"Jangan Mengisolasi Diri",core:"Menutup diri dari jaringan dan informasi luar membuat Anda kehilangan peluang dan rentan saat krisis.",tip:"Tetap aktif di komunitas atau asosiasi bisnis dan menjaga relasi meski usaha sudah berjalan stabil."},
+{n:19,title:"Kenali Karakter Orang yang Anda Hadapi",core:"Pendekatan yang sama tidak cocok untuk semua orang; salah menilai karakter bisa berakibat fatal.",tip:"Sebelum negosiasi penting, pelajari rekam jejak dan gaya komunikasi pihak lawan bicara Anda."},
+{n:20,title:"Jaga Independensi, Jangan Mudah Berpihak Buta",core:"Terlalu terikat pada satu pihak atau kubu bisa membatasi pilihan dan objektivitas Anda.",tip:"Dalam kemitraan bisnis, hindari ketergantungan penuh pada satu klien atau pemasok besar — diversifikasi risiko."},
+{n:21,title:"Rendah Hati Bisa Jadi Kekuatan",core:"Tidak selalu tampil paling pintar membuat orang lain lebih terbuka dan tidak defensif terhadap Anda.",tip:"Saat rapat, ajukan pertanyaan sederhana daripada langsung mengoreksi — orang lebih mudah menerima masukan Anda."},
+{n:22,title:"Ubah Kekalahan Sementara Jadi Kekuatan",core:"Mengakui kelemahan atau kesalahan secara terbuka dan strategis bisa meredam konflik dan membuka jalan untuk bangkit kembali.",tip:"Kalau produk atau layanan gagal, akui secara terbuka dan perbaiki cepat — ini sering membangun kepercayaan lebih besar daripada menutup-nutupi."},
+{n:23,title:"Fokuskan Sumber Daya",core:"Energi dan modal yang terpecah ke banyak arah menghasilkan dampak lemah; fokus pada satu titik kuat menghasilkan terobosan.",tip:"Alih-alih membuka banyak lini usaha sekaligus, kuatkan dulu satu produk atau layanan unggulan sampai benar-benar solid."},
+{n:24,title:"Kuasai Etika dan Dinamika di Lingkungan Kerja",core:"Memahami dinamika kekuasaan dan etiket tak tertulis di lingkungan kerja atau relasi membantu Anda bergerak lebih lancar.",tip:"Pelajari aturan tak tertulis di industri atau komunitas bisnis Anda sebelum bertindak berani."},
+{n:25,title:"Bentuk Ulang Citra Diri Sesuai Tujuan",core:"Anda bisa mendefinisikan ulang identitas atau personal brand Anda, bukan terjebak pada citra lama.",tip:"Perbarui personal branding — profil, portofolio, cara komunikasi — saat Anda naik level karier atau bisnis."},
+{n:26,title:"Jaga Integritas, Hindari Cara Kotor",core:"Jangan biarkan diri Anda terkait langsung dengan tindakan tidak etis; gunakan jalur dan pihak yang tepat untuk hal sensitif.",tip:"Serahkan keputusan sulit, seperti PHK atau penagihan, lewat prosedur dan pihak yang tepat — bukan secara personal dan emosional."},
+{n:27,title:"Bangun Visi yang Menginspirasi",core:"Orang mudah tergerak oleh visi dan cerita besar yang meyakinkan — gunakan untuk menyatukan tim, bukan untuk menipu.",tip:"Komunikasikan visi dan misi usaha secara jelas dan konsisten agar tim serta pelanggan percaya pada arah Anda."},
+{n:28,title:"Bertindak dengan Berani dan Yakin",core:"Keraguan yang terlihat membuat orang lain ikut ragu; keberanian yang tegas justru meyakinkan.",tip:"Saat mengeksekusi keputusan penting, tunjukkan keyakinan di depan tim meski Anda masih belajar."},
+{n:29,title:"Rencanakan Sampai Tuntas",core:"Rencana yang hanya memikirkan langkah awal rentan gagal di tengah jalan; pikirkan juga skenario akhir dan risikonya.",tip:"Sebelum meluncurkan promo atau produk, petakan skenario terburuk dan rencana keluarnya, bukan hanya rencana suksesnya."},
+{n:30,title:"Tunjukkan Hasil, Sembunyikan Kerja Keras di Baliknya",core:"Kerja keras yang terlalu dipamerkan bisa mengurangi kesan profesional; hasil yang tampak mengalir lebih meyakinkan.",tip:"Presentasikan hasil kerja dengan rapi dan percaya diri, tanpa mengeluh soal proses yang melelahkan di depan klien."},
+{n:31,title:"Kendalikan Pilihan yang Anda Tawarkan",core:"Memberi pilihan terbatas namun tetap menguntungkan Anda membuat keputusan orang lain lebih mudah diarahkan.",tip:"Saat menawarkan paket layanan, sediakan dua atau tiga opsi yang sudah Anda rancang agar tetap menguntungkan bisnis."},
+{n:32,title:"Pahami Harapan dan Impian Pelanggan Anda",core:"Orang membeli lebih karena emosi dan harapan, bukan sekadar fakta teknis.",tip:"Dalam pemasaran, jual hasil atau impian pelanggan — misalnya pakaian rapi tanpa ribet — bukan hanya daftar fitur layanan."},
+{n:33,title:"Kenali Motivasi Utama Setiap Orang",core:"Setiap orang punya pendorong utama seperti uang, pengakuan, atau rasa aman; memahaminya membuat komunikasi lebih efektif.",tip:"Saat memimpin tim, kenali apa yang benar-benar memotivasi tiap anggota, lalu sesuaikan cara memberi penghargaan."},
+{n:34,title:"Bersikap Sesuai Standar yang Anda Ingin Diterima",core:"Cara Anda bersikap memengaruhi cara orang memperlakukan Anda; standar rendah pada diri sendiri menular ke orang lain.",tip:"Tetapkan standar layanan dan harga yang mencerminkan kualitas Anda — jangan terlalu sering banting harga karena kurang percaya diri."},
+{n:35,title:"Kuasai Waktu yang Tepat",core:"Ide bagus di waktu yang salah bisa gagal total; kesabaran menunggu momentum sering lebih efektif daripada terburu-buru.",tip:"Luncurkan promo besar saat momentum pasar tepat, misalnya musim ramai atau hari besar, bukan asal cepat-cepat."},
+{n:36,title:"Abaikan Hal yang di Luar Kendali Anda",core:"Terlalu fokus pada hal yang tidak bisa diubah atau dimiliki menguras energi dan perhatian dari hal yang produktif.",tip:"Jangan buang energi meladeni kompetitor atau kritik yang tidak membangun — fokus kembangkan bisnis Anda sendiri."},
+{n:37,title:"Ciptakan Momen yang Berkesan",core:"Simbol dan momen yang mengesankan lebih diingat orang daripada penjelasan panjang.",tip:"Buat momen peluncuran produk atau toko baru yang berkesan — dekorasi, acara kecil — agar diingat dan dibicarakan pelanggan."},
+{n:38,title:"Berpikir Bebas, Bersikap Sesuai Norma",core:"Ide unik boleh radikal, tapi cara menyampaikannya perlu menyesuaikan norma sosial agar mudah diterima.",tip:"Sampaikan ide inovatif dengan bahasa dan pendekatan yang familiar bagi audiens atau klien Anda."},
+{n:39,title:"Ciptakan Urgensi yang Sehat",core:"Situasi yang terlalu tenang membuat orang lengah; sedikit urgensi atau tantangan bisa memacu produktivitas.",tip:"Beri target dan tenggat waktu yang jelas ke tim agar tidak terjebak zona nyaman yang berlebihan."},
+{n:40,title:"Waspadai Sesuatu yang Terlalu Gratis atau Mudah",core:"Sesuatu yang didapat tanpa usaha atau biaya sering kurang dihargai dan berisiko punya harga tersembunyi.",tip:"Hati-hati dengan tawaran kerja sama atau vendor yang terlalu murah tanpa alasan jelas — cek dulu risikonya."},
+{n:41,title:"Jangan Sekadar Meneruskan Bayang-Bayang Pendahulu",core:"Menggantikan sosok besar atau pendahulu tanpa identitas sendiri membuat Anda terus dibandingkan dan dianggap kurang.",tip:"Saat melanjutkan usaha keluarga atau mengambil alih posisi, ciptakan pencapaian dan gaya kepemimpinan khas Anda sendiri."},
+{n:42,title:"Selesaikan Akar Masalah, Bukan Gejalanya",core:"Mengatasi sumber utama suatu masalah lebih efektif daripada menangani dampaknya satu per satu.",tip:"Kalau ada konflik tim yang berulang, cari akar penyebabnya — misalnya aturan yang tidak jelas — daripada terus menambal gejalanya."},
+{n:43,title:"Menangkan Hati, Baru Pikiran",core:"Orang lebih mudah mengikuti Anda kalau merasa dipahami secara emosional, bukan hanya diyakinkan lewat logika.",tip:"Dengarkan keluhan pelanggan atau karyawan dengan empati dulu sebelum menawarkan solusi teknis."},
+{n:44,title:"Cermati dan Sesuaikan Gaya Lawan Bicara",core:"Menyesuaikan gaya komunikasi dengan lawan bicara dapat membangun kedekatan dan mengurangi konfrontasi.",tip:"Saat negosiasi alot, coba sesuaikan nada dan gaya bicara lawan untuk meredakan ketegangan."},
+{n:45,title:"Lakukan Perubahan Secara Bertahap",core:"Perubahan besar yang mendadak memicu penolakan; perubahan bertahap jauh lebih mudah diterima.",tip:"Saat mengubah SOP atau sistem kerja, terapkan bertahap dan beri waktu tim beradaptasi — jangan sekaligus total."},
+{n:46,title:"Jangan Tampil Terlalu Sempurna",core:"Kesempurnaan yang berlebihan bisa memicu kecemburuan dan rasa tidak nyaman pada orang lain; sedikit kerentanan membuat Anda lebih mudah didekati.",tip:"Sesekali akui kekurangan atau kesalahan kecil secara terbuka agar terlihat manusiawi di mata tim dan klien."},
+{n:47,title:"Tahu Kapan Harus Berhenti",core:"Terus mendorong keuntungan atau kemenangan tanpa batas justru bisa berbalik jadi kerugian besar.",tip:"Setelah mencapai target, evaluasi dan konsolidasi dulu sebelum ekspansi agresif berikutnya — jangan serakah."},
+{n:48,title:"Tetap Fleksibel dan Adaptif",core:"Strategi yang kaku mudah diserang dan cepat ketinggalan zaman; kemampuan beradaptasi adalah kekuatan sejati.",tip:"Selalu siap menyesuaikan model bisnis atau layanan Anda mengikuti perubahan pasar dan kebutuhan pelanggan."}
+];
+
+const MOTIV = [
+"Disiplin kecil yang konsisten mengalahkan niat besar yang hangat-hangat tahi ayam.",
+"Anda tidak perlu sempurna hari ini, cukup lebih baik dari kemarin.",
+"Kekuasaan sejati dimulai dari menguasai diri sendiri terlebih dahulu.",
+"Satu langkah kecil yang dicatat, lebih berarti dari rencana besar yang hanya dipikirkan.",
+"Konsistensi adalah bentuk kekuasaan yang paling sering diremehkan.",
+"Refleksikan, jangan sekadar membaca — hukum ini baru bekerja kalau dipraktikkan.",
+"Reputasi dan kepercayaan dibangun dari kebiasaan harian, bukan momen sesekali."
+];
+
+const STORE_KEY = "lop48_data_v1";
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return {journal:[], favorites:[], settings:{reminderEnabled:false, reminderTime:"08:00", lastNotifiedKey:null}};
+}
+function saveData(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+let state = loadData();
+if(!state.settings) state.settings = {reminderEnabled:false, reminderTime:"08:00", lastNotifiedKey:null};
+
+function todayStr(d){
+  d = d || new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dayOfYear(d){
+  const start = new Date(d.getFullYear(),0,0);
+  const diff = d - start;
+  return Math.floor(diff / 86400000);
+}
+function lawOfTheDay(){
+  const idx = dayOfYear(new Date()) % LAWS.length;
+  return LAWS[idx];
+}
+
+/* ---------- NAV ---------- */
+document.querySelectorAll("nav.tabs button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("view-"+btn.dataset.view).classList.add("active");
+    if(btn.dataset.view === "list") renderList();
+    if(btn.dataset.view === "progress") renderProgress();
+  });
+});
+
+/* ---------- TOAST ---------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* ---------- STREAK ---------- */
+function loggedDatesSet(){
+  return new Set(state.journal.map(j=>j.date));
+}
+function computeStreak(){
+  const dates = loggedDatesSet();
+  let streak = 0;
+  let cursor = new Date();
+  if(!dates.has(todayStr(cursor))){
+    cursor.setDate(cursor.getDate()-1);
+  }
+  while(dates.has(todayStr(cursor))){
+    streak++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  return streak;
+}
+function computeBestStreak(){
+  const dates = Array.from(loggedDatesSet()).sort();
+  if(dates.length===0) return 0;
+  let best=1, cur=1;
+  for(let i=1;i<dates.length;i++){
+    const prev = new Date(dates[i-1]);
+    const now = new Date(dates[i]);
+    const diffDays = Math.round((now-prev)/86400000);
+    if(diffDays===1){ cur++; } else { cur=1; }
+    if(cur>best) best=cur;
+  }
+  return best;
+}
+
+/* ---------- HARI INI ---------- */
+function renderToday(){
+  const law = lawOfTheDay();
+  document.getElementById("todayNum").textContent = "#"+law.n;
+  document.getElementById("todayTitle").textContent = law.title;
+  document.getElementById("todayCore").textContent = law.core;
+  document.getElementById("todayTip").textContent = law.tip;
+  document.getElementById("streakPill").textContent = "🔥 "+computeStreak()+" hari beruntun";
+  document.getElementById("motivLine").textContent = MOTIV[dayOfYear(new Date()) % MOTIV.length];
+
+  const t = todayStr();
+  const existing = state.journal.find(j=>j.date===t && j.lawId===law.n);
+  if(existing){
+    document.getElementById("todayLoggedBox").style.display = "block";
+    document.getElementById("todayFormBox").style.display = "none";
+    document.getElementById("todayNoteView").textContent = existing.note ? ("Catatan Anda: “"+existing.note+"”") : "Tidak ada catatan tambahan.";
+  } else {
+    document.getElementById("todayLoggedBox").style.display = "none";
+    document.getElementById("todayFormBox").style.display = "block";
+    document.getElementById("todayNote").value = "";
+  }
+}
+document.getElementById("markAppliedBtn").addEventListener("click", ()=>{
+  const law = lawOfTheDay();
+  logApplied(law.n, document.getElementById("todayNote").value.trim());
+  renderToday();
+  toast("Tercatat. Konsistensi Anda bertambah satu hari.");
+});
+document.getElementById("editTodayBtn").addEventListener("click", ()=>{
+  const law = lawOfTheDay();
+  const t = todayStr();
+  state.journal = state.journal.filter(j=>!(j.date===t && j.lawId===law.n));
+  saveData();
+  renderToday();
+});
+
+function logApplied(lawId, note){
+  const t = todayStr();
+  state.journal = state.journal.filter(j=>!(j.date===t && j.lawId===lawId));
+  state.journal.push({id:Date.now()+"_"+lawId, date:t, lawId:lawId, note:note||""});
+  saveData();
+}
+
+/* ---------- SEMUA HUKUM ---------- */
+function renderList(){
+  const q = document.getElementById("searchInput").value.trim().toLowerCase();
+  const grid = document.getElementById("lawGrid");
+  const filtered = LAWS.filter(l=>{
+    if(!q) return true;
+    return String(l.n)===q || l.title.toLowerCase().includes(q) || l.core.toLowerCase().includes(q);
+  });
+  if(filtered.length===0){
+    grid.innerHTML = '<div class="empty">Tidak ada hukum yang cocok dengan pencarian.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(l=>{
+    const fav = state.favorites.includes(l.n);
+    return '<div class="law-item" data-n="'+l.n+'">'
+      +'<div class="n">'+l.n+'</div>'
+      +'<div class="t"><div class="ttl">'+escapeHtml(l.title)+'</div><div class="sub">'+escapeHtml(l.core)+'</div></div>'
+      +'<button class="star '+(fav?'active':'')+'" data-fav="'+l.n+'">'+(fav?'★':'☆')+'</button>'
+      +'</div>';
+  }).join("");
+  grid.querySelectorAll(".law-item").forEach(el=>{
+    el.addEventListener("click", (e)=>{
+      if(e.target.classList.contains("star")) return;
+      openModal(parseInt(el.dataset.n,10));
+    });
+  });
+  grid.querySelectorAll(".star").forEach(el=>{
+    el.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      toggleFav(parseInt(el.dataset.fav,10));
+      renderList();
+    });
+  });
+}
+document.getElementById("searchInput").addEventListener("input", renderList);
+
+function toggleFav(n){
+  const i = state.favorites.indexOf(n);
+  if(i>=0) state.favorites.splice(i,1); else state.favorites.push(n);
+  saveData();
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
+/* ---------- MODAL ---------- */
+let modalLawId = null;
+function openModal(n){
+  const law = LAWS.find(l=>l.n===n);
+  modalLawId = n;
+  document.getElementById("modalNum").textContent = "#"+law.n+" — ";
+  document.getElementById("modalTitle").textContent = law.title;
+  document.getElementById("modalCore").textContent = law.core;
+  document.getElementById("modalTip").textContent = law.tip;
+  const fav = state.favorites.includes(n);
+  const favBtn = document.getElementById("modalFav");
+  favBtn.textContent = fav ? "★ Favorit" : "☆ Favoritkan";
+  document.getElementById("overlay").classList.add("show");
+}
+document.getElementById("closeModal").addEventListener("click", ()=>document.getElementById("overlay").classList.remove("show"));
+document.getElementById("overlay").addEventListener("click",(e)=>{ if(e.target.id==="overlay") e.currentTarget.classList.remove("show"); });
+document.getElementById("modalFav").addEventListener("click", ()=>{
+  toggleFav(modalLawId);
+  openModal(modalLawId);
+});
+document.getElementById("modalApply").addEventListener("click", ()=>{
+  logApplied(modalLawId, "");
+  toast("Ditandai diterapkan hari ini.");
+  document.getElementById("overlay").classList.remove("show");
+  renderToday();
+});
+
+/* ---------- PROGRES ---------- */
+function renderProgress(){
+  document.getElementById("statStreak").textContent = computeStreak();
+  document.getElementById("statBest").textContent = computeBestStreak();
+  const uniqueLaws = new Set(state.journal.map(j=>j.lawId));
+  document.getElementById("statUnique").textContent = uniqueLaws.size+"/48";
+  document.getElementById("statTotal").textContent = state.journal.length;
+
+  const dates = loggedDatesSet();
+  const hm = document.getElementById("heatmap");
+  let cells = "";
+  for(let i=29;i>=0;i--){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const on = dates.has(todayStr(d));
+    cells += '<div class="d '+(on?'on':'')+'" title="'+todayStr(d)+'"></div>';
+  }
+  hm.innerHTML = cells;
+
+  const list = document.getElementById("journalList");
+  if(state.journal.length===0){
+    list.innerHTML = '<div class="empty">Belum ada catatan. Mulai dari tab "Hari Ini".</div>';
+    return;
+  }
+  const sorted = [...state.journal].sort((a,b)=> (a.date+a.id) < (b.date+b.id) ? 1 : -1);
+  list.innerHTML = sorted.map(j=>{
+    const law = LAWS.find(l=>l.n===j.lawId);
+    return '<div class="journal-item">'
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="meta">'+j.date+' &middot; Hukum #'+j.lawId+'</div>'
+        +'<div class="txt">'+escapeHtml(law?law.title:"")+'</div>'
+        +(j.note ? '<div class="note">“'+escapeHtml(j.note)+'”</div>' : '')
+      +'</div>'
+      +'<button class="del-btn" data-id="'+j.id+'" title="Hapus catatan">🗑</button>'
+    +'</div>';
+  }).join("");
+  list.querySelectorAll(".del-btn").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      state.journal = state.journal.filter(j=>j.id!==b.dataset.id);
+      saveData();
+      renderProgress();
+      renderToday();
+    });
+  });
+}
+
+/* ---------- PENGATURAN ---------- */
+const reminderToggle = document.getElementById("reminderToggle");
+const reminderTime = document.getElementById("reminderTime");
+reminderToggle.checked = !!state.settings.reminderEnabled;
+reminderTime.value = state.settings.reminderTime || "08:00";
+
+reminderToggle.addEventListener("change", async ()=>{
+  if(reminderToggle.checked){
+    if("Notification" in window){
+      const perm = await Notification.requestPermission();
+      if(perm !== "granted"){
+        toast("Izin notifikasi ditolak oleh browser.");
+        reminderToggle.checked = false;
+        state.settings.reminderEnabled = false;
+        saveData();
+        return;
+      }
+    }
+  }
+  state.settings.reminderEnabled = reminderToggle.checked;
+  saveData();
+});
+reminderTime.addEventListener("change", ()=>{
+  state.settings.reminderTime = reminderTime.value;
+  saveData();
+});
+
+setInterval(()=>{
+  if(!state.settings.reminderEnabled) return;
+  if(!("Notification" in window) || Notification.permission !== "granted") return;
+  const now = new Date();
+  const hhmm = String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+  const key = todayStr(now)+"_"+hhmm;
+  if(hhmm === (state.settings.reminderTime||"08:00") && state.settings.lastNotifiedKey !== key){
+    const law = lawOfTheDay();
+    new Notification("Hukum Kekuasaan Hari Ini", {body:"#"+law.n+" — "+law.title, tag:"lop48-reminder"});
+    state.settings.lastNotifiedKey = key;
+    saveData();
+  }
+}, 20000);
+
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "48-laws-of-power-backup-"+todayStr()+".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+document.getElementById("importBtn").addEventListener("click", ()=>document.getElementById("importFile").click());
+document.getElementById("importFile").addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed.journal || !Array.isArray(parsed.journal)) throw new Error("format tidak valid");
+      state = parsed;
+      if(!state.favorites) state.favorites = [];
+      if(!state.settings) state.settings = {reminderEnabled:false, reminderTime:"08:00", lastNotifiedKey:null};
+      saveData();
+      reminderToggle.checked = !!state.settings.reminderEnabled;
+      reminderTime.value = state.settings.reminderTime || "08:00";
+      renderToday(); renderList(); renderProgress();
+      toast("Data berhasil diimpor.");
+    }catch(err){
+      toast("Gagal mengimpor: file tidak valid.");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  if(!confirm("Hapus semua data (jurnal, favorit, pengaturan) di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) return;
+  state = {journal:[], favorites:[], settings:{reminderEnabled:false, reminderTime:"08:00", lastNotifiedKey:null}};
+  saveData();
+  reminderToggle.checked = false;
+  reminderTime.value = "08:00";
+  renderToday(); renderList(); renderProgress();
+  toast("Semua data telah direset.");
+});
+
+/* ---------- INIT ---------- */
+renderToday();
+renderList();
+</script>
+</body>
+</html>
