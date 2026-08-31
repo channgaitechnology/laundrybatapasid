@@ -276,6 +276,12 @@
   .work-pill.on-belum{background:#ECECEC;border-color:#BBB;color:#555;}
   .work-pill.on-sedang{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);}
   .work-pill.on-selesai{background:var(--success-bg);border-color:var(--success);color:var(--success);}
+  /* Desktop/tablet lebar: 7 kolom Senin->Ahad muat sekaligus dalam satu layar
+     (grid, bukan flex-scroll) supaya tidak perlu geser ke samping lagi. */
+  @media (min-width:1024px){
+    .work-board-grid{display:grid;grid-template-columns:repeat(7,1fr);flex-wrap:nowrap;overflow-x:visible;scroll-snap-type:none;}
+    .work-day-col{flex:none;width:auto;min-width:0;}
+  }
 
   /* ---- History list ---- */
   .search-bar{position:relative;margin-bottom:12px;}
