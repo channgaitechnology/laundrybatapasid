@@ -10,8 +10,13 @@ function renderHistory(){
   const todayList = visibleTransactions().filter(t=>t.tanggal===today);
   const todayLunas = todayList.filter(t=>t.status==='lunas');
   const todayBelum = todayList.filter(t=>t.status==='belum');
-  document.getElementById('stTodayLunas').textContent = `${todayLunas.length} · ${rupiah(todayLunas.reduce((s,t)=>s+t.total,0))}`;
-  document.getElementById('stTodayBelum').textContent = `${todayBelum.length} · ${rupiah(todayBelum.reduce((s,t)=>s+(t.total-(t.dp||0)),0))}`;
+  /* Nominal "Lunas" pakai kas yang benar-benar diterima hari ini (termasuk
+     DP dari transaksi yang masih "Belum Lunas"), bukan cuma total transaksi
+     yang statusnya sudah lunas -- konsisten dengan Laporan (lihat
+     trxCashReceived()). Jumlah nota di depan tetap hitungan transaksi yang
+     SUDAH lunas hari ini, bukan berubah makna. */
+  document.getElementById('stTodayLunas').textContent = `${todayLunas.length} · ${rupiah(todayList.reduce((s,t)=>s+trxCashReceived(t),0))}`;
+  document.getElementById('stTodayBelum').textContent = `${todayBelum.length} · ${rupiah(todayBelum.reduce((s,t)=>s+(t.total-trxCashReceived(t)),0))}`;
 
   if(list.length===0){
     el.innerHTML = `<div class="empty">

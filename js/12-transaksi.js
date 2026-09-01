@@ -110,7 +110,7 @@ async function submitTransaction(){
 
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId,
-    kode: nextKode(),
+    kode: await nextKode(),
     nama, hp, tanggal,
     estimasi: estimasi || null,
     items: draftItems.slice(),
