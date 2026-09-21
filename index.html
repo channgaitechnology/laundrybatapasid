@@ -177,6 +177,8 @@
   .item-row input,.item-row select{margin-bottom:0;}
   .rm-btn{background:#FCEBEA;color:var(--danger);border:none;border-radius:9px;width:38px;height:38px;font-size:16px;}
   body.role-kasir .owner-only{ display:none !important; }
+  .kasir-only-logout{ display:none; }
+  body.role-kasir .kasir-only-logout{ display:flex; }
 
   /* ---- Tutorial ---- */
   .tut-item{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;}
@@ -455,6 +457,10 @@
     <button class="icon-btn" onclick="openCatatan()" aria-label="Catatan">
       <span class="icon-btn-emoji" style="font-size:19px;white-space:nowrap;">📔<span style="font-size:0.62em;">✏️</span></span>
       <span class="icon-btn-label">Catatan</span>
+    </button>
+    <button class="icon-btn kasir-only-logout" onclick="handleLogout()" aria-label="Keluar">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="icon-btn-label">Keluar</span>
     </button>
   </div>
 </div>
