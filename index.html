@@ -470,6 +470,7 @@
 
   <!-- ===== VIEW 1: TRANSAKSI BARU ===== -->
   <section class="view active" id="view-baru">
+    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="openRekapPelanggan()">🧮 Rekap Transaksi Pelanggan</button>
     <div class="card">
       <h2>Data Pelanggan</h2>
       <label for="inNama">Nama Pelanggan</label>
@@ -1220,6 +1221,7 @@
     <button class="modal-close" onclick="closeTutorial()">✕</button>
     <h3>📖 Tutorial Penggunaan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Panduan singkat memakai aplikasi ini. Ketuk tiap judul untuk buka langkahnya.</p>
+    <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 8px;">🚪 <b>Keluar dari akun:</b> Pemilik lewat Pengaturan → Keamanan Akun. Kasir lewat tombol <b>Keluar</b> di pojok kanan atas (menu Pengaturan khusus pemilik, jadi kasir punya tombol Keluar sendiri di sana).</p>
 
     <button class="btn btn-primary btn-sm" style="width:100%;margin:6px 0 14px;" onclick="startGuidedTour()">🎯 Mulai Latihan Praktik Langsung</button>
 
@@ -1233,7 +1235,8 @@
           <li>Isi <b>Estimasi Selesai</b> (opsional) supaya cucian ini otomatis muncul di jadwal yang tepat di tab <b>Daftar Tugas</b></li>
           <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar — boleh lebih dari satu layanan dalam satu nota</li>
           <li>Isi diskon kalau ada, isi <b>Uang Muka (DP)</b> kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang</li>
-          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan atau diunduh sebagai gambar/PDF</li>
+          <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan, diunduh sebagai gambar/PDF, atau langsung dicetak ke printer thermal (Bluetooth atau AirPrint/printer lain, kalau sudah disambungkan lewat Pengaturan → Printer Bluetooth)</li>
+          <li>Di bagian atas tab ini ada tombol <b>🧮 Rekap Transaksi Pelanggan</b> — cari satu nama pelanggan untuk menjumlahkan transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Bisa pilih/batal-pilih transaksi mana saja yang mau ikut direkap, dan kalau ada transaksi yang belum tercatat, tekan <b>➕ Tambah Transaksi Baru</b> untuk mencatatnya langsung dari sini — otomatis ikut masuk Riwayat/Laporan seperti transaksi biasa. Rekapnya (lengkap nama, periode, dan No. WA kalau ada) juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa</li>
         </ol>
       </div>
     </div>
@@ -1287,7 +1290,7 @@
           <li>Tidak ada kuota & tidak ada batas periode — cukup isi nama dan tanggal mulai</li>
           <li>Setiap laundry masuk, buka detail pelanggannya lalu catat kunjungannya (pilih layanan dari katalog atau ketik manual, isi Estimasi Selesai) — boleh catat beberapa layanan sekaligus sebelum kirim notanya</li>
           <li>Nota per-kunjungan otomatis muncul berisi rekap seluruh riwayat yang belum dibayar, jadi pelanggan selalu tahu total tunggakannya</li>
-          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>Tandai Lunas &amp; Mulai Baru</b> untuk melunasi semuanya sekaligus — otomatis masuk ke Riwayat & Laporan. Kalau bayarnya lebih dari tagihan, sisanya otomatis jadi saldo untuk laundry berikutnya, bukan hilang</li>
+          <li>Kapan pun pelanggan mau bayar (penuh atau sebagian), catat lewat <b>Catat DP</b>, atau tekan <b>✅ Tandai Lunas</b> untuk melunasi semuanya sekaligus — siklus tagihan baru otomatis mulai, dan yang lama masuk ke Riwayat & Laporan. Kalau bayarnya lebih dari tagihan, sisanya otomatis jadi saldo untuk laundry berikutnya, bukan hilang</li>
         </ol>
       </div>
     </div>
@@ -1309,7 +1312,9 @@
       <button class="tut-head" onclick="toggleTut(this)">7️⃣ Laporan Omset &amp; Peringkat Pelanggan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total transaksi, omzet, lunas, dan belum lunas, lengkap dengan grafik omzet harian</li>
+          <li>Buka tab <b>Laporan</b>, pilih bulan untuk lihat total transaksi, omzet, lunas, dan belum lunas</li>
+          <li>Kalau sudah punya lebih dari satu outlet, ada filter <b>Outlet</b> di bagian atas — terpisah dari pemilih outlet operasional di appbar, defaultnya "Semua Outlet" (menggabungkan semua cabang)</li>
+          <li>Scroll ke <b>Tren Omset (6 Bulan Terakhir)</b> untuk lihat naik/turunnya omzet lintas bulan, dan <b>Omzet Harian</b> untuk rincian per hari di bulan yang dipilih</li>
           <li>Scroll ke <b>Rincian Transaksi</b> untuk lihat & unduh daftar semua transaksi bulan itu sebagai PDF</li>
           <li>Scroll ke <b>Laporan Per Pelanggan</b> untuk lihat riwayat belanja satu pelanggan tertentu — bisa pilih rentang tanggal bebas, per bulan, atau per tahun</li>
           <li>Scroll ke <b>Peringkat Pemasukan Pelanggan</b> untuk lihat pelanggan mana yang belanjanya paling banyak — bisa per bulan, per tahun, atau sepanjang waktu</li>
@@ -1322,12 +1327,40 @@
       <button class="tut-head" onclick="toggleTut(this)">8️⃣ Pengaturan Toko &amp; Karyawan (khusus Pemilik)</button>
       <div class="tut-body">
         <ol>
-          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas) — muncul kotak-kotak kategori, ketuk salah satu untuk masuk ke pengaturannya, lalu <b>← Kembali</b> untuk pilih kategori lain</li>
+          <li>Buka ⚙️ <b>Pengaturan</b> (ikon roda gigi di kanan atas — hanya kelihatan untuk Pemilik) — muncul kotak-kotak kategori, ketuk salah satu untuk masuk ke pengaturannya, lalu <b>← Kembali</b> untuk pilih kategori lain</li>
           <li>Ketuk kotak 🏪 <b>Profil Toko</b>: ganti <b>Logo Toko</b> dengan foto/logo asli (otomatis dipakai di header aplikasi & semua nota setelah login), isi <b>Nama Toko</b>, <b>Alamat</b>, <b>No. Telepon</b>, dan <b>Catatan Kaki Nota</b>, lalu tekan <b>Simpan Pengaturan</b></li>
+          <li>Ketuk kotak 🔔 <b>Notifikasi</b> untuk atur apakah WhatsApp "sudah selesai" dikirim otomatis ke pelanggan begitu status kerjaannya diubah jadi Selesai di Daftar Tugas, atau mau dikirim manual saja</li>
+          <li>Ketuk kotak 🔒 <b>Keamanan Akun</b> untuk ganti email/password login, atau tekan <b>🚪 Keluar dari Akun</b> untuk logout</li>
           <li>Ketuk kotak 📇 <b>Kontak Pelanggan</b> untuk impor kontak dari HP supaya langsung muncul sebagai saran nama saat input transaksi & paket</li>
+          <li>Ketuk kotak 🖨️ <b>Printer Bluetooth</b> untuk sambungkan printer thermal — sekali tersambung, tombol "Cetak Bluetooth" di semua layar nota langsung bisa dipakai</li>
+          <li>Ketuk kotak 🌐 <b>Bahasa</b> untuk ganti tampilan aplikasi ke Bahasa Indonesia atau English</li>
           <li>Ketuk kotak 👥 <b>Karyawan/Kasir</b>, tekan <b>Undang Kasir Baru</b>, isi nama, dapat kode undangan 6 huruf/angka</li>
           <li>Karyawan buka aplikasi ini di HP-nya, daftar akun sendiri, lalu masukkan kode itu saat pertama login</li>
-          <li>Kasir cuma bisa input transaksi & catat paket — tidak bisa lihat Laporan/Pengeluaran, ubah Katalog, atau Edit/Hapus data</li>
+          <li>Kasir cuma bisa input transaksi & catat paket — tidak bisa lihat Laporan/Pengeluaran/Pengaturan, ubah Katalog, atau Edit/Hapus data. Kasir logout lewat tombol Keluar di appbar (lihat catatan di atas), bukan lewat Pengaturan</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item owner-only">
+      <button class="tut-head" onclick="toggleTut(this)">9️⃣ Multi-Outlet / Cabang (khusus Pemilik)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Fitur ini opsional — kalau toko cuma punya 1 lokasi, tidak perlu disentuh sama sekali dan aplikasi berjalan seperti biasa</li>
+          <li>Buka ⚙️ <b>Pengaturan</b> → kotak 🏬 <b>Outlet / Cabang</b>, tekan <b>➕ Tambah Outlet</b>, isi nama, alamat, dan telepon cabangnya</li>
+          <li>Begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko (appbar) untuk pilih cabang mana yang sedang dikerjakan — Transaksi, Paket, dan Pengeluaran baru otomatis tercatat & terfilter sesuai outlet yang aktif itu</li>
+          <li>Kasir bisa dikunci ke satu outlet tertentu supaya tidak bisa pindah-pindah cabang sendiri — atur lewat kotak 👥 Karyawan/Kasir saat mengundang atau mengedit kasirnya</li>
+          <li>Tab Laporan punya filter Outlet sendiri (independen dari pemilih outlet operasional di appbar) untuk lihat rekap satu cabang saja atau semua cabang sekaligus</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="tut-item">
+      <button class="tut-head" onclick="toggleTut(this)">🔟 Catatan (buku catatan bebas)</button>
+      <div class="tut-body">
+        <ol>
+          <li>Ketuk ikon 📔 <b>Catatan</b> di pojok kanan atas — ini catatan bebas seputar laundry (stok deterjen, ide promo, dll), terpisah dari sistem transaksi, dan bisa dipakai baik oleh Pemilik maupun Kasir</li>
+          <li>Tekan <b>+ Catatan Baru</b>, isi judul, lalu tulis isinya — bisa diformat tebal/miring/garis bawah, bullet, penomoran, kotak centang, stabilo warna-warni, dan tempel foto langsung lewat toolbar di atas kolom teks</li>
+          <li>Ketuk salah satu kartu catatan untuk membuka & mengedit lagi, atau hapus kalau sudah tidak dibutuhkan (ada <b>Urungkan</b> juga kalau salah hapus)</li>
         </ol>
       </div>
     </div>
@@ -1528,6 +1561,65 @@
   </div>
 </div>
 
+<!-- Rekap Transaksi Pelanggan: kalkulator penjumlah seluruh transaksi reguler
+     1 orang lintas tanggal (mirip Tempo, tapi untuk pelanggan biasa yang
+     tidak didaftarkan sebagai paket/tempo) -->
+<div class="modal-bg" id="rekapPelangganModal" style="z-index:107;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRekapPelanggan()">✕</button>
+    <h3>🧮 Rekap Transaksi Pelanggan</h3>
+
+    <div id="rekapSearchStep">
+      <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Jumlahkan seluruh transaksi satu pelanggan dari tanggal-tanggal berbeda, lengkap rincian per transaksinya — cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo.</p>
+      <label for="rekapNamaInput">Nama Pelanggan</label>
+      <div style="position:relative;">
+        <input id="rekapNamaInput" placeholder="cth. Budi Santoso" oninput="showRekapNamaSuggest()" onfocus="showRekapNamaSuggest()" onblur="hideRekapNamaSuggestDelayed()" onkeydown="if(event.key==='Enter') searchRekapPelanggan();" autocomplete="off">
+        <div id="rekapNamaSuggestBox" class="suggest-dropdown"></div>
+      </div>
+      <button type="button" class="btn btn-primary" style="margin-top:8px;" onclick="searchRekapPelanggan()">🔍 Cari &amp; Jumlahkan</button>
+    </div>
+
+    <div id="rekapResultStep" style="display:none;">
+      <button type="button" class="settings-sub-back" onclick="backToRekapSearch()">← Cari Nama Lain</button>
+      <h2 id="rekapResultNama" style="margin-top:4px;"></h2>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Transaksi Dipilih</div><div class="value" id="rekapStTrx">0</div></div>
+        <div class="stat-card"><div class="label">Total Keseluruhan</div><div class="value" id="rekapStTotal">Rp0</div></div>
+        <div class="stat-card"><div class="label">Sudah Dibayar</div><div class="value" id="rekapStLunas">Rp0</div></div>
+        <div class="stat-card warn"><div class="label">Belum Dibayar</div><div class="value" id="rekapStBelum">Rp0</div></div>
+      </div>
+      <p id="rekapSelectHint" style="font-size:11.5px;color:var(--ink-soft);margin:-6px 0 0;"></p>
+
+      <button type="button" class="btn btn-accent" style="width:100%;margin:10px 0 8px;" onclick="openRekapPelangganShare()">📤 Kirim / Cetak Rekap</button>
+      <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="startRekapAddTransaction()">➕ Tambah Transaksi Baru</button>
+
+      <div id="rekapSelectControls" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px;">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0;">Centang transaksi yang mau ikut direkap:</p>
+        <div style="display:flex;gap:6px;flex:none;">
+          <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:0 10px;" onclick="selectAllRekapTrx()">Semua</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:0 10px;" onclick="deselectAllRekapTrx()">Kosongkan</button>
+        </div>
+      </div>
+
+      <div id="rekapList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Pilihan kirim/cetak Rekap Transaksi Pelanggan: WA / WA Business / JPG / Bluetooth / AirPrint -->
+<div class="modal-bg" id="rekapShareModal" style="z-index:108;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRekapPelangganShare()">✕</button>
+    <h3>Kirim Rekap</h3>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wa')">Kirim via WhatsApp</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wab')">Kirim via WhatsApp Business</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadRekapPelangganImage()">Unduh / Bagikan Rekap (JPG)</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printRekapPelangganBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printRekapPelangganViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+  </div>
+</div>
+
 <!-- Riwayat perubahan (transaksi/pelanggan paket) — siapa mengedit apa, kapan -->
 <div class="modal-bg" id="editHistoryModal" style="z-index:107;">
   <div class="modal">
@@ -1615,6 +1707,7 @@
 <script src="js/19-settings.js"></script>
 <script src="js/20-catatan.js"></script>
 <script src="js/21-i18n.js"></script>
+<script src="js/22-rekap-pelanggan.js"></script>
 <script>
   /* Listener sesi login SENGAJA ditaruh di <script> paling akhir ini (bukan
      di js/01-auth.js tempat fungsi2 auth lain berada) -- supabase-js bisa
