@@ -947,6 +947,12 @@ const I18N_EN = {
   'No. WhatsApp pelanggan belum diisi di transaksi manapun': "Customer's WhatsApp number isn't filled in on any of their transactions",
   'Di bagian atas tab ini ada tombol 🧮 Rekap Transaksi Pelanggan — cari satu nama pelanggan untuk menjumlahkan SEMUA transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Rekapnya juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa':
     'At the top of this tab there\'s a 🧮 Customer Transaction Recap button — search for one customer name to add up ALL of their transactions across different dates at once, with a full breakdown per date (handy for regular customers who launder often but aren\'t registered as a Package/Pay-Later customer). The recap can also be sent to the customer on WhatsApp or printed, just like a regular receipt',
+  'Transaksi Dipilih': 'Selected Transactions',
+  'transaksi yang ditemukan dipilih': 'transactions found are selected',
+  'Centang transaksi yang mau ikut direkap:': 'Check the transactions to include in the recap:',
+  'Semua': 'All',
+  'Kosongkan': 'Clear',
+  'Centang minimal satu transaksi dulu': 'Check at least one transaction first',
 };
 
 /* Ambil teks TRIMMED (spasi/baris baru di ujung tetap dipertahankan di luar)

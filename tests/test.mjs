@@ -2659,6 +2659,74 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Rekap Transaksi Pelanggan: bisa pilih transaksi mana saja yang ikut direkap (centang per baris, Semua/Kosongkan)', async () => {
+    const savedTransactions = transactions;
+    const savedOutletId = currentOutletId;
+    currentOutletId = null;
+    transactions = [
+      { id:'rs1', kode:'LND-2001', nama:'Dewi Lestari', hp:'081277776666', tanggal:'2026-09-02', estimasi:'', items:[{nama:'Cuci Reguler',qty:2,satuan:'kg',harga:7000,subtotal:14000}], diskon:0, total:14000, dp:14000, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+      { id:'rs2', kode:'LND-2002', nama:'Dewi Lestari', hp:'081277776666', tanggal:'2026-09-06', estimasi:'', items:[{nama:'Cuci Sepatu',qty:1,satuan:'pasang',harga:20000,subtotal:20000}], diskon:0, total:20000, dp:0, status:'belum', workStatus:'belum', catatan:'', outletId:null },
+      { id:'rs3', kode:'LND-2003', nama:'Dewi Lestari', hp:'081277776666', tanggal:'2026-09-12', estimasi:'', items:[{nama:'Cuci Kilat',qty:1,satuan:'kg',harga:12000,subtotal:12000}], diskon:0, total:12000, dp:12000, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+    ];
+    try {
+      openRekapPelanggan();
+      document.getElementById('rekapNamaInput').value = 'Dewi Lestari';
+      searchRekapPelanggan();
+
+      // Default: semua 3 transaksi tercentang
+      if (document.getElementById('rekapStTrx').textContent !== '3') throw new Error('default seharusnya semua tercentang (3), got ' + document.getElementById('rekapStTrx').textContent);
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(46000)) throw new Error('Total Keseluruhan default (semua tercentang) salah: ' + document.getElementById('rekapStTotal').textContent);
+      const checkboxesBefore = document.querySelectorAll('#rekapList input[type="checkbox"]');
+      if (checkboxesBefore.length !== 3) throw new Error('seharusnya ada 3 checkbox, got ' + checkboxesBefore.length);
+      if (!Array.from(checkboxesBefore).every(cb => cb.checked)) throw new Error('semua checkbox seharusnya tercentang secara default');
+      if (document.getElementById('rekapSelectHint').textContent.trim() !== '3 dari 3 transaksi yang ditemukan dipilih') throw new Error('hint seleksi salah: ' + document.getElementById('rekapSelectHint').textContent);
+
+      // Hilangkan centang transaksi ke-2 (LND-2002, belum lunas 20000) lewat toggleRekapTrxSelect()
+      toggleRekapTrxSelect('rs2', false);
+      if (document.getElementById('rekapStTrx').textContent !== '2') throw new Error('setelah uncheck 1, jumlah terpilih seharusnya 2, got ' + document.getElementById('rekapStTrx').textContent);
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(26000)) throw new Error('Total Keseluruhan setelah uncheck LND-2002 salah (14000+12000=26000): ' + document.getElementById('rekapStTotal').textContent);
+      if (document.getElementById('rekapStLunas').textContent !== rupiah(26000)) throw new Error('Sudah Dibayar setelah uncheck salah (kedua transaksi terpilih lunas penuh): ' + document.getElementById('rekapStLunas').textContent);
+      if (document.getElementById('rekapStBelum').textContent !== rupiah(0)) throw new Error('Belum Dibayar setelah uncheck salah, seharusnya 0: ' + document.getElementById('rekapStBelum').textContent);
+      // Baris yang di-uncheck tetap tampil di daftar (bukan dihilangkan), tapi checkbox-nya kosong
+      const checkboxesAfterUncheck = document.querySelectorAll('#rekapList input[type="checkbox"]');
+      if (checkboxesAfterUncheck.length !== 3) throw new Error('baris yang di-uncheck seharusnya tetap tampil di daftar, bukan hilang');
+      if (checkboxesAfterUncheck[1].checked) throw new Error('checkbox transaksi ke-2 seharusnya sudah tidak tercentang');
+
+      // Nota rekap (WA/PDF) hanya berisi transaksi yang MASIH tercentang (LND-2001 & LND-2003), bukan LND-2002
+      const wa = rekapPelangganTextWA();
+      if (wa.includes('LND-2002') || wa.includes('Cuci Sepatu')) throw new Error('transaksi yang di-uncheck tidak boleh ikut masuk nota rekap: ' + wa);
+      if (!wa.includes('LND-2001') || !wa.includes('LND-2003')) throw new Error('transaksi yang masih tercentang harus tetap masuk nota rekap: ' + wa);
+      if (!wa.includes(rupiah(26000))) throw new Error('total di nota rekap tidak mengikuti transaksi yang tercentang saja: ' + wa);
+      const pdfLines = buildRekapPelangganPDFLines().map(l => l.t).join(' | ');
+      if (pdfLines.includes('LND-2002')) throw new Error('versi PDF/JPG rekap juga tidak boleh ikut transaksi yang di-uncheck: ' + pdfLines);
+
+      // Kosongkan semua -> tombol kirim/cetak harus menolak dengan toast, bukan membuka modal share
+      deselectAllRekapTrx();
+      if (document.getElementById('rekapStTrx').textContent !== '0') throw new Error('setelah Kosongkan, jumlah terpilih seharusnya 0');
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(0)) throw new Error('Total Keseluruhan setelah Kosongkan seharusnya Rp0');
+      const toastCalls = [];
+      const originalShowToast = window.showToast;
+      window.showToast = (msg) => toastCalls.push(msg);
+      try {
+        openRekapPelangganShare();
+      } finally {
+        window.showToast = originalShowToast;
+      }
+      if (document.getElementById('rekapShareModal').classList.contains('show')) throw new Error('modal kirim/cetak tidak boleh terbuka saat tidak ada transaksi tercentang');
+      if (!toastCalls.some(m => m.includes('Centang minimal satu transaksi'))) throw new Error('seharusnya ada toast peringatan saat kirim tanpa centang apa pun: ' + JSON.stringify(toastCalls));
+
+      // Pilih Semua lagi -> balik ke 3 tercentang, total penuh lagi
+      selectAllRekapTrx();
+      if (document.getElementById('rekapStTrx').textContent !== '3') throw new Error('setelah Semua, jumlah terpilih seharusnya kembali 3');
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(46000)) throw new Error('Total Keseluruhan setelah Semua seharusnya kembali penuh (46000)');
+
+      closeRekapPelanggan();
+    } finally {
+      transactions = savedTransactions;
+      currentOutletId = savedOutletId;
+    }
+  });
+
   return out;
 });
 
