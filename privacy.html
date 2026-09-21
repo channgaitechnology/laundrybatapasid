@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kebijakan Privasi — Laundry Batapas.id</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --ink:#122430; --ink-soft:#5B7280; --suds:#146C8E; --suds-deep:#0D4F68; --bg:#EEF5F7; --line:#DCE7EA; }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink); line-height:1.65; }
+  .wrap{ max-width:760px; margin:0 auto; padding:32px 20px 80px; }
+  h1{ font-family:'Sora',sans-serif; font-size:26px; color:var(--suds-deep); margin:0 0 6px; }
+  .updated{ color:var(--ink-soft); font-size:13px; margin-bottom:28px; }
+  h2{ font-family:'Sora',sans-serif; font-size:17px; color:var(--suds-deep); margin:30px 0 8px; }
+  p, li{ font-size:14.5px; }
+  ul{ padding-left:20px; }
+  li{ margin-bottom:6px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px 24px; margin-bottom:16px; }
+  .placeholder{ background:#FFF3D6; color:#8A5A00; padding:1px 6px; border-radius:5px; font-weight:600; }
+  a{ color:var(--suds); }
+  footer{ text-align:center; color:var(--ink-soft); font-size:12.5px; margin-top:36px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Kebijakan Privasi — Laundry Batapas.id</h1>
+    <div class="updated">Berlaku mulai: <span class="placeholder">[ISI TANGGAL TERBIT]</span></div>
+
+    <div class="card">
+      <p>Laundry Batapas.id ("Aplikasi") adalah aplikasi kasir &amp; pencatatan
+      transaksi untuk usaha laundry, digunakan oleh pemilik usaha dan
+      karyawan/kasir yang diundang oleh pemilik usaha. Kebijakan ini
+      menjelaskan data apa saja yang diproses Aplikasi dan bagaimana data itu
+      digunakan.</p>
+    </div>
+
+    <h2>1. Data yang Dikumpulkan</h2>
+    <div class="card">
+      <p><b>a. Data akun pengguna Aplikasi</b> (pemilik toko &amp; kasir yang diundang):</p>
+      <ul>
+        <li>Alamat email &amp; kata sandi (untuk masuk/registrasi akun)</li>
+        <li>Nama toko, alamat, dan nomor telepon toko (opsional, diisi sendiri di Pengaturan)</li>
+      </ul>
+      <p><b>b. Data yang diinput pemilik/kasir toko ke dalam Aplikasi</b> (data
+      operasional usaha, termasuk data pelanggan laundry mereka sendiri):</p>
+      <ul>
+        <li>Nama &amp; nomor WhatsApp pelanggan laundry (untuk mencetak nota dan mengirim notifikasi lewat WhatsApp)</li>
+        <li>Rincian transaksi, layanan, harga, dan status pembayaran</li>
+        <li>Catatan pengeluaran usaha</li>
+        <li>Catatan bebas (memo) yang ditulis sendiri oleh pemilik/kasir toko</li>
+      </ul>
+      <p style="color:var(--ink-soft);font-size:13.5px;">Data pada poin (b) dimiliki dan
+      menjadi tanggung jawab pemilik usaha laundry yang menggunakan Aplikasi
+      sebagai alat pencatatan bisnis mereka — bukan dikumpulkan langsung oleh
+      pengembang Aplikasi dari pelanggan laundry tersebut.</p>
+    </div>
+
+    <h2>2. Cara Data Digunakan</h2>
+    <div class="card">
+      <ul>
+        <li>Menjalankan fungsi inti Aplikasi: mencatat transaksi, mencetak/mengirim nota, dan menyusun laporan usaha.</li>
+        <li>Mengautentikasi &amp; menjaga sesi masuk akun pengguna.</li>
+        <li>Mengirim notifikasi WhatsApp ke pelanggan laundry HANYA saat pemilik/kasir toko secara sadar menekan tombol kirim (Aplikasi tidak mengirim pesan otomatis tanpa aksi pengguna, kecuali fitur notifikasi otomatis "cucian selesai" yang bisa diaktifkan/dimatikan sendiri oleh pemilik toko di Pengaturan).</li>
+      </ul>
+      <p>Aplikasi <b>tidak menampilkan iklan</b> dan <b>tidak menggunakan alat
+      pelacak/analitik pihak ketiga</b> apa pun.</p>
+    </div>
+
+    <h2>3. Penyimpanan &amp; Keamanan Data</h2>
+    <div class="card">
+      <p>Data disimpan di infrastruktur basis data <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
+      (PostgreSQL) dan dikirim melalui koneksi terenkripsi (HTTPS/TLS). Akses
+      ke data dibatasi lewat aturan keamanan tingkat baris (Row Level
+      Security) sehingga satu akun toko tidak bisa melihat data toko lain.</p>
+    </div>
+
+    <h2>4. Berbagi Data ke Pihak Ketiga</h2>
+    <div class="card">
+      <p>Kami <b>tidak menjual</b> data pengguna maupun data pelanggan laundry
+      ke pihak mana pun. Data hanya diproses oleh penyedia layanan yang
+      dipakai untuk menjalankan Aplikasi (hosting basis data Supabase, dan
+      hosting situs Netlify). Data juga dikirim ke WhatsApp/aplikasi email
+      pengguna sendiri HANYA saat pemilik/kasir toko memilih mengirim nota
+      atau notifikasi — proses ini terjadi di perangkat pengguna sendiri
+      (membuka tautan wa.me / mailto), bukan lewat server kami.</p>
+    </div>
+
+    <h2>5. Penyimpanan Lokal di Perangkat</h2>
+    <div class="card">
+      <p>Aplikasi menyimpan sedikit data di penyimpanan lokal
+      (localStorage) pada perangkat/browser pengguna, seperti sesi login,
+      tab terakhir yang dibuka, outlet yang sedang aktif, dan pilihan
+      bahasa (Indonesia/Inggris) — semata untuk kenyamanan pemakaian,
+      bukan untuk pelacakan.</p>
+    </div>
+
+    <h2>6. Hak Pengguna</h2>
+    <div class="card">
+      <ul>
+        <li>Pemilik toko dapat mengubah atau menghapus data transaksi/pelanggan kapan saja langsung dari dalam Aplikasi.</li>
+        <li>Pengguna dapat meminta penghapusan akun beserta seluruh datanya dengan menghubungi kontak di bagian 8.</li>
+      </ul>
+    </div>
+
+    <h2>7. Anak-Anak</h2>
+    <div class="card">
+      <p>Aplikasi ditujukan untuk pelaku usaha dewasa dan tidak ditujukan
+      untuk digunakan oleh anak-anak.</p>
+    </div>
+
+    <h2>8. Kontak</h2>
+    <div class="card">
+      <p>Pertanyaan seputar privasi atau permintaan penghapusan data dapat
+      dikirim ke: <span class="placeholder">[ISI EMAIL DUKUNGAN ANDA]</span></p>
+    </div>
+
+    <h2>9. Perubahan Kebijakan</h2>
+    <div class="card">
+      <p>Kebijakan ini dapat diperbarui sewaktu-waktu. Perubahan akan
+      ditampilkan di halaman ini dengan tanggal pembaruan terbaru.</p>
+    </div>
+
+    <footer>Laundry Batapas.id</footer>
+  </div>
+</body>
+</html>

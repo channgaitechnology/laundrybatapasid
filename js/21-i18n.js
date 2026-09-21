@@ -526,6 +526,7 @@ const I18N_EN = {
   'Karyawan / Kasir': 'Staff / Cashiers',
   'Admin Platform': 'Platform Admin',
   'Bahasa': 'Language',
+  'Kebijakan Privasi': 'Privacy Policy',
   '💳 Langganan Aplikasi': '💳 App Subscription',
   '🏪 Profil Toko': '🏪 Store Profile',
   '🔔 Notifikasi': '🔔 Notifications',
