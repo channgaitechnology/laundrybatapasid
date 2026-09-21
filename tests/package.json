@@ -1,0 +1,9 @@
+{
+  "name": "laundrybatapasid-tests",
+  "private": true,
+  "type": "module",
+  "description": "Suite regression Playwright untuk index.html — lihat README.md di folder ini.",
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

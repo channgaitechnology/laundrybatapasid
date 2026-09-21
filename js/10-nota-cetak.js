@@ -138,7 +138,9 @@ function usageNotaTextWA(usage, s){
   lines.push(`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
   lines.push('-------------------------------');
   lines.push(`*${t('Timbangan Sekarang')}*`);
-  lines.push(`${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`);
+  lines.push(usage.type==='layanan_tambahan'
+    ? `${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`
+    : `${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`);
   lines.push('-------------------------------');
   lines.push(`*${t('Riwayat Timbangan Paket Ini')}*`);
   upTo.forEach((u,i)=>{
@@ -172,7 +174,7 @@ function sendUsageNotaWA(target){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    text = tempoBatchUsageNotaTextWA(newItems, s);
+    text = isTempo(s) ? tempoBatchUsageNotaTextWA(newItems, s) : usageNotaTextWA(newItems[newItems.length-1], s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -270,7 +272,9 @@ function buildUsageNotaPDFLines(usage, s){
   L.push({t:`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
   L.push({t: div, s:9});
   L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
-  L.push({t:`${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`, s:9});
+  L.push({t: usage.type==='layanan_tambahan'
+    ? `${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`
+    : `${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`, s:9});
   L.push({t: div, s:9});
   L.push({t:t('RIWAYAT TIMBANGAN PAKET INI'), b:true, s:9});
   upTo.forEach((u,i)=>{
@@ -648,7 +652,7 @@ async function printUsageNotaBluetooth(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -694,7 +698,7 @@ function printUsageNotaViaBrowser(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -709,7 +713,7 @@ async function downloadUsageNotaImage(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = buildTempoBatchUsageNotaPDFLines(newItems, s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
     tanggalForName = newItems[0].tanggal;
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
