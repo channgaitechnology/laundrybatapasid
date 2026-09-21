@@ -2813,6 +2813,45 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Rekap Transaksi Pelanggan: kelebihan bayar (dp > total) di satu transaksi TIDAK BOLEH menutupi tagihan transaksi lain yang benar-benar belum dibayar (regresi bug nyata)', () => {
+    // Skenario asli yang dilaporkan: 1 transaksi belum lunas TANPA dp sama sekali
+    // (LND-0067 di dunia nyata), dan 1 transaksi lain yang dp-nya jauh melebihi
+    // totalnya sendiri (kelebihan bayar besar). Rumus agregat lama
+    // (totalKeseluruhan - sudahDibayar) membuat kelebihan bayar itu "menutupi"
+    // tagihan yang sama sekali belum dibayar pada transaksi lain -- Belum Dibayar
+    // tampil jauh lebih kecil dari kenyataan. Rumus yang benar (per-transaksi,
+    // hanya yang statusnya "belum") tidak boleh ikut kena pengaruh itu.
+    const savedTransactions = transactions;
+    const savedOutletId = currentOutletId;
+    currentOutletId = null;
+    transactions = [
+      { id:'bug1', kode:'LND-9001', nama:'Abid', hp:'083869942788', tanggal:'2026-09-11', estimasi:'', items:[{nama:'Bed cover',qty:1,satuan:'pcs',harga:81000,subtotal:81000}], diskon:0, total:81000, dp:70500, status:'belum', workStatus:'belum', catatan:'', outletId:null },
+      { id:'bug2', kode:'LND-9002', nama:'Abid', hp:'083869942788', tanggal:'2026-09-14', estimasi:'', items:[{nama:'Cuci Sepatu',qty:1,satuan:'pasang',harga:88480,subtotal:88480}], diskon:0, total:88480, dp:0, status:'belum', workStatus:'belum', catatan:'', outletId:null },
+      { id:'bug3', kode:'LND-9003', nama:'Abid', hp:'083869942788', tanggal:'2026-09-17', estimasi:'', items:[{nama:'Setrika',qty:1,satuan:'kg',harga:44000,subtotal:44000}], diskon:0, total:44000, dp:132480, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+    ];
+    try {
+      openRekapPelanggan();
+      document.getElementById('rekapNamaInput').value = 'Abid';
+      searchRekapPelanggan();
+      // Semua 3 tercentang (default) -- total 81000+88480+44000 = 213480
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(213480)) throw new Error('Total Keseluruhan salah: ' + document.getElementById('rekapStTotal').textContent);
+      // Sudah Dibayar = jumlah SEMUA dp apa adanya (70500+0+132480=202980) -- ini benar & tidak berubah
+      if (document.getElementById('rekapStLunas').textContent !== rupiah(202980)) throw new Error('Sudah Dibayar salah: ' + document.getElementById('rekapStLunas').textContent);
+      // Belum Dibayar HARUS dihitung dari LND-9001 (81000-70500=10500) + LND-9002 (88480-0=88480) = 98980,
+      // BUKAN cuma 10500 (yang berarti kelebihan bayar LND-9003 salah menutupi tagihan LND-9002)
+      if (document.getElementById('rekapStBelum').textContent !== rupiah(98980)) throw new Error('BUG: Belum Dibayar seharusnya Rp98.980 (tagihan LND-9002 yang sama sekali belum dibayar harus tetap kelihatan, tidak boleh tertutupi kelebihan bayar LND-9003 yang tidak berhubungan), got ' + document.getElementById('rekapStBelum').textContent);
+
+      // Nota rekap juga harus konsisten dengan angka yang benar ini
+      const wa = rekapPelangganTextWA();
+      if (!wa.includes(rupiah(98980))) throw new Error('teks WA rekap tidak menyebut Belum Dibayar yang benar (98980): ' + wa);
+
+      closeRekapPelanggan();
+    } finally {
+      transactions = savedTransactions;
+      currentOutletId = savedOutletId;
+    }
+  });
+
   return out;
 });
 
