@@ -945,14 +945,18 @@ const I18N_EN = {
   'REKAP TRANSAKSI PELANGGAN': 'CUSTOMER TRANSACTION RECAP',
   'Rekap transaksi': 'Transaction recap',
   'No. WhatsApp pelanggan belum diisi di transaksi manapun': "Customer's WhatsApp number isn't filled in on any of their transactions",
-  'Di bagian atas tab ini ada tombol 🧮 Rekap Transaksi Pelanggan — cari satu nama pelanggan untuk menjumlahkan SEMUA transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Rekapnya juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa':
-    'At the top of this tab there\'s a 🧮 Customer Transaction Recap button — search for one customer name to add up ALL of their transactions across different dates at once, with a full breakdown per date (handy for regular customers who launder often but aren\'t registered as a Package/Pay-Later customer). The recap can also be sent to the customer on WhatsApp or printed, just like a regular receipt',
+  'Di bagian atas tab ini ada tombol 🧮 Rekap Transaksi Pelanggan — cari satu nama pelanggan untuk menjumlahkan transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Bisa pilih/batal-pilih transaksi mana saja yang mau ikut direkap, dan kalau ada transaksi yang belum tercatat, tekan ➕ Tambah Transaksi Baru untuk mencatatnya langsung dari sini — otomatis ikut masuk Riwayat/Laporan seperti transaksi biasa. Rekapnya (lengkap nama, periode, dan No. WA kalau ada) juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa':
+    'At the top of this tab there\'s a 🧮 Customer Transaction Recap button — search for one customer name to add up their transactions across different dates at once, with a full breakdown per date (handy for regular customers who launder often but aren\'t registered as a Package/Pay-Later customer). You can pick/unpick which transactions to include, and if one hasn\'t been logged yet, tap ➕ Add New Transaction to log it right from here — it automatically shows up in History/Reports just like a regular transaction. The recap (with the name, period, and WhatsApp number if available) can also be sent to the customer on WhatsApp or printed, just like a regular receipt',
   'Transaksi Dipilih': 'Selected Transactions',
   'transaksi yang ditemukan dipilih': 'transactions found are selected',
   'Centang transaksi yang mau ikut direkap:': 'Check the transactions to include in the recap:',
   'Semua': 'All',
   'Kosongkan': 'Clear',
   'Centang minimal satu transaksi dulu': 'Check at least one transaction first',
+  '➕ Tambah Transaksi Baru': '➕ Add New Transaction',
+  'Belum ada transaksi untuk nama ini': 'No transactions for this name yet',
+  'Tekan "Tambah Transaksi Baru" untuk mulai mencatat.': 'Tap "Add New Transaction" to start logging.',
+  'Nama sudah diisi otomatis -- lengkapi layanan lalu simpan seperti biasa': "The name's already filled in -- add the services then save as usual",
 };
 
 /* Ambil teks TRIMMED (spasi/baris baru di ujung tetap dipertahankan di luar)

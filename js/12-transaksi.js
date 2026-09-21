@@ -76,6 +76,15 @@ async function submitTransaction(){
   if(!nama){ showToast(t('Nama pelanggan wajib diisi')); return; }
   if(draftItems.length===0){ showToast(t('Tambahkan minimal satu layanan')); return; }
 
+  /* Kalau transaksi ini dimulai dari "+ Tambah Transaksi Baru" di Rekap
+     Transaksi Pelanggan (lihat 22-rekap-pelanggan.js), tandai balik ke sana
+     begitu tersimpan -- dibaca di bawah SETELAH validasi lolos (bukan di
+     atas) supaya gagal validasi pertama (mis. belum isi layanan) tidak
+     langsung membatalkan niat balik ke Rekap begitu user coba simpan lagi.
+     Cuma berlaku untuk transaksi BARU, bukan mode edit. */
+  const rekapReturnAfterSave = (typeof rekapReturnPending!=='undefined' && rekapReturnPending && !editingTransactionId);
+  if(typeof rekapReturnPending!=='undefined') rekapReturnPending = false;
+
   const subtotal = draftItems.reduce((s,it)=>s+it.subtotal,0);
   const total = Math.max(subtotal - diskon, 0);
   /* Status Lunas selalu berarti minimal lunas (dp >= total) — tapi kalau kasir sengaja
@@ -138,6 +147,7 @@ async function submitTransaction(){
   showToast(t('Transaksi tersimpan'));
   openReceipt(trx.id);
   saveContactIfNew(nama, hp);
+  if(rekapReturnAfterSave) reopenRekapPelangganAfterAdd();
 }
 function resetTransactionForm(){
   document.getElementById('inNama').value='';

@@ -5,16 +5,22 @@
    biasa yang sering laundry namun tidak didaftarkan sebagai Paket/Tempo.
    Dicocokkan berdasarkan NAMA saja (persis, case-insensitive), bukan nama+HP.
    User bisa mencentang/menghilangkan centang transaksi mana saja yang mau
-   ikut dijumlahkan & dikirim -- defaultnya semua yang ditemukan tercentang. */
+   ikut dijumlahkan & dikirim -- defaultnya semua yang ditemukan tercentang.
+   Kalau nama belum punya transaksi sama sekali (atau kurang lengkap), bisa
+   langsung tambah transaksi baru dari sini -- lewat form Transaksi Baru asli
+   (submitTransaction()), jadi datanya benar-benar masuk sebagai transaksi
+   normal ke database & Laporan, bukan cuma tersimpan lokal di rekap ini. */
 var rekapPelangganNama = '';
 var rekapPelangganList = [];
 var rekapSelectedIds = new Set();
 var rekapNamaSuggestions = [];
+var rekapReturnPending = false;
 
 function openRekapPelanggan(){
   rekapPelangganNama = '';
   rekapPelangganList = [];
   rekapSelectedIds = new Set();
+  rekapReturnPending = false;
   document.getElementById('rekapNamaInput').value = '';
   document.getElementById('rekapNamaSuggestBox').classList.remove('show');
   document.getElementById('rekapSearchStep').style.display = 'block';
@@ -53,14 +59,13 @@ function selectRekapNamaSuggest(i){
   document.getElementById('rekapNamaSuggestBox').classList.remove('show');
   searchRekapPelanggan();
 }
+/* Nama yang belum punya transaksi sama sekali TETAP ditampilkan sebagai hasil
+   (list kosong + tombol Tambah Transaksi Baru), bukan cuma toast lalu berhenti
+   -- supaya nama yang datanya belum ada di database bisa langsung diisi dari sini. */
 function searchRekapPelanggan(){
   const nama = document.getElementById('rekapNamaInput').value.trim();
   if(!nama){ showToast(t('Isi nama pelanggan dulu')); return; }
   const list = sortByTanggalAsc(visibleTransactions().filter(x=>x.nama.trim().toLowerCase()===nama.toLowerCase()));
-  if(list.length===0){
-    showToast(t('Belum ada transaksi ditemukan untuk nama itu'));
-    return;
-  }
   rekapPelangganNama = nama;
   rekapPelangganList = list;
   rekapSelectedIds = new Set(list.map(x=>x.id)); // default: semua tercentang
@@ -75,6 +80,24 @@ function rekapPelangganTotals(){
   const sudahDibayar = selected.reduce((s,x)=>s+trxCashReceived(x),0);
   const belumDibayar = Math.max(totalKeseluruhan - sudahDibayar, 0);
   return { totalKeseluruhan, sudahDibayar, belumDibayar };
+}
+/* No. WA diambil dari SELURUH transaksi yang ditemukan (bukan cuma yang
+   tercentang -- nomornya tetap sama siapa pun pelanggannya, tidak tergantung
+   pilihan centang), yang kolom hp-nya terisi, paling baru duluan. Tidak
+   bergantung pada data kontak terpisah, supaya tetap jalan meski kontaknya
+   tidak pernah diimpor. Kosong kalau memang belum pernah diisi di transaksi
+   manapun (dipakai untuk "nomor WA jika ada" di keterangan atas nota). */
+function rekapPelangganPhone(){
+  const hpMatch = rekapPelangganList.slice().reverse().find(x=>x.hp);
+  return hpMatch ? hpMatch.hp : '';
+}
+/* Periode = rentang tanggal transaksi yang TERCENTANG (yang benar-benar ikut
+   nota), dari yang paling lama sampai paling baru. list sudah terurut
+   ascending (lihat searchRekapPelanggan()/sortByTanggalAsc()). */
+function rekapPelangganPeriode(selected){
+  if(selected.length===0) return '';
+  const awal = selected[0].tanggal, akhir = selected[selected.length-1].tanggal;
+  return awal===akhir ? fmtDate(awal) : `${fmtDate(awal)} - ${fmtDate(akhir)}`;
 }
 function toggleRekapTrxSelect(id, checked){
   if(checked) rekapSelectedIds.add(id); else rekapSelectedIds.delete(id);
@@ -98,6 +121,19 @@ function renderRekapPelangganResult(){
   document.getElementById('rekapStTotal').textContent = rupiah(totalKeseluruhan);
   document.getElementById('rekapStLunas').textContent = rupiah(sudahDibayar);
   document.getElementById('rekapStBelum').textContent = rupiah(belumDibayar);
+
+  const selectControls = document.getElementById('rekapSelectControls');
+  if(rekapPelangganList.length===0){
+    document.getElementById('rekapSelectHint').textContent = '';
+    selectControls.style.display = 'none';
+    document.getElementById('rekapList').innerHTML = `<div class="empty">
+      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+      <h3>${t('Belum ada transaksi untuk nama ini')}</h3>
+      <p>${t('Tekan "Tambah Transaksi Baru" untuk mulai mencatat.')}</p>
+    </div>`;
+    return;
+  }
+  selectControls.style.display = 'flex';
   document.getElementById('rekapSelectHint').textContent =
     `${selected.length} ${t('dari')} ${rekapPelangganList.length} ${t('transaksi yang ditemukan dipilih')}`;
   document.getElementById('rekapList').innerHTML = rekapPelangganList.map(trx=>{
@@ -122,10 +158,33 @@ function renderRekapPelangganResult(){
   }).join('');
 }
 
+/* Buka form Transaksi Baru asli (pre-diisi nama+HP pelanggan ini) supaya data
+   yang baru dicatat benar-benar tersimpan sebagai transaksi normal lewat
+   submitTransaction() -- termasuk nomor nota, penandaan outlet, dsb, persis
+   sama seperti input manual biasa. rekapReturnPending menandai bahwa begitu
+   transaksi ini berhasil disimpan, kita harus balik lagi ke Rekap dan
+   menyegarkan pencariannya (lihat submitTransaction() di 12-transaksi.js). */
+function startRekapAddTransaction(){
+  document.getElementById('inNama').value = rekapPelangganNama;
+  document.getElementById('inHP').value = rekapPelangganPhone();
+  rekapReturnPending = true;
+  closeRekapPelanggan();
+  switchTab('baru');
+  showToast(t('Nama sudah diisi otomatis -- lengkapi layanan lalu simpan seperti biasa'));
+}
+/* Dipanggil dari submitTransaction() setelah transaksi baru berhasil
+   disimpan, kalau tadi datang dari startRekapAddTransaction(). */
+function reopenRekapPelangganAfterAdd(){
+  document.getElementById('rekapNamaInput').value = rekapPelangganNama;
+  document.getElementById('rekapPelangganModal').classList.add('show');
+  searchRekapPelanggan();
+}
+
 /* ===== Nota rekap (teks WA / lines PDF-JPG-Bluetooth), gaya sama dengan nota lain -- HANYA transaksi yang tercentang ===== */
 function rekapPelangganTextWA(){
   const selected = rekapSelectedList();
   const { totalKeseluruhan, sudahDibayar, belumDibayar } = rekapPelangganTotals();
+  const phone = rekapPelangganPhone();
   const lines = [];
   const hdr = notaHeaderInfo(currentOutletId);
   lines.push(`*${hdr.nama}*`);
@@ -134,7 +193,9 @@ function rekapPelangganTextWA(){
   if(hdr.telp) lines.push(hdr.telp);
   lines.push('-------------------------------');
   lines.push(`*${t('REKAP TRANSAKSI PELANGGAN')}*`);
-  lines.push(`${t('Pelanggan')} : ${rekapPelangganNama}`);
+  lines.push(`${t('Pelanggan')}    : ${rekapPelangganNama}`);
+  if(selected.length>0) lines.push(`${t('Periode')}      : ${rekapPelangganPeriode(selected)}`);
+  if(phone) lines.push(`${t('No. WhatsApp')} : ${phone}`);
   lines.push('-------------------------------');
   selected.forEach((trx,i)=>{
     lines.push(`${i+1}. ${fmtDate(trx.tanggal)} — ${trx.kode}`);
@@ -156,6 +217,7 @@ function rekapPelangganTextWA(){
 function buildRekapPelangganPDFLines(){
   const selected = rekapSelectedList();
   const { totalKeseluruhan, sudahDibayar, belumDibayar } = rekapPelangganTotals();
+  const phone = rekapPelangganPhone();
   const L = [];
   const div = '--------------------------------';
   const hdr = notaHeaderInfo(currentOutletId);
@@ -165,7 +227,9 @@ function buildRekapPelangganPDFLines(){
   if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
   L.push({t: div, s:9});
   L.push({t: t('REKAP TRANSAKSI PELANGGAN'), c:true, b:true, s:10});
-  L.push({t: `${t('Pelanggan')} : ${rekapPelangganNama}`, s:9, indent:13});
+  L.push({t: `${t('Pelanggan')}    : ${rekapPelangganNama}`, s:9, indent:13});
+  if(selected.length>0) L.push({t: `${t('Periode')}      : ${rekapPelangganPeriode(selected)}`, s:9, indent:13});
+  if(phone) L.push({t: `${t('No. WhatsApp')} : ${phone}`, s:9, indent:13});
   L.push({t: div, s:9});
   selected.forEach((trx,i)=>{
     L.push({t: `${i+1}. ${fmtDate(trx.tanggal)} — ${trx.kode}`, b:true, s:9});
@@ -191,15 +255,10 @@ function openRekapPelangganShare(){
 function closeRekapPelangganShare(){
   document.getElementById('rekapShareModal').classList.remove('show');
 }
-/* No. WA diambil dari transaksi yang DITEMUKAN (bukan cuma yang tercentang --
-   nomornya tetap sama siapa pun pelanggannya, tidak tergantung pilihan
-   centang) yang kolom hp-nya terisi, paling baru duluan. Tidak bergantung
-   pada data kontak terpisah, supaya tetap jalan meski kontaknya tidak
-   pernah diimpor. */
 function sendRekapPelangganWA(target){
-  const hpMatch = rekapPelangganList.slice().reverse().find(x=>x.hp);
-  if(!hpMatch){ showToast(t('No. WhatsApp pelanggan belum diisi di transaksi manapun')); return; }
-  openWA(normalizePhone(hpMatch.hp), rekapPelangganTextWA(), target);
+  const phone = rekapPelangganPhone();
+  if(!phone){ showToast(t('No. WhatsApp pelanggan belum diisi di transaksi manapun')); return; }
+  openWA(normalizePhone(phone), rekapPelangganTextWA(), target);
   closeRekapPelangganShare();
 }
 async function printRekapPelangganBluetooth(){

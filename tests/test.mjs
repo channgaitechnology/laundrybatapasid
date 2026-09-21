@@ -2638,19 +2638,20 @@ const result = await page.evaluate(async () => {
       if (document.getElementById('rekapStTrx').textContent !== '1') throw new Error('Siti Aminah seharusnya cuma 1 transaksi, got ' + document.getElementById('rekapStTrx').textContent);
       if (document.getElementById('rekapStTotal').textContent !== rupiah(14000)) throw new Error('Total Siti Aminah salah: ' + document.getElementById('rekapStTotal').textContent);
 
-      // Nama yang tidak pernah bertransaksi -> toast, tidak crash, tetap di step pencarian
+      // Nama yang belum pernah bertransaksi -> TETAP tampil sebagai hasil (bukan cuma
+      // toast lalu berhenti), dengan daftar kosong + ajakan tambah transaksi baru --
+      // supaya nama yang datanya belum ada di database bisa langsung diisi dari sini.
       backToRekapSearch();
-      const toastCalls = [];
-      const originalShowToast = window.showToast;
-      window.showToast = (msg) => toastCalls.push(msg);
-      try {
-        document.getElementById('rekapNamaInput').value = 'Nama Tidak Pernah Ada';
-        searchRekapPelanggan();
-      } finally {
-        window.showToast = originalShowToast;
-      }
-      if (!toastCalls.some(m => m.includes('Belum ada transaksi ditemukan'))) throw new Error('pencarian nama tak ditemukan seharusnya menampilkan toast, got ' + JSON.stringify(toastCalls));
-      if (document.getElementById('rekapSearchStep').style.display === 'none') throw new Error('tetap di langkah pencarian saat nama tidak ditemukan');
+      document.getElementById('rekapNamaInput').value = 'Nama Tidak Pernah Ada';
+      searchRekapPelanggan();
+      if (document.getElementById('rekapResultStep').style.display === 'none') throw new Error('nama yang belum ada transaksinya seharusnya tetap masuk ke hasil (bukan berhenti di pencarian)');
+      if (document.getElementById('rekapResultNama').textContent !== 'Nama Tidak Pernah Ada') throw new Error('nama hasil salah untuk pencarian kosong');
+      if (document.getElementById('rekapStTrx').textContent !== '0') throw new Error('jumlah transaksi seharusnya 0 untuk nama yang belum ada datanya');
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(0)) throw new Error('Total Keseluruhan seharusnya Rp0 untuk nama yang belum ada datanya');
+      if (!document.getElementById('rekapList').innerHTML.includes('Tambah Transaksi Baru')) throw new Error('daftar kosong seharusnya mengajak tambah transaksi baru: ' + document.getElementById('rekapList').innerHTML);
+      if (document.getElementById('rekapSelectControls').style.display !== 'none') throw new Error('kontrol Semua/Kosongkan seharusnya tersembunyi kalau tidak ada transaksi sama sekali');
+      const addBtn = document.querySelector('#rekapResultStep button[onclick="startRekapAddTransaction()"]');
+      if (!addBtn) throw new Error('tombol Tambah Transaksi Baru seharusnya selalu ada di hasil rekap');
 
       closeRekapPelanggan();
     } finally {
@@ -2724,6 +2725,91 @@ const result = await page.evaluate(async () => {
     } finally {
       transactions = savedTransactions;
       currentOutletId = savedOutletId;
+    }
+  });
+
+  await step('Rekap Transaksi Pelanggan: keterangan atas nota mencantumkan Pelanggan, Periode (dari transaksi tercentang), dan No. WhatsApp kalau ada', () => {
+    const savedTransactions = transactions;
+    const savedOutletId = currentOutletId;
+    currentOutletId = null;
+    try {
+      // Kasus ada No. WA + lebih dari 1 tanggal -> Periode berupa rentang
+      transactions = [
+        { id:'rp1', kode:'LND-3001', nama:'Hendra', hp:'081255554444', tanggal:'2026-09-01', estimasi:'', items:[{nama:'Cuci',qty:1,satuan:'kg',harga:10000,subtotal:10000}], diskon:0, total:10000, dp:10000, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+        { id:'rp2', kode:'LND-3002', nama:'Hendra', hp:'081255554444', tanggal:'2026-09-08', estimasi:'', items:[{nama:'Setrika',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+      ];
+      openRekapPelanggan();
+      document.getElementById('rekapNamaInput').value = 'Hendra';
+      searchRekapPelanggan();
+      const wa1 = rekapPelangganTextWA();
+      if (!wa1.includes('Pelanggan') || !wa1.includes('Hendra')) throw new Error('nota rekap harus menyebut nama pelanggan: ' + wa1);
+      if (!wa1.includes('Periode') || !wa1.includes('01 Sep 2026 - 08 Sep 2026')) throw new Error('nota rekap harus menyebut Periode sebagai rentang tanggal transaksi tercentang: ' + wa1);
+      if (!wa1.includes('No. WhatsApp') || !wa1.includes('081255554444')) throw new Error('nota rekap harus menyebut No. WhatsApp kalau ada: ' + wa1);
+      const pdf1 = buildRekapPelangganPDFLines().map(l => l.t).join(' | ');
+      if (!pdf1.includes('Periode') || !pdf1.includes('01 Sep 2026 - 08 Sep 2026')) throw new Error('versi PDF/JPG juga harus menyebut Periode: ' + pdf1);
+      if (!pdf1.includes('No. WhatsApp') || !pdf1.includes('081255554444')) throw new Error('versi PDF/JPG juga harus menyebut No. WhatsApp: ' + pdf1);
+      closeRekapPelanggan();
+
+      // Kasus TIDAK ada No. WA sama sekali -> baris No. WhatsApp tidak boleh ikut muncul
+      transactions = [
+        { id:'rp3', kode:'LND-3003', nama:'Wati', hp:'', tanggal:'2026-09-12', estimasi:'', items:[{nama:'Cuci',qty:1,satuan:'kg',harga:10000,subtotal:10000}], diskon:0, total:10000, dp:10000, status:'lunas', workStatus:'selesai', catatan:'', outletId:null },
+      ];
+      openRekapPelanggan();
+      document.getElementById('rekapNamaInput').value = 'Wati';
+      searchRekapPelanggan();
+      const wa2 = rekapPelangganTextWA();
+      if (wa2.includes('No. WhatsApp')) throw new Error('nota rekap TIDAK boleh menyebut No. WhatsApp kalau memang tidak ada nomornya di transaksi manapun: ' + wa2);
+      // Cuma 1 tanggal -> Periode tampil sebagai satu tanggal, bukan rentang dengan tanda hubung
+      if (!wa2.includes('Periode') || !wa2.includes('12 Sep 2026') || wa2.includes('12 Sep 2026 - 12 Sep 2026')) throw new Error('Periode untuk 1 transaksi seharusnya tanggal tunggal, bukan rentang: ' + wa2);
+      closeRekapPelanggan();
+    } finally {
+      transactions = savedTransactions;
+      currentOutletId = savedOutletId;
+    }
+  });
+
+  await step('Rekap Transaksi Pelanggan: "+ Tambah Transaksi Baru" menyimpan lewat submitTransaction() asli (masuk ke transactions[] seperti transaksi normal), lalu otomatis kembali ke Rekap', async () => {
+    const savedTransactions = transactions;
+    const savedOutletId = currentOutletId;
+    const savedDraftItems = draftItems;
+    currentOutletId = null;
+    transactions = [];
+    try {
+      openRekapPelanggan();
+      document.getElementById('rekapNamaInput').value = 'Rina Baru';
+      searchRekapPelanggan();
+      if (document.getElementById('rekapStTrx').textContent !== '0') throw new Error('Rina Baru belum pernah bertransaksi, seharusnya 0');
+
+      startRekapAddTransaction();
+      if (rekapReturnPending !== true) throw new Error('rekapReturnPending seharusnya true setelah startRekapAddTransaction()');
+      if (document.getElementById('rekapPelangganModal').classList.contains('show')) throw new Error('modal Rekap seharusnya tertutup dulu saat mulai tambah transaksi baru');
+      if (currentTabName !== 'baru') throw new Error('startRekapAddTransaction() seharusnya pindah ke tab Transaksi Baru, got ' + currentTabName);
+      if (document.getElementById('inNama').value !== 'Rina Baru') throw new Error('nama pelanggan seharusnya sudah terisi otomatis di form Transaksi Baru: ' + document.getElementById('inNama').value);
+
+      // Isi seperti transaksi normal biasa, lalu simpan lewat submitTransaction() ASLI (bukan tiruan)
+      document.getElementById('inTanggal').value = '2026-09-15';
+      draftItems = [{ nama:'Cuci Setrika', qty:2, satuan:'kg', harga:8000, subtotal:16000 }];
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '16000';
+      document.getElementById('inStatus').value = 'lunas';
+      await submitTransaction();
+
+      const newTrx = transactions.find(x => x.nama === 'Rina Baru');
+      if (!newTrx) throw new Error('transaksi yang ditambahkan dari Rekap seharusnya masuk ke transactions[] persis seperti transaksi normal (ikut Riwayat/Laporan)');
+      if (newTrx.total !== 16000) throw new Error('total transaksi baru salah: ' + newTrx.total);
+      if (newTrx.tanggal !== '2026-09-15') throw new Error('tanggal transaksi baru salah: ' + newTrx.tanggal);
+
+      if (rekapReturnPending !== false) throw new Error('rekapReturnPending seharusnya sudah dikonsumsi (false) setelah tersimpan');
+      if (!document.getElementById('rekapPelangganModal').classList.contains('show')) throw new Error('modal Rekap seharusnya otomatis terbuka lagi setelah transaksi baru tersimpan');
+      if (document.getElementById('rekapStTrx').textContent !== '1') throw new Error('Rekap seharusnya langsung menampilkan transaksi yang baru ditambahkan: ' + document.getElementById('rekapStTrx').textContent);
+      if (document.getElementById('rekapStTotal').textContent !== rupiah(16000)) throw new Error('Total Rekap setelah tambah transaksi baru salah: ' + document.getElementById('rekapStTotal').textContent);
+
+      closeRekapPelanggan();
+    } finally {
+      transactions = savedTransactions;
+      currentOutletId = savedOutletId;
+      draftItems = savedDraftItems;
+      rekapReturnPending = false;
     }
   });
 

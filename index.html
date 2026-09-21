@@ -1236,7 +1236,7 @@
           <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar — boleh lebih dari satu layanan dalam satu nota</li>
           <li>Isi diskon kalau ada, isi <b>Uang Muka (DP)</b> kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang</li>
           <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan, diunduh sebagai gambar/PDF, atau langsung dicetak ke printer thermal (Bluetooth atau AirPrint/printer lain, kalau sudah disambungkan lewat Pengaturan → Printer Bluetooth)</li>
-          <li>Di bagian atas tab ini ada tombol <b>🧮 Rekap Transaksi Pelanggan</b> — cari satu nama pelanggan untuk menjumlahkan SEMUA transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Rekapnya juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa</li>
+          <li>Di bagian atas tab ini ada tombol <b>🧮 Rekap Transaksi Pelanggan</b> — cari satu nama pelanggan untuk menjumlahkan transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Bisa pilih/batal-pilih transaksi mana saja yang mau ikut direkap, dan kalau ada transaksi yang belum tercatat, tekan <b>➕ Tambah Transaksi Baru</b> untuk mencatatnya langsung dari sini — otomatis ikut masuk Riwayat/Laporan seperti transaksi biasa. Rekapnya (lengkap nama, periode, dan No. WA kalau ada) juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa</li>
         </ol>
       </div>
     </div>
@@ -1591,9 +1591,10 @@
       </div>
       <p id="rekapSelectHint" style="font-size:11.5px;color:var(--ink-soft);margin:-6px 0 0;"></p>
 
-      <button type="button" class="btn btn-accent" style="width:100%;margin:10px 0;" onclick="openRekapPelangganShare()">📤 Kirim / Cetak Rekap</button>
+      <button type="button" class="btn btn-accent" style="width:100%;margin:10px 0 8px;" onclick="openRekapPelangganShare()">📤 Kirim / Cetak Rekap</button>
+      <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:10px;" onclick="startRekapAddTransaction()">➕ Tambah Transaksi Baru</button>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px;">
+      <div id="rekapSelectControls" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px;">
         <p style="font-size:12px;color:var(--ink-soft);margin:0;">Centang transaksi yang mau ikut direkap:</p>
         <div style="display:flex;gap:6px;flex:none;">
           <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:0 10px;" onclick="selectAllRekapTrx()">Semua</button>
