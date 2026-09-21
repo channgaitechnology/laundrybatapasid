@@ -74,11 +74,20 @@ function searchRekapPelanggan(){
 function rekapSelectedList(){
   return rekapPelangganList.filter(x=>rekapSelectedIds.has(x.id));
 }
+/* PENTING: belumDibayar HARUS dihitung per-transaksi yang statusnya masih
+   "belum" (sama seperti renderReport() di 18-laporan.js), BUKAN dengan
+   totalKeseluruhan - sudahDibayar secara agregat. Kalau dihitung agregat,
+   kelebihan bayar (dp > total) pada SATU transaksi yang sudah lunas bisa
+   "menutupi" tagihan transaksi LAIN yang masih belum dibayar sama sekali
+   dalam pilihan yang sama -- membuat Belum Dibayar tampil jauh lebih kecil
+   dari kenyataan (bug nyata yang pernah terjadi: transaksi tanpa DP sama
+   sekali ikut tertutupi kelebihan bayar transaksi lain, padahal keduanya
+   sama sekali tidak berhubungan). */
 function rekapPelangganTotals(){
   const selected = rekapSelectedList();
   const totalKeseluruhan = selected.reduce((s,x)=>s+x.total,0);
   const sudahDibayar = selected.reduce((s,x)=>s+trxCashReceived(x),0);
-  const belumDibayar = Math.max(totalKeseluruhan - sudahDibayar, 0);
+  const belumDibayar = selected.filter(x=>x.status==='belum').reduce((s,x)=>s+Math.max(x.total-trxCashReceived(x),0),0);
   return { totalKeseluruhan, sudahDibayar, belumDibayar };
 }
 /* No. WA diambil dari SELURUH transaksi yang ditemukan (bukan cuma yang
