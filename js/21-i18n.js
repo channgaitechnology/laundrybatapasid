@@ -929,6 +929,24 @@ const I18N_EN = {
   '🖨️ Cetak (AirPrint / Printer Lain)': '🖨️ Print (AirPrint / Other Printer)',
   '🖨️ Cetak Bluetooth': '🖨️ Print Bluetooth',
   '⬇️ Unduh Gambar QRIS': '⬇️ Download QRIS Image',
+
+  /* ---------- Rekap Transaksi Pelanggan ---------- */
+  '🧮 Rekap Transaksi Pelanggan': '🧮 Customer Transaction Recap',
+  'Jumlahkan seluruh transaksi satu pelanggan dari tanggal-tanggal berbeda, lengkap rincian per transaksinya — cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo.':
+    'Add up one customer\'s transactions across different dates, with a detailed breakdown per transaction — handy for regular customers who launder often but aren\'t registered as a Package/Pay-Later customer.',
+  '🔍 Cari & Jumlahkan': '🔍 Search & Add Up',
+  '← Cari Nama Lain': '← Search Another Name',
+  'Total Keseluruhan': 'Grand Total',
+  '📤 Kirim / Cetak Rekap': '📤 Send / Print Recap',
+  'Kirim Rekap': 'Send Recap',
+  'Unduh / Bagikan Rekap (JPG)': 'Download / Share Recap (JPG)',
+  'Isi nama pelanggan dulu': 'Fill in the customer name first',
+  'Belum ada transaksi ditemukan untuk nama itu': 'No transactions found for that name yet',
+  'REKAP TRANSAKSI PELANGGAN': 'CUSTOMER TRANSACTION RECAP',
+  'Rekap transaksi': 'Transaction recap',
+  'No. WhatsApp pelanggan belum diisi di transaksi manapun': "Customer's WhatsApp number isn't filled in on any of their transactions",
+  'Di bagian atas tab ini ada tombol 🧮 Rekap Transaksi Pelanggan — cari satu nama pelanggan untuk menjumlahkan SEMUA transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Rekapnya juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa':
+    'At the top of this tab there\'s a 🧮 Customer Transaction Recap button — search for one customer name to add up ALL of their transactions across different dates at once, with a full breakdown per date (handy for regular customers who launder often but aren\'t registered as a Package/Pay-Later customer). The recap can also be sent to the customer on WhatsApp or printed, just like a regular receipt',
 };
 
 /* Ambil teks TRIMMED (spasi/baris baru di ujung tetap dipertahankan di luar)

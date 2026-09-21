@@ -470,6 +470,7 @@
 
   <!-- ===== VIEW 1: TRANSAKSI BARU ===== -->
   <section class="view active" id="view-baru">
+    <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="openRekapPelanggan()">🧮 Rekap Transaksi Pelanggan</button>
     <div class="card">
       <h2>Data Pelanggan</h2>
       <label for="inNama">Nama Pelanggan</label>
@@ -1235,6 +1236,7 @@
           <li>Tekan <b>+ Tambah Layanan</b> untuk menambah ke daftar — boleh lebih dari satu layanan dalam satu nota</li>
           <li>Isi diskon kalau ada, isi <b>Uang Muka (DP)</b> kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang</li>
           <li>Tekan <b>Simpan &amp; Buat Nota</b> — nota langsung muncul, siap dikirim ke WhatsApp pelanggan, diunduh sebagai gambar/PDF, atau langsung dicetak ke printer thermal (Bluetooth atau AirPrint/printer lain, kalau sudah disambungkan lewat Pengaturan → Printer Bluetooth)</li>
+          <li>Di bagian atas tab ini ada tombol <b>🧮 Rekap Transaksi Pelanggan</b> — cari satu nama pelanggan untuk menjumlahkan SEMUA transaksinya dari tanggal-tanggal berbeda sekaligus, lengkap rincian per tanggal (cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo). Rekapnya juga bisa dikirim ke WhatsApp pelanggan atau dicetak, sama seperti nota biasa</li>
         </ol>
       </div>
     </div>
@@ -1559,6 +1561,55 @@
   </div>
 </div>
 
+<!-- Rekap Transaksi Pelanggan: kalkulator penjumlah seluruh transaksi reguler
+     1 orang lintas tanggal (mirip Tempo, tapi untuk pelanggan biasa yang
+     tidak didaftarkan sebagai paket/tempo) -->
+<div class="modal-bg" id="rekapPelangganModal" style="z-index:107;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRekapPelanggan()">✕</button>
+    <h3>🧮 Rekap Transaksi Pelanggan</h3>
+
+    <div id="rekapSearchStep">
+      <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Jumlahkan seluruh transaksi satu pelanggan dari tanggal-tanggal berbeda, lengkap rincian per transaksinya — cocok untuk pelanggan biasa yang sering laundry tapi tidak didaftarkan sebagai Paket/Tempo.</p>
+      <label for="rekapNamaInput">Nama Pelanggan</label>
+      <div style="position:relative;">
+        <input id="rekapNamaInput" placeholder="cth. Budi Santoso" oninput="showRekapNamaSuggest()" onfocus="showRekapNamaSuggest()" onblur="hideRekapNamaSuggestDelayed()" onkeydown="if(event.key==='Enter') searchRekapPelanggan();" autocomplete="off">
+        <div id="rekapNamaSuggestBox" class="suggest-dropdown"></div>
+      </div>
+      <button type="button" class="btn btn-primary" style="margin-top:8px;" onclick="searchRekapPelanggan()">🔍 Cari &amp; Jumlahkan</button>
+    </div>
+
+    <div id="rekapResultStep" style="display:none;">
+      <button type="button" class="settings-sub-back" onclick="backToRekapSearch()">← Cari Nama Lain</button>
+      <h2 id="rekapResultNama" style="margin-top:4px;"></h2>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Jumlah Transaksi</div><div class="value" id="rekapStTrx">0</div></div>
+        <div class="stat-card"><div class="label">Total Keseluruhan</div><div class="value" id="rekapStTotal">Rp0</div></div>
+        <div class="stat-card"><div class="label">Sudah Dibayar</div><div class="value" id="rekapStLunas">Rp0</div></div>
+        <div class="stat-card warn"><div class="label">Belum Dibayar</div><div class="value" id="rekapStBelum">Rp0</div></div>
+      </div>
+
+      <button type="button" class="btn btn-accent" style="width:100%;margin:10px 0;" onclick="openRekapPelangganShare()">📤 Kirim / Cetak Rekap</button>
+
+      <div id="rekapList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Pilihan kirim/cetak Rekap Transaksi Pelanggan: WA / WA Business / JPG / Bluetooth / AirPrint -->
+<div class="modal-bg" id="rekapShareModal" style="z-index:108;">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRekapPelangganShare()">✕</button>
+    <h3>Kirim Rekap</h3>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wa')">Kirim via WhatsApp</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wab')">Kirim via WhatsApp Business</button>
+    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadRekapPelangganImage()">Unduh / Bagikan Rekap (JPG)</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printRekapPelangganBluetooth()">🖨️ Cetak Bluetooth</button>
+    <button class="btn btn-outline" onclick="printRekapPelangganViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+  </div>
+</div>
+
 <!-- Riwayat perubahan (transaksi/pelanggan paket) — siapa mengedit apa, kapan -->
 <div class="modal-bg" id="editHistoryModal" style="z-index:107;">
   <div class="modal">
@@ -1646,6 +1697,7 @@
 <script src="js/19-settings.js"></script>
 <script src="js/20-catatan.js"></script>
 <script src="js/21-i18n.js"></script>
+<script src="js/22-rekap-pelanggan.js"></script>
 <script>
   /* Listener sesi login SENGAJA ditaruh di <script> paling akhir ini (bukan
      di js/01-auth.js tempat fungsi2 auth lain berada) -- supabase-js bisa
