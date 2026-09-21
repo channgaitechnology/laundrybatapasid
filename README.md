@@ -26,6 +26,9 @@ Project Supabase yang dipakai: `ffpgapgvlzhetrkzmhqh.supabase.co` (kunci publik
 Supabase, keamanan data sesungguhnya ada di Row Level Security sisi database,
 bukan di kerahasiaan kunci ini).
 
+Suite regression Playwright ada di [`tests/`](tests/README.md) — jalankan
+sebelum push kalau mengubah `index.html`/`js/*.js`.
+
 ## Diketahui rusak — SELESAI DIPERBAIKI (19 Agustus 2026)
 
 `index.html` me-link dua berkas yang **ternyata tidak ikut ter-deploy** ke
