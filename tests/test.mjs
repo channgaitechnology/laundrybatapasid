@@ -728,6 +728,67 @@ const result = await page.evaluate(async () => {
     if (!pdfLine || !pdfLine.t.includes(kelebihan)) throw new Error('receipt PDF lines missing Kelebihan Bayar 87000: ' + JSON.stringify(pdf));
   });
 
+  // --- Regression: reported live -- opening Edit on an ordinary Lunas transaction (paid in full
+  // in cash, cashier never typed a DP) showed the DP field pre-filled with the full total, because
+  // submitTransaction() used to force dp=Math.max(dp,total) into the STORED row whenever status was
+  // Lunas. DP must only ever hold a genuine advance payment; the cash-basis math for Lunas totals
+  // is now computed on read (trxCashReceived()), not baked into the stored dp. ---
+  await step('submitTransaction() does NOT force dp to equal total for a plain Lunas transaction -- dp stays 0 unless the cashier actually typed one', async () => {
+    const savedEditingId = editingTransactionId;
+    try {
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci kilat', qty:1, satuan:'kg', harga:19740, subtotal:19740 }];
+      document.getElementById('inNama').value = 'Udin';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-21';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '0'; // kasir tidak pernah isi DP, pelanggan cuma bayar tunai penuh
+      document.getElementById('inStatus').value = 'lunas';
+      document.getElementById('inCatatan').value = '';
+      await submitTransaction();
+      const trx = transactions[transactions.length - 1];
+      if (!trx || trx.nama !== 'Udin') throw new Error('expected the new transaction to be pushed, got ' + JSON.stringify(trx));
+      if (trx.dp !== 0) throw new Error('BUG: dp should stay 0 (no forced Math.max(dp,total)) for a plain Lunas transaction, got dp=' + trx.dp);
+      if (trxCashReceived(trx) !== 19740) throw new Error('trxCashReceived() should still count the full total as cash received for Lunas even with dp=0, got ' + trxCashReceived(trx));
+
+      // Buka Edit lagi -- field DP harus menunjukkan nilai asli tersimpan (0), bukan total.
+      // (editTransaction() sendiri mengubah editingTransactionId -- makanya dibungkus try/finally
+      // di sini, supaya test-test sesudahnya yang bikin transaksi baru tidak keliru masuk ke jalur
+      // edit gara-gara editingTransactionId keburu ke-set ke id transaksi tes ini.)
+      editTransaction(trx.id);
+      if (document.getElementById('inDP').value != 0) throw new Error('BUG: form Edit seharusnya menampilkan dp=0 (nilai asli tersimpan), got ' + document.getElementById('inDP').value);
+    } finally {
+      editingTransactionId = savedEditingId;
+    }
+  });
+
+  await step('toggleLunas() (tombol "Lunasi" di Riwayat) mengubah status ke Lunas TANPA memaksa dp jadi sama dengan total', async () => {
+    const savedTransactions = transactions;
+    transactions = transactions.slice();
+    try {
+      const trx = { id:'tl1', kode:'LND-TL1', nama:'Slamet', hp:'', tanggal:'2026-09-20', estimasi:null,
+        items:[{ nama:'Cuci', qty:1, satuan:'kg', harga:12000, subtotal:12000 }], diskon:0, total:12000, dp:0, status:'belum', catatan:'' };
+      transactions.push(trx);
+      const originalFrom = sb.from;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, update: () => q, eq: () => Promise.resolve({ error: null }) };
+        return q;
+      };
+      try {
+        await toggleLunas(trx.id);
+      } finally {
+        sb.from = originalFrom;
+      }
+      if (trx.status !== 'lunas') throw new Error('expected status lunas after toggleLunas(), got ' + trx.status);
+      if (trx.dp !== 0) throw new Error('BUG: toggleLunas() should not force dp to equal total, got dp=' + trx.dp);
+      if (trxCashReceived(trx) !== 12000) throw new Error('trxCashReceived() should still count the full total as cash received for Lunas, got ' + trxCashReceived(trx));
+    } finally {
+      transactions = savedTransactions;
+    }
+  });
+
   // --- Regression: DP fully covers the total but status dropdown was left on "Belum Lunas" ---
   // Reproduces the confusing case reported live: kasir types a DP equal to (or more than) the
   // bill but forgets to switch the status dropdown to Lunas -- Rekap/Laporan (cash-basis, using

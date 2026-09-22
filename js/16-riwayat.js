@@ -53,10 +53,13 @@ function renderHistory(){
 async function toggleLunas(id){
   const trx = transactions.find(x=>x.id===id);
   if(!trx) return;
-  const { error } = await sb.from('transactions').update({ status:'lunas', dp:trx.total }).eq('id', id);
+  /* dp SENGAJA tidak diikutkan disamakan dengan total di sini -- itu cuma
+     uang muka sungguhan, biarkan apa adanya (biasanya 0 kalau tidak pernah
+     ada DP). trxCashReceived() yang menghitung kas Rp penuh untuk transaksi
+     Lunas, bukan field dp yang dipaksa. */
+  const { error } = await sb.from('transactions').update({ status:'lunas' }).eq('id', id);
   if(error){ showToast(t('Gagal memperbarui status')); return; }
   trx.status = 'lunas';
-  trx.dp = trx.total;
   showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }

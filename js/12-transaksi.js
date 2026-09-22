@@ -60,6 +60,24 @@ function updateTotalPreview(){
   document.getElementById('totalPreview').textContent = rupiah(total);
 }
 document.getElementById('inDiskon').addEventListener('input', updateTotalPreview);
+/* Kalau kasir mengedit transaksi yang sebelumnya "Lunas" (dp dipaksa = total
+   saat itu) lalu mengganti dropdown Status balik ke "Belum Lunas", field DP
+   di form TETAP menunjukkan angka lama itu (editTransaction() memuatnya apa
+   adanya) -- kasir yang cuma mengganti status tanpa menghapus DP jadi
+   menyimpan kombinasi status=belum + dp=total yang membingungkan. Kalau
+   dibiarkan, ini juga bikin auto-promote di submitTransaction() (dp>=total
+   -> otomatis Lunas lagi) membalikkan pilihan "Belum Lunas" yang baru saja
+   sengaja dipilih. Deteksi & bersihkan DP-nya di sini, sebelum sempat
+   tersimpan. */
+document.getElementById('inStatus').addEventListener('change', function(){
+  if(this.value !== 'belum') return;
+  const subtotal = draftItems.reduce((s,it)=>s+it.subtotal,0);
+  const diskon = parseFloat(document.getElementById('inDiskon').value) || 0;
+  const total = Math.max(subtotal - diskon, 0);
+  const dpEl = document.getElementById('inDP');
+  const dp = parseFloat(dpEl.value) || 0;
+  if(total>0 && dp===total) dpEl.value = '0';
+});
 
 /* ===================== SUBMIT TRANSAKSI (tambah / edit) ===================== */
 async function submitTransaction(){
@@ -99,17 +117,20 @@ async function submitTransaction(){
     status = 'lunas';
     autoPromotedToLunas = true;
   }
-  /* Status Lunas selalu berarti minimal lunas (dp >= total) — tapi kalau kasir sengaja
-     isi DP lebih besar dari total (pelanggan bayar lebih & kelebihannya dititip),
-     nilai itu tetap disimpan apa adanya, bukan ditimpa jadi persis sama dengan total. */
-  const finalDp = status==='lunas' ? Math.max(dp, total) : dp;
+  /* DP di sini HANYA uang muka sungguhan yang diketik kasir -- disimpan apa
+     adanya, TIDAK dipaksa/disamakan dengan total cuma karena status "Lunas"
+     dipilih. Kalau dipaksa (perilaku lama), field DP di form Edit jadi
+     menampilkan angka yang kasir tidak pernah ketik sendiri untuk transaksi
+     yang cuma dibayar tunai penuh biasa -- membingungkan. "Kas yang diterima"
+     untuk transaksi Lunas dihitung nanti di trxCashReceived() (Math.max(dp,
+     total)) saat menampilkan Laporan, bukan dipaksakan ke data tersimpan. */
 
   if(editingTransactionId){
     const before = transactions.find(t=>t.id===editingTransactionId);
     const beforeSnapshot = before ? {...before} : null;
     const { data, error } = await sb.from('transactions').update({
       nama, hp, tanggal, estimasi: estimasi || null,
-      items: draftItems.slice(), diskon, total, dp: finalDp, status, catatan
+      items: draftItems.slice(), diskon, total, dp, status, catatan
     }).eq('id', editingTransactionId).select().single();
     if(error){ showToast(t('Gagal memperbarui transaksi')); return; }
     const idx = transactions.findIndex(t=>t.id===editingTransactionId);
@@ -135,7 +156,7 @@ async function submitTransaction(){
     nama, hp, tanggal,
     estimasi: estimasi || null,
     items: draftItems.slice(),
-    diskon, total, dp: finalDp,
+    diskon, total, dp,
     status, catatan,
     /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
        tertentu (currentOutletId terisi) — supaya toko yang belum pernah
