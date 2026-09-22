@@ -17,6 +17,16 @@ scope; classic script yang dimuat berurutan berbagi satu global scope).
 Urutan tag `<script>` di `index.html` itu penting: modul yang isinya
 deklarasi state global harus dimuat sebelum modul yang memakainya.
 
+Sejak fitur pembayaran otomatis (Midtrans), aplikasi ini TIDAK LAGI murni
+statis: ada `netlify/functions/*.js` (Netlify Functions, Node/CommonJS,
+`exports.handler = async (event) => {...}`) yang jalan server-side —
+lihat bagian "Integrasi Pembayaran Otomatis (Midtrans)" di README.md
+untuk env var yang dibutuhkan. File-file itu TIDAK dimuat ke `index.html`
+sama sekali (browser cuma `fetch()` ke `/.netlify/functions/<nama>`),
+jadi tidak ikut kena aturan classic-script/global-scope di atas, dan
+tidak bisa diuji lewat suite Playwright (lihat `tests/
+test-midtrans-functions.mjs`, test Node murni terpisah).
+
 # Konvensi Bisnis/Domain Penting (jangan dilanggar ulang)
 
 - **Akuntansi berbasis kas.** `trxCashReceived(t) = t.dp||0` (`js/09-utils.js`)
@@ -87,3 +97,21 @@ deklarasi state global harus dimuat sebelum modul yang memakainya.
   histori yang sudah merged):
   `git fetch origin main && git checkout -B claude/flexible-payment-laundry-package-46lz4u origin/main`
   (stash dulu kalau ada perubahan belum commit).
+
+# Pembayaran Otomatis (Midtrans)
+
+- Model harga: 4 paket (1/3/6/12 bulan), harga per paket lewat env var
+  `SUBSCRIPTION_PRICE_1M/3M/6M/12M` di Netlify (BUKAN di-hardcode di
+  kode) — lihat `netlify/functions/_midtrans-plans.js`. Paket 12 bulan
+  dijadikan pilihan default di UI (`<select id="paywallPlan">`) supaya
+  paling banyak dipilih — SENGAJA, jangan diubah tanpa diminta.
+- **JANGAN PERNAH** commit `MIDTRANS_SERVER_KEY` atau
+  `SUPABASE_SERVICE_ROLE_KEY` ke git dalam bentuk apa pun (kode, README
+  contoh, commit message) — keduanya cuma boleh ada sebagai environment
+  variable di dashboard Netlify. Yang aman ada di kode browser cuma
+  Client Key (kalau nanti dipakai) — Server Key & Service Role Key HARUS
+  cuma pernah dibaca oleh `netlify/functions/*.js` (server-side).
+- Baru mencakup **perpanjangan** langganan toko yang sudah punya akun
+  (owner_id sudah ada). **Pendaftaran toko baru otomatis** sengaja belum
+  dikerjakan — butuh desain terpisah soal cara mengirim kode pendaftaran
+  ke orang yang belum login sama sekali (lihat README bagian 4).

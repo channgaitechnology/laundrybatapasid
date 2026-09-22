@@ -1570,7 +1570,17 @@
     <button class="modal-close" onclick="closePaywallModal()">✕</button>
     <h3>Aktifkan Langganan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;" id="paywallDesc">Aktifkan atau perpanjang langganan untuk lanjut melakukan transaksi dan mengunduh laporan.</p>
-    <button class="btn btn-primary" id="btnPayXendit" onclick="payViaXendit()">💳 Bayar Otomatis (QRIS / VA / E-wallet)</button>
+    <label for="paywallPlan">Pilih Paket</label>
+    <!-- Teks harga di sini cuma tampilan -- harga sesungguhnya diatur lewat
+         env var SUBSCRIPTION_PRICE_1M/3M/6M/12M di Netlify (lihat README).
+         Kalau harga di env var diubah, sesuaikan juga teksnya di sini. -->
+    <select id="paywallPlan">
+      <option value="1bulan">1 Bulan — Rp50.000</option>
+      <option value="3bulan">3 Bulan — Rp135.000 (hemat 10%)</option>
+      <option value="6bulan">6 Bulan — Rp240.000 (hemat 20%)</option>
+      <option value="12bulan" selected>12 Bulan — Rp420.000 (hemat 30%, paling hemat)</option>
+    </select>
+    <button class="btn btn-primary" id="btnPayMidtrans" style="margin-top:10px;" onclick="payViaMidtrans()">💳 Bayar Otomatis (QRIS / VA / E-wallet)</button>
     <p style="font-size:11px;color:var(--ink-soft);text-align:center;margin:6px 0 14px;">Langganan aktif otomatis begitu pembayaran diterima</p>
     <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin:10px 0;">
       <p style="font-size:12px;margin:0 0 8px;color:var(--ink-soft);">Atau transfer manual:</p>

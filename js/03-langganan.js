@@ -74,18 +74,30 @@ function closePaywallModal(){
   const modal = document.getElementById('paywallModal');
   if(modal) modal.classList.remove('show');
 }
-async function payViaXendit(){
-  const btn = document.getElementById('btnPayXendit');
+/* Beda dari sb.functions.invoke() (itu khusus Supabase Edge Functions) --
+   ini fetch biasa ke Netlify Function (lihat netlify/functions/midtrans-
+   create-transaction.js). Server Key Midtrans yang rahasia cuma ada di
+   function itu, tidak pernah dikirim ke browser. */
+async function payViaMidtrans(){
+  const btn = document.getElementById('btnPayMidtrans');
   if(!shopOwnerId){ showToast(t('Data toko belum siap')); return; }
+  const plan = document.getElementById('paywallPlan').value;
+  const nama = (settings && settings.shopName) ? settings.shopName : t('Toko');
+  const wa = (settings && settings.phone) ? settings.phone : '';
   if(btn){ btn.disabled = true; btn.textContent = t('Memproses...'); }
   try{
-    const { data, error } = await sb.functions.invoke('create-invoice', { body: { owner_id: shopOwnerId } });
-    if(error || !data || !data.invoice_url){
+    const res = await fetch('/.netlify/functions/midtrans-create-transaction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama, wa, owner_id: shopOwnerId, plan })
+    });
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !data.redirect_url){
       showToast(t('Gagal membuat tagihan, coba lagi atau pakai transfer manual'));
       if(btn){ btn.disabled = false; btn.textContent = t('💳 Bayar Otomatis (QRIS / VA / E-wallet)'); }
       return;
     }
-    window.open(data.invoice_url, '_blank');
+    window.open(data.redirect_url, '_blank');
     showToast(t('Halaman pembayaran dibuka. Langganan aktif otomatis setelah bayar.'));
     closePaywallModal();
   }catch(e){

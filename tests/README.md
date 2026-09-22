@@ -27,6 +27,18 @@ node test.mjs
 Keluar dengan exit code 0 kalau semua lulus, dan mencetak daftar
 `FAIL: ...` kalau ada yang gagal.
 
+## Test lain: `test-midtrans-functions.mjs`
+
+Terpisah dari suite Playwright di atas — ini test Node murni (bukan
+browser) untuk `netlify/functions/midtrans-*.js` (serverless function
+integrasi pembayaran Midtrans), karena file-file itu jalan di server
+(Node), tidak dimuat ke `index.html`. Tidak butuh kredensial Midtrans/
+Supabase sungguhan (fetch di-mock). Jalankan dari root repo:
+
+```bash
+node tests/test-midtrans-functions.mjs
+```
+
 ## Catatan
 
 - Test ini sepenuhnya sinkron dengan data mock/fixture bertanggal tetap
