@@ -1153,8 +1153,8 @@ const result = await page.evaluate(async () => {
   await step('The auth-screen (login) logo is a separate hardcoded <img>, unaffected by shopLogoSrc()', () => {
     const authLogoImgs = document.querySelectorAll('#authScreen img');
     if (authLogoImgs.length === 0) throw new Error('expected at least one <img> inside #authScreen');
-    const stillDefault = Array.from(authLogoImgs).every(img => img.src === SHOP_LOGO_B64 || img.src.startsWith('data:image/jpeg;base64,/9j/'));
-    if (!stillDefault) throw new Error('auth screen logo should stay the fixed default, not follow shopLogoSrc()');
+    const stillDefault = Array.from(authLogoImgs).every(img => img.src.endsWith('/icons/logo-auth.png'));
+    if (!stillDefault) throw new Error('auth screen logo should stay the fixed default (icons/logo-auth.png), not follow shopLogoSrc(): ' + Array.from(authLogoImgs).map(i=>i.src).join(', '));
   });
 
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
