@@ -184,8 +184,10 @@ const I18N_EN = {
   'Tambahkan minimal satu layanan': 'Add at least one service',
   'Gagal memperbarui transaksi': 'Failed to update transaction',
   'Transaksi diperbarui': 'Transaction updated',
+  'Transaksi diperbarui — DP sudah menutupi total, otomatis ditandai Lunas': 'Transaction updated — the deposit already covers the total, automatically marked Paid',
   'Gagal menyimpan transaksi': 'Failed to save transaction',
   'Transaksi tersimpan': 'Transaction saved',
+  'Transaksi tersimpan — DP sudah menutupi total, otomatis ditandai Lunas': 'Transaction saved — the deposit already covers the total, automatically marked Paid',
 
   /* ---------- Nota / Riwayat ---------- */
   'Kirim / Unduh Nota': 'Send / Download Receipt',

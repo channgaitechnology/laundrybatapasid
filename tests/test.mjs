@@ -728,6 +728,82 @@ const result = await page.evaluate(async () => {
     if (!pdfLine || !pdfLine.t.includes(kelebihan)) throw new Error('receipt PDF lines missing Kelebihan Bayar 87000: ' + JSON.stringify(pdf));
   });
 
+  // --- Regression: DP fully covers the total but status dropdown was left on "Belum Lunas" ---
+  // Reproduces the confusing case reported live: kasir types a DP equal to (or more than) the
+  // bill but forgets to switch the status dropdown to Lunas -- Rekap/Laporan (cash-basis, using
+  // dp) then look "fully paid" while the per-transaction badge still says "Belum Lunas",
+  // which read as a bug even though both numbers were individually correct. Fix: auto-promote
+  // status to lunas whenever the typed DP already covers the total.
+  await step('submitTransaction() auto-promotes status to Lunas when a "Belum Lunas" DP already covers the total', async () => {
+    const savedTransactions = transactions;
+    const savedDraftItems = draftItems;
+    const savedEditingId = editingTransactionId;
+    transactions = transactions.slice(); // isolate pushes from the rest of the suite
+    try {
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci setrika hemat', qty:11.06, satuan:'kg', harga:8000, subtotal:88480 }];
+      document.getElementById('inNama').value = 'Abid';
+      document.getElementById('inHP').value = ''; // kosong -> hindari jalur saveContactIfNew().upsert() yang tidak didukung mock generik, tidak relevan buat test ini
+      document.getElementById('inTanggal').value = '2026-09-17';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '88480'; // pas dengan total, status masih dipilih "belum"
+      document.getElementById('inStatus').value = 'belum';
+      document.getElementById('inCatatan').value = '';
+      await submitTransaction();
+      const trx = transactions[transactions.length - 1];
+      if (!trx || trx.nama !== 'Abid') throw new Error('expected the new transaction to be pushed, got ' + JSON.stringify(trx));
+      if (trx.status !== 'lunas') throw new Error('BUG: DP (88480) already covers total (88480) with status left on "belum" -- should auto-promote to lunas, got status=' + trx.status);
+      if (trx.dp !== 88480) throw new Error('expected dp preserved at 88480, got ' + trx.dp);
+
+      // Editing an EXISTING "belum" transaction whose dp already covers the total (without
+      // touching the status dropdown) must also auto-promote -- this is how a shop owner fixes
+      // old records affected by the bug above, just by opening Edit and saving again.
+      // (fakeTransactionsQuery()'s generic .update() doesn't echo a row back, unlike .insert(),
+      // so this update path needs its own small stub -- same pattern as other tests that
+      // exercise submitTransaction()'s edit branch against a real Supabase response shape.)
+      trx.status = 'belum'; // simulate an old record still stuck on "belum" despite full dp
+      editTransaction(trx.id);
+      if (document.getElementById('inStatus').value !== 'belum') throw new Error('sanity check failed: editTransaction() should reload the stale "belum" status for this test to be meaningful');
+      const originalFrom = sb.from;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = {
+          select: () => q, eq: () => q, in: () => q, order: () => q, insert: () => q, delete: () => q,
+          update: (row) => { q._updated = { ...trx, ...row }; return q; },
+          single: () => Promise.resolve({ data: q._updated, error: null }),
+        };
+        return q;
+      };
+      try {
+        await submitTransaction();
+      } finally {
+        sb.from = originalFrom;
+      }
+      const edited = transactions.find(x => x.id === trx.id);
+      if (edited.status !== 'lunas') throw new Error('BUG: re-saving an existing transaction whose dp already covers the total should auto-promote to lunas too, got status=' + edited.status);
+
+      // Sanity check the negative case: a genuine partial DP must NOT be auto-promoted.
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci reguler', qty:1, satuan:'kg', harga:20000, subtotal:20000 }];
+      document.getElementById('inNama').value = 'Abid';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-19';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '5000'; // jauh dari total 20000
+      document.getElementById('inStatus').value = 'belum';
+      document.getElementById('inCatatan').value = '';
+      await submitTransaction();
+      const partial = transactions[transactions.length - 1];
+      if (partial.status !== 'belum') throw new Error('a genuine partial DP (5000 of 20000) must stay "belum", got status=' + partial.status);
+      if (partial.dp !== 5000) throw new Error('expected dp preserved at 5000, got ' + partial.dp);
+    } finally {
+      transactions = savedTransactions;
+      draftItems = savedDraftItems;
+      editingTransactionId = savedEditingId;
+    }
+  });
+
   // --- Sequential numbering (01, 02, ...) oldest -> newest, separate for timbangan vs layanan tambahan ---
   await step('padNo() zero-pads to at least 2 digits', () => {
     if (padNo(1) !== '01') throw new Error('padNo(1) expected 01, got ' + padNo(1));
