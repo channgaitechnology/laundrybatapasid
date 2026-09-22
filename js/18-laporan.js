@@ -261,7 +261,7 @@ function renderPerPelangganReport(){
     const belumTrxHTML = belumTrxList.slice().reverse().map(trx=>`
       <div class="item-line" style="align-items:center;">
         <span>${fmtDate(trx.tanggal)} — ${trx.kode}</span>
-        <span>${rupiah(trx.total)}</span>
+        <span>${rupiah(trx.total-trxCashReceived(trx))}</span>
       </div>
     `).join('');
     const subsHTML = subsBreakdowns.map(x=>subsOutstandingBlockHTML(x.s, x.bd)).join('');
@@ -340,7 +340,7 @@ function downloadPerPelangganPDF(){
   sectionTitle(t('Belum Lunas'));
   colHeader();
   let anyBelum = false;
-  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total); });
+  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total-trxCashReceived(trx)); });
   subsBreakdowns.forEach(({ s, bd })=>{
     bd.groups.forEach(g=>{
       anyBelum = true;

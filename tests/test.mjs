@@ -1806,6 +1806,32 @@ const result = await page.evaluate(async () => {
     if (!html.includes(t('Sisa Tagihan Saat Ini'))) throw new Error('missing the "Sisa Tagihan Saat Ini" subtotal row for the running Tempo tab: ' + html);
   });
 
+  // Regression: reported live -- a partially-paid "Belum Lunas" transaction showed its per-line amount
+  // in the itemized breakdown as the FULL total (trx.total) instead of the actual outstanding balance
+  // (total-dp), so it visually disagreed with the correct "Belum Lunas" summary card right above it
+  // (which already used total-trxCashReceived(t)). Same bug existed in the PDF export's row for it.
+  await step('renderPerPelangganReport(): baris rincian "Belum Lunas" per transaksi menampilkan sisa (total-dp) yang belum dibayar, bukan total penuh -- harus sinkron dengan kartu ringkasan di atasnya', () => {
+    outlets = []; currentOutletId = null; reportOutletFilter = '';
+    subscriptions = []; allWorkUsage = [];
+    transactions = [
+      { id:'b1', kode:'LND-B1', nama:'Abid', hp:'', tanggal:'2026-09-11', estimasi:null, items:[], diskon:0, total:81000, dp:30000, status:'belum', catatan:'', outletId:null },
+    ];
+    populatePerNamaSelect();
+    document.getElementById('perNama').value = 'Abid';
+    document.getElementById('perPeriodeType').value = 'custom';
+    togglePerPeriodeFields();
+    document.getElementById('perDari').value = '2026-01-01';
+    document.getElementById('perSampai').value = '2026-12-31';
+    renderPerPelangganReport();
+
+    const perStBelum = document.getElementById('perStBelum').textContent;
+    if (!perStBelum.includes('51.000')) throw new Error('kartu ringkasan "Belum Lunas" seharusnya 51.000 (81000-30000), got ' + perStBelum);
+
+    const html = document.getElementById('perResultList').innerHTML;
+    if (!html.includes('51.000')) throw new Error('BUG: baris rincian di bawah "Belum Lunas" seharusnya menampilkan sisa 51.000 (total-dp), bukan total penuh -- tidak sinkron dengan kartu ringkasan di atas: ' + html);
+    if (html.includes('81.000')) throw new Error('baris rincian tidak boleh menampilkan total penuh (81.000) untuk transaksi yang sudah sebagian dibayar: ' + html);
+  });
+
   await step('trxCashReceived() reflects actual cash received (dp), not the gross order total, for both lunas and belum-lunas transactions', () => {
     const lunasFull = { total:100000, dp:100000, status:'lunas' };
     const lunasOverpaid = { total:100000, dp:120000, status:'lunas' };
