@@ -184,8 +184,10 @@ const I18N_EN = {
   'Tambahkan minimal satu layanan': 'Add at least one service',
   'Gagal memperbarui transaksi': 'Failed to update transaction',
   'Transaksi diperbarui': 'Transaction updated',
+  'Transaksi diperbarui — DP sudah menutupi total, otomatis ditandai Lunas': 'Transaction updated — the deposit already covers the total, automatically marked Paid',
   'Gagal menyimpan transaksi': 'Failed to save transaction',
   'Transaksi tersimpan': 'Transaction saved',
+  'Transaksi tersimpan — DP sudah menutupi total, otomatis ditandai Lunas': 'Transaction saved — the deposit already covers the total, automatically marked Paid',
 
   /* ---------- Nota / Riwayat ---------- */
   'Kirim / Unduh Nota': 'Send / Download Receipt',
@@ -421,6 +423,7 @@ const I18N_EN = {
   'Nota dikirim ke printer': 'Receipt sent to the printer',
   'Gagal mencetak — coba sambungkan ulang printernya': 'Failed to print — try reconnecting the printer',
   'Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.': 'Receipt image downloaded. Open WhatsApp/WhatsApp Business and attach it from your Downloads folder.',
+  'Gambar nota diunduh ke folder Download.': 'Receipt image downloaded to your Downloads folder.',
   'Nota-Transaksi': 'Receipt-Transaction',
   'Nota-Timbangan': 'Receipt-WeighIn',
   'Nota transaksi laundry': 'Laundry transaction receipt',

@@ -262,7 +262,7 @@ async function downloadWorkBoardImage(){
     if(!blob){ showToast(t('Gagal membuat gambar Daftar Tugas')); return; }
     try{
       const file = new File([blob], filename, { type:'image/jpeg' });
-      if(navigator.canShare && navigator.canShare({ files:[file] })){
+      if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
         await navigator.share({ files:[file], title: filename, text:t('Daftar Tugas') });
         return;
       }

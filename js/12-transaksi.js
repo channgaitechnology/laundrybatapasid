@@ -70,7 +70,7 @@ async function submitTransaction(){
   const estimasi = document.getElementById('inEstimasi').value || '';
   const diskon = parseFloat(document.getElementById('inDiskon').value) || 0;
   const dp = parseFloat(document.getElementById('inDP').value) || 0;
-  const status = document.getElementById('inStatus').value;
+  let status = document.getElementById('inStatus').value;
   const catatan = document.getElementById('inCatatan').value.trim();
 
   if(!nama){ showToast(t('Nama pelanggan wajib diisi')); return; }
@@ -87,6 +87,18 @@ async function submitTransaction(){
 
   const subtotal = draftItems.reduce((s,it)=>s+it.subtotal,0);
   const total = Math.max(subtotal - diskon, 0);
+  /* Kalau status masih dipilih "Belum Lunas" tapi DP yang diisi sudah menutupi
+     (atau melebihi) total tagihan, otomatis tandai Lunas -- supaya tidak ada
+     transaksi yang uangnya sudah 100% diterima tapi status-nya "nyangkut" di
+     Belum Lunas hanya karena dropdown-nya lupa diganti. Sebelum ini ada, kasus
+     itu bikin Laporan/Rekap Transaksi Pelanggan kelihatan aneh: nota bilang
+     "Belum Lunas" tapi Sudah Dibayar-nya sudah pas dengan totalnya -- padahal
+     keduanya sama-sama benar, cuma status-nya yang ketinggalan. */
+  let autoPromotedToLunas = false;
+  if(status==='belum' && total>0 && dp>=total){
+    status = 'lunas';
+    autoPromotedToLunas = true;
+  }
   /* Status Lunas selalu berarti minimal lunas (dp >= total) — tapi kalau kasir sengaja
      isi DP lebih besar dari total (pelanggan bayar lebih & kelebihannya dititip),
      nilai itu tetap disimpan apa adanya, bukan ditimpa jadi persis sama dengan total. */
@@ -112,7 +124,7 @@ async function submitTransaction(){
     if(idx>-1) transactions[idx] = trx;
     if(beforeSnapshot) await logEditHistory('transaction', trx.id, diffTransactionFields(beforeSnapshot, trx));
     resetTransactionForm();
-    showToast(t('Transaksi diperbarui'));
+    showToast(autoPromotedToLunas ? t('Transaksi diperbarui — DP sudah menutupi total, otomatis ditandai Lunas') : t('Transaksi diperbarui'));
     openReceipt(trx.id);
     return;
   }
@@ -144,7 +156,7 @@ async function submitTransaction(){
   };
   transactions.push(trx);
   resetTransactionForm();
-  showToast(t('Transaksi tersimpan'));
+  showToast(autoPromotedToLunas ? t('Transaksi tersimpan — DP sudah menutupi total, otomatis ditandai Lunas') : t('Transaksi tersimpan'));
   openReceipt(trx.id);
   saveContactIfNew(nama, hp);
   if(rekapReturnAfterSave) reopenRekapPelangganAfterAdd();

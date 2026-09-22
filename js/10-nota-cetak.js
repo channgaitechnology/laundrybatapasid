@@ -471,7 +471,7 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
   try{
     const file = new File([blob], filename, { type:'image/jpeg' });
-    if(navigator.canShare && navigator.canShare({ files:[file] })){
+    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
       await navigator.share({ files:[file], title: filename, text: shareTitle||'' });
       return;
     }
@@ -481,7 +481,9 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  showToast(t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.'));
+  showToast(isMobileDevice()
+    ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
+    : t('Gambar nota diunduh ke folder Download.'));
 }
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
    Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)

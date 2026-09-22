@@ -56,6 +56,16 @@ function fmtKg(n){
   const r = Math.round(((n||0) + Number.EPSILON) * 100) / 100;
   return (r % 1 === 0) ? String(r) : String(parseFloat(r.toFixed(2)));
 }
+/* Web Share API (navigator.share) cuma nyaman dipakai di HP (share gambar
+   nota langsung ke WhatsApp dkk) -- di desktop (Windows/Mac/Linux) API yang
+   sama malah memunculkan dialog "Share" bawaan OS yang isinya cuma daftar
+   app lain (Zoom, OneDrive, Paint, dst), TANPA opsi simpan/unduh file biasa
+   -- jadi pengguna desktop malah tidak bisa buka notanya sama sekali kalau
+   tidak dikirim lewat salah satu app itu. Dipakai untuk sengaja LEWATI
+   navigator.share() di desktop meski browser-nya melaporkan dukung. */
+function isMobileDevice(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 /* Buka WhatsApp reguler atau WhatsApp Business secara spesifik (Android).
    target: 'wa' | 'wab' | undefined (undefined = biarkan sistem pilih/wa.me biasa) */
 function openWA(phone, text, target){
