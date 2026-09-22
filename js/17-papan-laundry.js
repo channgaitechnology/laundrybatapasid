@@ -224,6 +224,71 @@ function renderWorkBoard(){
    laundry lama beneran bisa "dilihat lagi" persis seperti waktu itu. Rentang
    lebih dari 7 hari dipecah jadi beberapa baris 7 kolom yang ditumpuk ke
    bawah, bukan memanjang terus ke kanan. */
+/* ===== Hapus Tugas dari Papan (bulk) =====
+   Bulk version of markPickedUp(): tandai banyak kartu sekaligus jadi
+   "diambil" (menghilang dari papan aktif via buildWorkItems()) berdasarkan
+   rentang tanggal Estimasi Selesai/tanggal masuk (workBoardDate()) --
+   TIDAK menghapus baris transactions/subscription_usage-nya sama sekali,
+   supaya Riwayat & Laporan tetap lengkap. Ini murni buat merapikan papan
+   yang menumpuk, bukan buat menghapus data transaksi. */
+function papanHapusDateThreshold(mode){
+  const d = new Date(todayISO()+'T00:00:00');
+  if(mode==='hari-ini') return todayISO();
+  if(mode==='kemarin') d.setDate(d.getDate()-1);
+  else if(mode==='2-hari') d.setDate(d.getDate()-2);
+  else if(mode==='3-hari') d.setDate(d.getDate()-3);
+  else return null;
+  return d.toISOString().slice(0,10);
+}
+function papanHapusMatchingItems(){
+  const mode = document.getElementById('papanHapusMode').value;
+  const items = buildWorkItems();
+  if(mode==='semua') return items;
+  if(mode==='custom'){
+    const dari = document.getElementById('papanHapusDari').value;
+    const sampai = document.getElementById('papanHapusSampai').value;
+    if(!dari || !sampai) return [];
+    return items.filter(it=>{ const d = workBoardDate(it); return d>=dari && d<=sampai; });
+  }
+  const threshold = papanHapusDateThreshold(mode);
+  if(!threshold) return [];
+  return items.filter(it=>workBoardDate(it)<=threshold);
+}
+function updatePapanHapusPreview(){
+  const n = papanHapusMatchingItems().length;
+  document.getElementById('papanHapusPreview').textContent = n>0
+    ? `${n} ${t('tugas akan ditandai Sudah Diambil.')}`
+    : t('Tidak ada tugas yang cocok dengan pilihan ini.');
+}
+function togglePapanHapusCustomFields(){
+  const mode = document.getElementById('papanHapusMode').value;
+  document.getElementById('papanHapusCustomFields').style.display = mode==='custom' ? 'grid' : 'none';
+  updatePapanHapusPreview();
+}
+function openPapanHapusModal(){
+  document.getElementById('papanHapusMode').value = 'semua';
+  document.getElementById('papanHapusCustomFields').style.display = 'none';
+  document.getElementById('papanHapusDari').value = '';
+  document.getElementById('papanHapusSampai').value = '';
+  updatePapanHapusPreview();
+  document.getElementById('papanHapusModal').classList.add('show');
+}
+function closePapanHapusModal(){ document.getElementById('papanHapusModal').classList.remove('show'); }
+async function confirmPapanHapus(){
+  const items = papanHapusMatchingItems();
+  if(items.length===0){ showToast(t('Tidak ada tugas yang cocok untuk dihapus')); return; }
+  if(!confirm(`${t('Tandai')} ${items.length} ${t('tugas sebagai Sudah Diambil? Nota/transaksinya TIDAK ikut terhapus.')}`)) return;
+  for(const it of items){
+    const table = it.source==='usage' ? 'subscription_usage' : 'transactions';
+    await sb.from(table).update({ work_status:'diambil' }).eq('id', it.id);
+    const list = it.source==='usage' ? allWorkUsage : transactions;
+    const rec = list.find(x=>x.id===it.id);
+    if(rec) rec.workStatus = 'diambil';
+  }
+  closePapanHapusModal();
+  showToast(`${items.length} ${t('tugas ditandai Sudah Diambil')}`);
+  renderWorkBoard();
+}
 async function downloadWorkBoardImage(){
   const dariEl = document.getElementById('papanUnduhDari');
   const sampaiEl = document.getElementById('papanUnduhSampai');

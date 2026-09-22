@@ -345,6 +345,11 @@
   .chart .bar{flex:1;background:linear-gradient(180deg,var(--bubble),var(--suds));border-radius:4px 4px 0 0;min-height:3px;position:relative;}
   .chart-labels{display:flex;gap:3px;font-size:8.5px;color:var(--ink-soft);}
   .chart-labels span{flex:1;text-align:center;}
+  /* Tren Omset cuma 6 bar (beda dari Omzet Harian yang 28-31 bar, terlalu sempit
+     buat teks) -- cukup ruang buat tampilkan nominal langsung di atas tiap bar,
+     bukan cuma lewat title/hover yang tidak kepakai di HP. */
+  .chart-trend{margin-top:20px;}
+  .chart-trend .bar-val{position:absolute;bottom:100%;left:0;right:0;margin-bottom:3px;text-align:center;font-size:9.5px;font-weight:700;color:var(--suds-deep);white-space:nowrap;}
 
   /* ---- Modal ---- */
   .modal-bg{
@@ -586,6 +591,23 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="searchInput" placeholder="Cari nama atau no. nota..." oninput="renderHistory()">
     </div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div>
+        <label for="historyStatusFilter">Status</label>
+        <select id="historyStatusFilter" onchange="renderHistory()">
+          <option value="">Semua Status</option>
+          <option value="lunas">Lunas</option>
+          <option value="belum">Belum Lunas</option>
+        </select>
+      </div>
+      <div><label for="historyDariFilter">Dari Tanggal</label><input id="historyDariFilter" type="date" onchange="renderHistory()"></div>
+    </div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div><label for="historySampaiFilter">Sampai Tanggal</label><input id="historySampaiFilter" type="date" onchange="renderHistory()"></div>
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn btn-outline btn-sm" id="historyResetFilterBtn" style="display:none;width:100%;" onclick="resetHistoryFilter()">✕ Bersihkan Filter</button>
+      </div>
+    </div>
     <div id="historyList"></div>
   </section>
 
@@ -601,6 +623,7 @@
         <div><label for="papanUnduhSampai">Sampai Tanggal</label><input id="papanUnduhSampai" type="date"></div>
       </div>
       <button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="downloadWorkBoardImage()">📥 Unduh JPG</button>
+      <button class="btn btn-danger-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="openPapanHapusModal()">🗑️ Hapus Tugas dari Papan</button>
     </div>
     <div class="work-board-grid" id="workBoardGrid"></div>
   </section>
@@ -627,7 +650,7 @@
 
     <div class="card">
       <h2>Tren Omset (6 Bulan Terakhir)</h2>
-      <div class="chart" id="trendChartBars"></div>
+      <div class="chart chart-trend" id="trendChartBars"></div>
       <div class="chart-labels" id="trendChartLabels"></div>
     </div>
 
@@ -1212,6 +1235,30 @@
     <h3>Pilih Outlet</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Transaksi, Paket, Pengeluaran, dan Daftar Tugas baru akan tercatat & tampil sesuai outlet yang dipilih.</p>
     <div id="outletPickerList"></div>
+  </div>
+</div>
+
+<!-- Hapus Tugas dari Papan (bulk) modal -->
+<div class="modal-bg" id="papanHapusModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePapanHapusModal()">✕</button>
+    <h3>🗑️ Hapus Tugas dari Papan</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Menandai tugas yang dipilih sebagai "Sudah Diambil" sekaligus — kartunya langsung hilang dari papan, sama seperti tombol "Sudah Diambil" satu-satu. Nota/transaksinya TIDAK ikut terhapus, jadi tetap aman untuk Riwayat & Laporan.</p>
+    <label for="papanHapusMode">Hapus tugas yang mana?</label>
+    <select id="papanHapusMode" onchange="togglePapanHapusCustomFields()">
+      <option value="semua">Semua tugas yang ada di papan</option>
+      <option value="hari-ini">Mulai hari ini ke belakang</option>
+      <option value="kemarin">Mulai kemarin ke belakang</option>
+      <option value="2-hari">Mulai 2 hari lalu ke belakang</option>
+      <option value="3-hari">Mulai 3 hari lalu ke belakang</option>
+      <option value="custom">Per periode (pilih tanggal sendiri)</option>
+    </select>
+    <div id="papanHapusCustomFields" class="row2" style="display:none;">
+      <div><label for="papanHapusDari">Dari Tanggal</label><input id="papanHapusDari" type="date" onchange="updatePapanHapusPreview()"></div>
+      <div><label for="papanHapusSampai">Sampai Tanggal</label><input id="papanHapusSampai" type="date" onchange="updatePapanHapusPreview()"></div>
+    </div>
+    <p id="papanHapusPreview" style="font-size:12.5px;color:var(--ink-soft);margin:8px 0 0;"></p>
+    <button class="btn btn-danger-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="confirmPapanHapus()">🗑️ Hapus Sekarang</button>
   </div>
 </div>
 

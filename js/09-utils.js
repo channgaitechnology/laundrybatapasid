@@ -3,6 +3,14 @@ function rupiah(n){
   n = Math.round(n||0);
   return 'Rp' + n.toLocaleString('id-ID');
 }
+/* Versi singkat rupiah buat label yang ruangnya sempit (mis. label di atas
+   tiap bar grafik tren) -- rupiah() lengkap tetap dipakai di title/hover. */
+function rupiahRingkas(n){
+  n = Math.round(n||0);
+  if(n>=1000000) return String(Math.round(n/100000)/10).replace('.',',') + 'jt';
+  if(n>=1000) return Math.round(n/1000) + 'rb';
+  return String(n);
+}
 function fmtDate(iso){
   if(!iso) return '-';
   const d = new Date(iso+'T00:00:00');

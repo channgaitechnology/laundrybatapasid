@@ -89,7 +89,7 @@ function renderOmzetTrend(ym){
     const h = Math.round((perMonth[i]/maxVal)*84)+2;
     const [yy, mm] = m.split('-').map(Number);
     const label = t(TREND_MONTH_NAMES[mm-1]) + "'" + String(yy).slice(2);
-    barsHTML += `<div class="bar" style="height:${h}px" title="${label}: ${rupiah(perMonth[i])}"></div>`;
+    barsHTML += `<div class="bar" style="height:${h}px" title="${label}: ${rupiah(perMonth[i])}"><span class="bar-val">${rupiahRingkas(perMonth[i])}</span></div>`;
     labelsHTML += `<span>${label}</span>`;
   });
   bars.innerHTML = barsHTML;

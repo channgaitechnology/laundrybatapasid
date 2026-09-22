@@ -2134,6 +2134,56 @@ const result = await page.evaluate(async () => {
     if (!html.includes('Listrik Outlet B')) throw new Error('Pengeluaran at Outlet B should show its own expense: ' + html);
   });
 
+  await step('Riwayat: filter Status (Lunas/Belum Lunas) dan Periode (Dari/Sampai Tanggal) menyaring daftar transaksi, dan tombol "Bersihkan Filter" cuma tampil saat ada filter aktif', () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    transactions = [
+      { id:'f1', kode:'F1', nama:'Filter Lunas Awal', hp:'', tanggal:'2026-08-01', estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'' },
+      { id:'f2', kode:'F2', nama:'Filter Belum Tengah', hp:'', tanggal:'2026-08-15', estimasi:null, items:[], diskon:0, total:20000, dp:0, status:'belum', catatan:'' },
+      { id:'f3', kode:'F3', nama:'Filter Lunas Akhir', hp:'', tanggal:'2026-08-28', estimasi:null, items:[], diskon:0, total:30000, dp:30000, status:'lunas', catatan:'' },
+    ];
+    try {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+      renderHistory();
+      if (document.getElementById('historyResetFilterBtn').style.display !== 'none') throw new Error('tombol Bersihkan Filter tidak boleh tampil kalau belum ada filter aktif');
+      let html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Belum Tengah') || !html.includes('Filter Lunas Akhir')) throw new Error('tanpa filter, ketiga transaksi harus tampil: ' + html);
+
+      document.getElementById('historyStatusFilter').value = 'lunas';
+      renderHistory();
+      if (document.getElementById('historyResetFilterBtn').style.display === 'none') throw new Error('tombol Bersihkan Filter harus tampil begitu status difilter');
+      html = document.getElementById('historyList').innerHTML;
+      if (html.includes('Filter Belum Tengah')) throw new Error('filter status Lunas tidak boleh ikut menampilkan transaksi Belum Lunas: ' + html);
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Lunas Akhir')) throw new Error('filter status Lunas harus tetap menampilkan kedua transaksi Lunas: ' + html);
+
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '2026-08-10';
+      document.getElementById('historySampaiFilter').value = '2026-08-20';
+      renderHistory();
+      html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Belum Tengah')) throw new Error('filter periode 10-20 Agu harus menampilkan transaksi tanggal 15 Agu: ' + html);
+      if (html.includes('Filter Lunas Awal') || html.includes('Filter Lunas Akhir')) throw new Error('filter periode 10-20 Agu tidak boleh menampilkan transaksi di luar rentang itu: ' + html);
+
+      resetHistoryFilter();
+      if (document.getElementById('historyStatusFilter').value !== '' || document.getElementById('historyDariFilter').value !== '' || document.getElementById('historySampaiFilter').value !== '') throw new Error('resetHistoryFilter() harus mengosongkan semua field filter');
+      if (document.getElementById('historyResetFilterBtn').style.display !== 'none') throw new Error('tombol Bersihkan Filter harus sembunyi lagi setelah di-reset');
+      html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Belum Tengah') || !html.includes('Filter Lunas Akhir')) throw new Error('setelah reset, ketiga transaksi harus tampil lagi: ' + html);
+    } finally {
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+    }
+  });
+
   await step('buildAllWorkItemsRaw()/Daftar Tugas only includes cucian belonging to the active outlet, for both direct transactions and Paket/Tempo customers linked via subscriptions', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     const subA = subscriptions.find(s=>s.nama==='Sub Outlet A');
@@ -2533,6 +2583,61 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Papan Hapus (bulk): mode "mulai X ke belakang"/"semua" menandai tugas yang cocok jadi "diambil" sekaligus, tanpa mengubah data transaksinya sama sekali', async () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    const today = todayISO();
+    const daysAgo = (n) => { const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+    transactions = [
+      { id:'ph1', kode:'PH1', nama:'Hapus 3 Hari Lalu', hp:'', tanggal: daysAgo(3), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph2', kode:'PH2', nama:'Hapus Kemarin', hp:'', tanggal: daysAgo(1), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph3', kode:'PH3', nama:'Jangan Hapus Hari Ini', hp:'', tanggal: today, estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph4', kode:'PH4', nama:'Jangan Hapus Besok', hp:'', tanggal: daysAgo(-1), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+    ];
+    const originalFrom = sb.from;
+    const originalConfirm = window.confirm;
+    sb.from = (table) => {
+      if (table !== 'transactions') return originalFrom(table);
+      const q = { select: () => q, update: () => q, eq: () => Promise.resolve({ error: null }) };
+      return q;
+    };
+    try {
+      // "kemarin ke belakang" harus mencakup ph1 (3 hari lalu) dan ph2 (kemarin), TIDAK ph3 (hari ini)/ph4 (besok).
+      document.getElementById('papanHapusMode').value = 'kemarin';
+      togglePapanHapusCustomFields();
+      window.confirm = () => true;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph1').workStatus !== 'diambil') throw new Error('BUG: 3 hari lalu harus ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph2').workStatus !== 'diambil') throw new Error('BUG: kemarin harus ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph3').workStatus === 'diambil') throw new Error('BUG: hari ini TIDAK boleh ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph4').workStatus === 'diambil') throw new Error('BUG: besok TIDAK boleh ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      // Cuma workStatus yang berubah -- status pembayaran/nota TIDAK ikut disentuh.
+      if (transactions.find(x=>x.id==='ph1').status !== 'lunas' || transactions.find(x=>x.id==='ph1').total !== 10000) throw new Error('bulk hapus tidak boleh mengubah data transaksi selain workStatus');
+
+      // Membatalkan dialog konfirmasi -- tidak ada apa pun yang berubah.
+      document.getElementById('papanHapusMode').value = 'semua';
+      window.confirm = () => false;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph3').workStatus === 'diambil') throw new Error('membatalkan dialog konfirmasi tidak boleh ikut menandai apa pun');
+
+      // "Semua" (dikonfirmasi) menandai sisa tugas yang masih ada di papan (ph3 & ph4; ph1/ph2 sudah "diambil" duluan).
+      window.confirm = () => true;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph3').workStatus !== 'diambil') throw new Error('mode "semua" harus menandai sisa tugas yang masih ada di papan');
+      if (transactions.find(x=>x.id==='ph4').workStatus !== 'diambil') throw new Error('mode "semua" harus menandai sisa tugas yang masih ada di papan (termasuk yang estimasinya besok)');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('papanHapusMode').value = 'semua';
+      document.getElementById('papanHapusCustomFields').style.display = 'none';
+    }
+  });
+
   await step('a kasir restricted to one outlet (team_members.outlet_id) is locked to it: loadOutletsFromDB() forces currentOutletId there, switchOutlet() refuses other outlets, and the picker/switcher reflect the lock', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     const savedRole = currentRole;
@@ -2596,17 +2701,20 @@ const result = await page.evaluate(async () => {
     if (labels.length !== 6) throw new Error('expected 6 month labels, got ' + labels.length);
 
     const expected = [
-      { label: "Mar'26", omzet: 'Rp1.000' },
-      { label: "Apr'26", omzet: 'Rp2.000' },
-      { label: "Mei'26", omzet: 'Rp0' },
-      { label: "Jun'26", omzet: 'Rp5.000' }, // 2500+2500, termasuk transaksi 'belum lunas' -- sama seperti totalOmzet di chart harian
-      { label: "Jul'26", omzet: 'Rp3.000' },
-      { label: "Agu'26", omzet: 'Rp4.000' },
+      { label: "Mar'26", omzet: 'Rp1.000', compact: '1rb' },
+      { label: "Apr'26", omzet: 'Rp2.000', compact: '2rb' },
+      { label: "Mei'26", omzet: 'Rp0', compact: '0' },
+      { label: "Jun'26", omzet: 'Rp5.000', compact: '5rb' }, // 2500+2500, termasuk transaksi 'belum lunas' -- sama seperti totalOmzet di chart harian
+      { label: "Jul'26", omzet: 'Rp3.000', compact: '3rb' },
+      { label: "Agu'26", omzet: 'Rp4.000', compact: '4rb' },
     ];
     expected.forEach((exp, i) => {
       if (labels[i].textContent !== exp.label) throw new Error(`bar ${i}: expected label ${exp.label}, got ${labels[i].textContent}`);
       const title = bars[i].getAttribute('title');
       if (!title.includes(exp.omzet)) throw new Error(`bar ${i} (${exp.label}): expected title to include ${exp.omzet}, got "${title}"`);
+      // Nominal harus KELIHATAN langsung (bukan cuma di title/hover, yang tidak kepakai di HP).
+      const valEl = bars[i].querySelector('.bar-val');
+      if (!valEl || valEl.textContent !== exp.compact) throw new Error(`bar ${i} (${exp.label}): expected visible .bar-val "${exp.compact}", got ${valEl && valEl.textContent}`);
     });
     // Rp99.999 dari Feb 2026 (di luar jendela 6 bulan) tidak boleh nyelip ke bar manapun
     bars.forEach((b, i) => { if (b.getAttribute('title').includes('99.999')) throw new Error(`bar ${i} leaked the out-of-window Feb transaction: ${b.getAttribute('title')}`); });
