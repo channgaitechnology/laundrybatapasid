@@ -325,6 +325,7 @@ async function downloadWorkBoardImage(){
     const filename = `daftar-pekerjaan-${dari}_sampai_${sampai}.jpg`;
     const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
     if(!blob){ showToast(t('Gagal membuat gambar Daftar Tugas')); return; }
+    saveToDownloadsGallery(blob, filename);
     try{
       const file = new File([blob], filename, { type:'image/jpeg' });
       if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){

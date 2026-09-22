@@ -3196,6 +3196,24 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Unduhan: saveToDownloadsGallery()/loadUnduhanList() menyimpan & membaca balik file dari IndexedDB, openUnduhanModal() menampilkannya, deleteUnduhanEntry() menghapusnya', async () => {
+    const blob = new Blob(['isi tes'], { type: 'text/plain' });
+    await saveToDownloadsGallery(blob, 'tes-unduhan-otomatis.txt');
+    const items = await loadUnduhanList();
+    if (items.length < 1 || items[0].filename !== 'tes-unduhan-otomatis.txt') throw new Error('saveToDownloadsGallery()/loadUnduhanList() tidak menyimpan entry dengan benar');
+    if (!(items[0].blob instanceof Blob)) throw new Error('entry tersimpan tidak membawa blob asli');
+
+    await openUnduhanModal();
+    const list = document.getElementById('unduhanList');
+    if (!list.querySelector('.item-line')) throw new Error('renderUnduhanList() tidak menampilkan entry yang baru disimpan');
+    if (!list.textContent.includes('tes-unduhan-otomatis.txt')) throw new Error('nama file tidak muncul di daftar Unduhan');
+    closeUnduhanModal();
+
+    await deleteUnduhanEntry(items[0].id);
+    const afterDelete = await loadUnduhanList();
+    if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
+  });
+
   return out;
 });
 

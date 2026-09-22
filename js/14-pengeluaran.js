@@ -296,6 +296,8 @@ function downloadExpensePDF(){
   doc.text(t('Total Pengeluaran'), colX.kategori, y);
   doc.text(rupiah(total), colX.total, y, { align:'right' });
 
-  doc.save(`Pengeluaran-${range.label.replace(/\s+/g,'-')}.pdf`);
+  const filenamePengeluaran = `Pengeluaran-${range.label.replace(/\s+/g,'-')}.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filenamePengeluaran);
+  doc.save(filenamePengeluaran);
 }
 

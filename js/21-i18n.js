@@ -15,6 +15,15 @@ const I18N_EN = {
   'Pengaturan': 'Settings',
   'Catatan': 'Notes',
   'Pilih Outlet': 'Choose Outlet',
+  'Unduhan': 'Downloads',
+  '📥 Unduhan': '📥 Downloads',
+  'Salinan nota/laporan yang pernah diunduh dari app ini, tersimpan di sini juga (di perangkat ini saja) supaya gampang dibuka lagi tanpa perlu keluar dari app.':
+    'Copies of receipts/reports you\'ve downloaded from this app are also kept here (on this device only), so you can reopen them without leaving the app.',
+  'Belum ada file': 'No files yet',
+  'Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.':
+    'Receipts/reports you download will also be saved here, so they\'re easy to reopen without leaving the app.',
+  'Buka': 'Open',
+  'File tidak ditemukan': 'File not found',
 
   /* ---------- Tab bar ---------- */
   'Transaksi': 'Transaction',
