@@ -789,6 +789,35 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // --- Regression: reported live on the deploy preview -- an OLD transaction saved before this
+  // fix (dp was force-written = total in the database back then, e.g. real nota "udin"/LND-0134)
+  // still shows that stale dp when opened in Edit, looking exactly like the bug that was supposedly
+  // fixed. editTransaction() must blank it back to 0 for display (a genuine dp>total overpayment
+  // must still show through, though) -- and since submitTransaction() no longer force-writes dp,
+  // simply re-saving that Edit (even for an unrelated field) now heals the old record for good. ---
+  await step('editTransaction(): transaksi Lunas LAMA yang dp-nya masih tersimpan = total (dari sebelum perbaikan ini) ditampilkan sebagai DP=0 di form Edit, tapi kelebihan bayar sungguhan (dp>total) tetap ditampilkan apa adanya', () => {
+    const savedEditingId = editingTransactionId;
+    const savedDraftItems = draftItems;
+    try {
+      const legacyLunas = { id:'legacy-1', kode:'LND-0134', nama:'udin', hp:'', tanggal:'2026-09-21', estimasi:null,
+        items:[{ nama:'cuci lipat reguler', qty:2.82, satuan:'kg', harga:7000, subtotal:19740 }], diskon:0, total:19740, dp:19740, status:'lunas', catatan:'' };
+      transactions.push(legacyLunas);
+      editTransaction(legacyLunas.id);
+      if (document.getElementById('inDP').value != 0) throw new Error('BUG: transaksi Lunas lama dengan dp lama = total seharusnya ditampilkan sebagai DP=0 di Edit, got ' + document.getElementById('inDP').value);
+      transactions.pop();
+
+      const legacyOverpaid = { id:'legacy-2', kode:'LND-0200', nama:'Overpaid', hp:'', tanggal:'2026-09-21', estimasi:null,
+        items:[{ nama:'Cuci', qty:1, satuan:'kg', harga:10000, subtotal:10000 }], diskon:0, total:10000, dp:15000, status:'lunas', catatan:'' };
+      transactions.push(legacyOverpaid);
+      editTransaction(legacyOverpaid.id);
+      if (document.getElementById('inDP').value != 15000) throw new Error('kelebihan bayar sungguhan (dp 15000 > total 10000) tidak boleh ikut dinolkan di Edit, got ' + document.getElementById('inDP').value);
+      transactions.pop();
+    } finally {
+      editingTransactionId = savedEditingId;
+      draftItems = savedDraftItems;
+    }
+  });
+
   // --- Regression: DP fully covers the total but status dropdown was left on "Belum Lunas" ---
   // Reproduces the confusing case reported live: kasir types a DP equal to (or more than) the
   // bill but forgets to switch the status dropdown to Lunas -- Rekap/Laporan (cash-basis, using

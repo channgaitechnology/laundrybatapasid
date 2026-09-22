@@ -206,7 +206,16 @@ function editTransaction(id){
   document.getElementById('inTanggal').value = trx.tanggal||'';
   document.getElementById('inEstimasi').value = trx.estimasi||'';
   document.getElementById('inDiskon').value = trx.diskon||0;
-  document.getElementById('inDP').value = trx.dp||0;
+  /* Transaksi lama yang dibuat sebelum DP berhenti dipaksa = total saat Lunas
+     (lihat submitTransaction()) masih punya dp tersimpan = total di database
+     -- kalau ditampilkan mentah-mentah di sini, form Edit kelihatan seperti
+     "DP terisi sendiri" padahal kasir tidak pernah mengetiknya. Untuk
+     transaksi Lunas, sembunyikan/nolkan tampilannya KECUALI kalau dp jelas
+     lebih besar dari total (kelebihan bayar sungguhan yang sengaja dicatat)
+     -- itu tetap ditampilkan apa adanya supaya tidak hilang. Begitu form ini
+     disimpan lagi (Update Transaksi), data lama itu otomatis ikut terbenahi
+     jadi 0 tanpa perlu migrasi data manual. */
+  document.getElementById('inDP').value = (trx.status==='lunas' && (trx.dp||0)<=trx.total) ? 0 : (trx.dp||0);
   document.getElementById('inStatus').value = trx.status;
   document.getElementById('inCatatan').value = trx.catatan||'';
   draftItems = (trx.items||[]).map(it=>({...it}));
