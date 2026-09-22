@@ -1,9 +1,23 @@
 /* ===================== RIWAYAT ===================== */
+function resetHistoryFilter(){
+  document.getElementById('historyStatusFilter').value = '';
+  document.getElementById('historyDariFilter').value = '';
+  document.getElementById('historySampaiFilter').value = '';
+  renderHistory();
+}
 function renderHistory(){
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const statusFilter = document.getElementById('historyStatusFilter').value;
+  const dariFilter = document.getElementById('historyDariFilter').value;
+  const sampaiFilter = document.getElementById('historySampaiFilter').value;
+  const anyFilterActive = !!(statusFilter || dariFilter || sampaiFilter);
+  document.getElementById('historyResetFilterBtn').style.display = anyFilterActive ? 'block' : 'none';
   const el = document.getElementById('historyList');
   const list = visibleTransactions().slice().reverse().filter(t=>
-    t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q)
+    (t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q))
+    && (!statusFilter || t.status===statusFilter)
+    && (!dariFilter || t.tanggal>=dariFilter)
+    && (!sampaiFilter || t.tanggal<=sampaiFilter)
   );
 
   const today = todayISO();
@@ -19,10 +33,11 @@ function renderHistory(){
   document.getElementById('stTodayBelum').textContent = `${todayBelum.length} · ${rupiah(todayBelum.reduce((s,t)=>s+(t.total-trxCashReceived(t)),0))}`;
 
   if(list.length===0){
+    const filterActive = anyFilterActive || q;
     el.innerHTML = `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/><circle cx="24" cy="24" r="12" stroke="#5FC9BE" stroke-width="2"/></svg>
-      <h3>${t('Belum ada transaksi')}</h3>
-      <p>${t('Transaksi yang kamu simpan akan muncul di sini.')}</p>
+      <h3>${filterActive ? t('Tidak ada transaksi yang cocok') : t('Belum ada transaksi')}</h3>
+      <p>${filterActive ? t('Coba ubah kata kunci pencarian atau filter di atas.') : t('Transaksi yang kamu simpan akan muncul di sini.')}</p>
     </div>`;
     return;
   }
@@ -53,10 +68,13 @@ function renderHistory(){
 async function toggleLunas(id){
   const trx = transactions.find(x=>x.id===id);
   if(!trx) return;
-  const { error } = await sb.from('transactions').update({ status:'lunas', dp:trx.total }).eq('id', id);
+  /* dp SENGAJA tidak diikutkan disamakan dengan total di sini -- itu cuma
+     uang muka sungguhan, biarkan apa adanya (biasanya 0 kalau tidak pernah
+     ada DP). trxCashReceived() yang menghitung kas Rp penuh untuk transaksi
+     Lunas, bukan field dp yang dipaksa. */
+  const { error } = await sb.from('transactions').update({ status:'lunas' }).eq('id', id);
   if(error){ showToast(t('Gagal memperbarui status')); return; }
   trx.status = 'lunas';
-  trx.dp = trx.total;
   showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }

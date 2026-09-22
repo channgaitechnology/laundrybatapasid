@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Laundry Batapas.id",
-  "short_name": "Batapas.id",
+  "name": "Laundry Assistant",
+  "short_name": "Laundry Assistant",
   "description": "Aplikasi kasir & nota untuk usaha laundry",
   "lang": "id",
   "start_url": "/",

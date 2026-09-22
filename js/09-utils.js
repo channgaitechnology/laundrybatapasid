@@ -3,6 +3,14 @@ function rupiah(n){
   n = Math.round(n||0);
   return 'Rp' + n.toLocaleString('id-ID');
 }
+/* Versi singkat rupiah buat label yang ruangnya sempit (mis. label di atas
+   tiap bar grafik tren) -- rupiah() lengkap tetap dipakai di title/hover. */
+function rupiahRingkas(n){
+  n = Math.round(n||0);
+  if(n>=1000000) return String(Math.round(n/100000)/10).replace('.',',') + 'jt';
+  if(n>=1000) return Math.round(n/1000) + 'rb';
+  return String(n);
+}
 function fmtDate(iso){
   if(!iso) return '-';
   const d = new Date(iso+'T00:00:00');
@@ -10,15 +18,20 @@ function fmtDate(iso){
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 /* Uang yang BENAR-BENAR sudah diterima kas dari satu transaksi, apapun
-   statusnya. Kalau status "lunas", submitTransaction()/toggleLunas()/
-   markSubsLunas() selalu menyimpan dp >= total (dipaksa disamakan kalau
-   kasir tidak isi manual) -- jadi field `dp` SELALU merepresentasikan kas
-   yang sudah diterima, baik untuk transaksi lunas maupun yang masih
-   sebagian dibayar (DP). Dipakai di Laporan/Laba Rugi supaya "Sudah
-   Lunas"/"Pemasukan" mencerminkan uang yang benar-benar masuk kas, BUKAN
-   nilai order kotor (Omzet) yang belum tentu sudah dibayar -- dan supaya
-   Sudah Lunas + Belum Lunas selalu pas dengan Total Omzet/Belanja. */
-function trxCashReceived(t){ return t.dp||0; }
+   statusnya. Field `dp` sendiri HANYA uang muka sungguhan yang diketik kasir
+   -- tidak dipaksa/disamakan dengan total cuma karena status "Lunas" dipilih
+   (lihat submitTransaction()/toggleLunas()), supaya form Edit tidak
+   menampilkan angka DP yang kasir tidak pernah ketik untuk transaksi yang
+   cuma dibayar tunai penuh biasa. Status "lunas" berarti minimal kas
+   sejumlah total sudah diterima meski dp yang tersimpan lebih kecil (atau
+   0) -- dihitung Math.max(dp,total) di sini, BUKAN dipaksakan ke data
+   tersimpan. Kalau kasir sengaja isi dp > total (kelebihan bayar dititip),
+   nilai itu tetap terhitung apa adanya. Dipakai di Laporan/Laba Rugi/Rekap
+   supaya "Sudah Lunas"/"Pemasukan" mencerminkan uang yang benar-benar masuk
+   kas, BUKAN nilai order kotor (Omzet) yang belum tentu sudah dibayar --
+   dan supaya Sudah Lunas + Belum Lunas selalu pas dengan Total Omzet/
+   Belanja. */
+function trxCashReceived(t){ return t.status==='lunas' ? Math.max(t.dp||0, t.total||0) : (t.dp||0); }
 function sortByTanggalAsc(list){
   return list.slice().sort((a,b)=> a.tanggal<b.tanggal?-1 : a.tanggal>b.tanggal?1 : 0);
 }

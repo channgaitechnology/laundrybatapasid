@@ -89,7 +89,7 @@ function renderOmzetTrend(ym){
     const h = Math.round((perMonth[i]/maxVal)*84)+2;
     const [yy, mm] = m.split('-').map(Number);
     const label = t(TREND_MONTH_NAMES[mm-1]) + "'" + String(yy).slice(2);
-    barsHTML += `<div class="bar" style="height:${h}px" title="${label}: ${rupiah(perMonth[i])}"></div>`;
+    barsHTML += `<div class="bar" style="height:${h}px" title="${label}: ${rupiah(perMonth[i])}"><span class="bar-val">${rupiahRingkas(perMonth[i])}</span></div>`;
     labelsHTML += `<span>${label}</span>`;
   });
   bars.innerHTML = barsHTML;
@@ -261,7 +261,7 @@ function renderPerPelangganReport(){
     const belumTrxHTML = belumTrxList.slice().reverse().map(trx=>`
       <div class="item-line" style="align-items:center;">
         <span>${fmtDate(trx.tanggal)} — ${trx.kode}</span>
-        <span>${rupiah(trx.total)}</span>
+        <span>${rupiah(trx.total-trxCashReceived(trx))}</span>
       </div>
     `).join('');
     const subsHTML = subsBreakdowns.map(x=>subsOutstandingBlockHTML(x.s, x.bd)).join('');
@@ -340,7 +340,7 @@ function downloadPerPelangganPDF(){
   sectionTitle(t('Belum Lunas'));
   colHeader();
   let anyBelum = false;
-  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total); });
+  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total-trxCashReceived(trx)); });
   subsBreakdowns.forEach(({ s, bd })=>{
     bd.groups.forEach(g=>{
       anyBelum = true;

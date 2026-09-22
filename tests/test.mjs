@@ -728,6 +728,96 @@ const result = await page.evaluate(async () => {
     if (!pdfLine || !pdfLine.t.includes(kelebihan)) throw new Error('receipt PDF lines missing Kelebihan Bayar 87000: ' + JSON.stringify(pdf));
   });
 
+  // --- Regression: reported live -- opening Edit on an ordinary Lunas transaction (paid in full
+  // in cash, cashier never typed a DP) showed the DP field pre-filled with the full total, because
+  // submitTransaction() used to force dp=Math.max(dp,total) into the STORED row whenever status was
+  // Lunas. DP must only ever hold a genuine advance payment; the cash-basis math for Lunas totals
+  // is now computed on read (trxCashReceived()), not baked into the stored dp. ---
+  await step('submitTransaction() does NOT force dp to equal total for a plain Lunas transaction -- dp stays 0 unless the cashier actually typed one', async () => {
+    const savedEditingId = editingTransactionId;
+    try {
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci kilat', qty:1, satuan:'kg', harga:19740, subtotal:19740 }];
+      document.getElementById('inNama').value = 'Udin';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-21';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '0'; // kasir tidak pernah isi DP, pelanggan cuma bayar tunai penuh
+      document.getElementById('inStatus').value = 'lunas';
+      document.getElementById('inCatatan').value = '';
+      await submitTransaction();
+      const trx = transactions[transactions.length - 1];
+      if (!trx || trx.nama !== 'Udin') throw new Error('expected the new transaction to be pushed, got ' + JSON.stringify(trx));
+      if (trx.dp !== 0) throw new Error('BUG: dp should stay 0 (no forced Math.max(dp,total)) for a plain Lunas transaction, got dp=' + trx.dp);
+      if (trxCashReceived(trx) !== 19740) throw new Error('trxCashReceived() should still count the full total as cash received for Lunas even with dp=0, got ' + trxCashReceived(trx));
+
+      // Buka Edit lagi -- field DP harus menunjukkan nilai asli tersimpan (0), bukan total.
+      // (editTransaction() sendiri mengubah editingTransactionId -- makanya dibungkus try/finally
+      // di sini, supaya test-test sesudahnya yang bikin transaksi baru tidak keliru masuk ke jalur
+      // edit gara-gara editingTransactionId keburu ke-set ke id transaksi tes ini.)
+      editTransaction(trx.id);
+      if (document.getElementById('inDP').value != 0) throw new Error('BUG: form Edit seharusnya menampilkan dp=0 (nilai asli tersimpan), got ' + document.getElementById('inDP').value);
+    } finally {
+      editingTransactionId = savedEditingId;
+    }
+  });
+
+  await step('toggleLunas() (tombol "Lunasi" di Riwayat) mengubah status ke Lunas TANPA memaksa dp jadi sama dengan total', async () => {
+    const savedTransactions = transactions;
+    transactions = transactions.slice();
+    try {
+      const trx = { id:'tl1', kode:'LND-TL1', nama:'Slamet', hp:'', tanggal:'2026-09-20', estimasi:null,
+        items:[{ nama:'Cuci', qty:1, satuan:'kg', harga:12000, subtotal:12000 }], diskon:0, total:12000, dp:0, status:'belum', catatan:'' };
+      transactions.push(trx);
+      const originalFrom = sb.from;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, update: () => q, eq: () => Promise.resolve({ error: null }) };
+        return q;
+      };
+      try {
+        await toggleLunas(trx.id);
+      } finally {
+        sb.from = originalFrom;
+      }
+      if (trx.status !== 'lunas') throw new Error('expected status lunas after toggleLunas(), got ' + trx.status);
+      if (trx.dp !== 0) throw new Error('BUG: toggleLunas() should not force dp to equal total, got dp=' + trx.dp);
+      if (trxCashReceived(trx) !== 12000) throw new Error('trxCashReceived() should still count the full total as cash received for Lunas, got ' + trxCashReceived(trx));
+    } finally {
+      transactions = savedTransactions;
+    }
+  });
+
+  // --- Regression: reported live on the deploy preview -- an OLD transaction saved before this
+  // fix (dp was force-written = total in the database back then, e.g. real nota "udin"/LND-0134)
+  // still shows that stale dp when opened in Edit, looking exactly like the bug that was supposedly
+  // fixed. editTransaction() must blank it back to 0 for display (a genuine dp>total overpayment
+  // must still show through, though) -- and since submitTransaction() no longer force-writes dp,
+  // simply re-saving that Edit (even for an unrelated field) now heals the old record for good. ---
+  await step('editTransaction(): transaksi Lunas LAMA yang dp-nya masih tersimpan = total (dari sebelum perbaikan ini) ditampilkan sebagai DP=0 di form Edit, tapi kelebihan bayar sungguhan (dp>total) tetap ditampilkan apa adanya', () => {
+    const savedEditingId = editingTransactionId;
+    const savedDraftItems = draftItems;
+    try {
+      const legacyLunas = { id:'legacy-1', kode:'LND-0134', nama:'udin', hp:'', tanggal:'2026-09-21', estimasi:null,
+        items:[{ nama:'cuci lipat reguler', qty:2.82, satuan:'kg', harga:7000, subtotal:19740 }], diskon:0, total:19740, dp:19740, status:'lunas', catatan:'' };
+      transactions.push(legacyLunas);
+      editTransaction(legacyLunas.id);
+      if (document.getElementById('inDP').value != 0) throw new Error('BUG: transaksi Lunas lama dengan dp lama = total seharusnya ditampilkan sebagai DP=0 di Edit, got ' + document.getElementById('inDP').value);
+      transactions.pop();
+
+      const legacyOverpaid = { id:'legacy-2', kode:'LND-0200', nama:'Overpaid', hp:'', tanggal:'2026-09-21', estimasi:null,
+        items:[{ nama:'Cuci', qty:1, satuan:'kg', harga:10000, subtotal:10000 }], diskon:0, total:10000, dp:15000, status:'lunas', catatan:'' };
+      transactions.push(legacyOverpaid);
+      editTransaction(legacyOverpaid.id);
+      if (document.getElementById('inDP').value != 15000) throw new Error('kelebihan bayar sungguhan (dp 15000 > total 10000) tidak boleh ikut dinolkan di Edit, got ' + document.getElementById('inDP').value);
+      transactions.pop();
+    } finally {
+      editingTransactionId = savedEditingId;
+      draftItems = savedDraftItems;
+    }
+  });
+
   // --- Regression: DP fully covers the total but status dropdown was left on "Belum Lunas" ---
   // Reproduces the confusing case reported live: kasir types a DP equal to (or more than) the
   // bill but forgets to switch the status dropdown to Lunas -- Rekap/Laporan (cash-basis, using
@@ -1063,8 +1153,8 @@ const result = await page.evaluate(async () => {
   await step('The auth-screen (login) logo is a separate hardcoded <img>, unaffected by shopLogoSrc()', () => {
     const authLogoImgs = document.querySelectorAll('#authScreen img');
     if (authLogoImgs.length === 0) throw new Error('expected at least one <img> inside #authScreen');
-    const stillDefault = Array.from(authLogoImgs).every(img => img.src === SHOP_LOGO_B64 || img.src.startsWith('data:image/jpeg;base64,/9j/'));
-    if (!stillDefault) throw new Error('auth screen logo should stay the fixed default, not follow shopLogoSrc()');
+    const stillDefault = Array.from(authLogoImgs).every(img => img.src.endsWith('/icons/logo-auth.png'));
+    if (!stillDefault) throw new Error('auth screen logo should stay the fixed default (icons/logo-auth.png), not follow shopLogoSrc(): ' + Array.from(authLogoImgs).map(i=>i.src).join(', '));
   });
 
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
@@ -1806,6 +1896,32 @@ const result = await page.evaluate(async () => {
     if (!html.includes(t('Sisa Tagihan Saat Ini'))) throw new Error('missing the "Sisa Tagihan Saat Ini" subtotal row for the running Tempo tab: ' + html);
   });
 
+  // Regression: reported live -- a partially-paid "Belum Lunas" transaction showed its per-line amount
+  // in the itemized breakdown as the FULL total (trx.total) instead of the actual outstanding balance
+  // (total-dp), so it visually disagreed with the correct "Belum Lunas" summary card right above it
+  // (which already used total-trxCashReceived(t)). Same bug existed in the PDF export's row for it.
+  await step('renderPerPelangganReport(): baris rincian "Belum Lunas" per transaksi menampilkan sisa (total-dp) yang belum dibayar, bukan total penuh -- harus sinkron dengan kartu ringkasan di atasnya', () => {
+    outlets = []; currentOutletId = null; reportOutletFilter = '';
+    subscriptions = []; allWorkUsage = [];
+    transactions = [
+      { id:'b1', kode:'LND-B1', nama:'Abid', hp:'', tanggal:'2026-09-11', estimasi:null, items:[], diskon:0, total:81000, dp:30000, status:'belum', catatan:'', outletId:null },
+    ];
+    populatePerNamaSelect();
+    document.getElementById('perNama').value = 'Abid';
+    document.getElementById('perPeriodeType').value = 'custom';
+    togglePerPeriodeFields();
+    document.getElementById('perDari').value = '2026-01-01';
+    document.getElementById('perSampai').value = '2026-12-31';
+    renderPerPelangganReport();
+
+    const perStBelum = document.getElementById('perStBelum').textContent;
+    if (!perStBelum.includes('51.000')) throw new Error('kartu ringkasan "Belum Lunas" seharusnya 51.000 (81000-30000), got ' + perStBelum);
+
+    const html = document.getElementById('perResultList').innerHTML;
+    if (!html.includes('51.000')) throw new Error('BUG: baris rincian di bawah "Belum Lunas" seharusnya menampilkan sisa 51.000 (total-dp), bukan total penuh -- tidak sinkron dengan kartu ringkasan di atas: ' + html);
+    if (html.includes('81.000')) throw new Error('baris rincian tidak boleh menampilkan total penuh (81.000) untuk transaksi yang sudah sebagian dibayar: ' + html);
+  });
+
   await step('trxCashReceived() reflects actual cash received (dp), not the gross order total, for both lunas and belum-lunas transactions', () => {
     const lunasFull = { total:100000, dp:100000, status:'lunas' };
     const lunasOverpaid = { total:100000, dp:120000, status:'lunas' };
@@ -2016,6 +2132,56 @@ const result = await page.evaluate(async () => {
     renderExpenseList();
     html = document.getElementById('expenseList').innerHTML;
     if (!html.includes('Listrik Outlet B')) throw new Error('Pengeluaran at Outlet B should show its own expense: ' + html);
+  });
+
+  await step('Riwayat: filter Status (Lunas/Belum Lunas) dan Periode (Dari/Sampai Tanggal) menyaring daftar transaksi, dan tombol "Bersihkan Filter" cuma tampil saat ada filter aktif', () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    transactions = [
+      { id:'f1', kode:'F1', nama:'Filter Lunas Awal', hp:'', tanggal:'2026-08-01', estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'' },
+      { id:'f2', kode:'F2', nama:'Filter Belum Tengah', hp:'', tanggal:'2026-08-15', estimasi:null, items:[], diskon:0, total:20000, dp:0, status:'belum', catatan:'' },
+      { id:'f3', kode:'F3', nama:'Filter Lunas Akhir', hp:'', tanggal:'2026-08-28', estimasi:null, items:[], diskon:0, total:30000, dp:30000, status:'lunas', catatan:'' },
+    ];
+    try {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+      renderHistory();
+      if (document.getElementById('historyResetFilterBtn').style.display !== 'none') throw new Error('tombol Bersihkan Filter tidak boleh tampil kalau belum ada filter aktif');
+      let html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Belum Tengah') || !html.includes('Filter Lunas Akhir')) throw new Error('tanpa filter, ketiga transaksi harus tampil: ' + html);
+
+      document.getElementById('historyStatusFilter').value = 'lunas';
+      renderHistory();
+      if (document.getElementById('historyResetFilterBtn').style.display === 'none') throw new Error('tombol Bersihkan Filter harus tampil begitu status difilter');
+      html = document.getElementById('historyList').innerHTML;
+      if (html.includes('Filter Belum Tengah')) throw new Error('filter status Lunas tidak boleh ikut menampilkan transaksi Belum Lunas: ' + html);
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Lunas Akhir')) throw new Error('filter status Lunas harus tetap menampilkan kedua transaksi Lunas: ' + html);
+
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '2026-08-10';
+      document.getElementById('historySampaiFilter').value = '2026-08-20';
+      renderHistory();
+      html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Belum Tengah')) throw new Error('filter periode 10-20 Agu harus menampilkan transaksi tanggal 15 Agu: ' + html);
+      if (html.includes('Filter Lunas Awal') || html.includes('Filter Lunas Akhir')) throw new Error('filter periode 10-20 Agu tidak boleh menampilkan transaksi di luar rentang itu: ' + html);
+
+      resetHistoryFilter();
+      if (document.getElementById('historyStatusFilter').value !== '' || document.getElementById('historyDariFilter').value !== '' || document.getElementById('historySampaiFilter').value !== '') throw new Error('resetHistoryFilter() harus mengosongkan semua field filter');
+      if (document.getElementById('historyResetFilterBtn').style.display !== 'none') throw new Error('tombol Bersihkan Filter harus sembunyi lagi setelah di-reset');
+      html = document.getElementById('historyList').innerHTML;
+      if (!html.includes('Filter Lunas Awal') || !html.includes('Filter Belum Tengah') || !html.includes('Filter Lunas Akhir')) throw new Error('setelah reset, ketiga transaksi harus tampil lagi: ' + html);
+    } finally {
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+    }
   });
 
   await step('buildAllWorkItemsRaw()/Daftar Tugas only includes cucian belonging to the active outlet, for both direct transactions and Paket/Tempo customers linked via subscriptions', async () => {
@@ -2417,6 +2583,61 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Papan Hapus (bulk): mode "mulai X ke belakang"/"semua" menandai tugas yang cocok jadi "diambil" sekaligus, tanpa mengubah data transaksinya sama sekali', async () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    const today = todayISO();
+    const daysAgo = (n) => { const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+    transactions = [
+      { id:'ph1', kode:'PH1', nama:'Hapus 3 Hari Lalu', hp:'', tanggal: daysAgo(3), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph2', kode:'PH2', nama:'Hapus Kemarin', hp:'', tanggal: daysAgo(1), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph3', kode:'PH3', nama:'Jangan Hapus Hari Ini', hp:'', tanggal: today, estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+      { id:'ph4', kode:'PH4', nama:'Jangan Hapus Besok', hp:'', tanggal: daysAgo(-1), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
+    ];
+    const originalFrom = sb.from;
+    const originalConfirm = window.confirm;
+    sb.from = (table) => {
+      if (table !== 'transactions') return originalFrom(table);
+      const q = { select: () => q, update: () => q, eq: () => Promise.resolve({ error: null }) };
+      return q;
+    };
+    try {
+      // "kemarin ke belakang" harus mencakup ph1 (3 hari lalu) dan ph2 (kemarin), TIDAK ph3 (hari ini)/ph4 (besok).
+      document.getElementById('papanHapusMode').value = 'kemarin';
+      togglePapanHapusCustomFields();
+      window.confirm = () => true;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph1').workStatus !== 'diambil') throw new Error('BUG: 3 hari lalu harus ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph2').workStatus !== 'diambil') throw new Error('BUG: kemarin harus ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph3').workStatus === 'diambil') throw new Error('BUG: hari ini TIDAK boleh ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      if (transactions.find(x=>x.id==='ph4').workStatus === 'diambil') throw new Error('BUG: besok TIDAK boleh ikut ditandai diambil oleh mode "kemarin ke belakang"');
+      // Cuma workStatus yang berubah -- status pembayaran/nota TIDAK ikut disentuh.
+      if (transactions.find(x=>x.id==='ph1').status !== 'lunas' || transactions.find(x=>x.id==='ph1').total !== 10000) throw new Error('bulk hapus tidak boleh mengubah data transaksi selain workStatus');
+
+      // Membatalkan dialog konfirmasi -- tidak ada apa pun yang berubah.
+      document.getElementById('papanHapusMode').value = 'semua';
+      window.confirm = () => false;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph3').workStatus === 'diambil') throw new Error('membatalkan dialog konfirmasi tidak boleh ikut menandai apa pun');
+
+      // "Semua" (dikonfirmasi) menandai sisa tugas yang masih ada di papan (ph3 & ph4; ph1/ph2 sudah "diambil" duluan).
+      window.confirm = () => true;
+      await confirmPapanHapus();
+      if (transactions.find(x=>x.id==='ph3').workStatus !== 'diambil') throw new Error('mode "semua" harus menandai sisa tugas yang masih ada di papan');
+      if (transactions.find(x=>x.id==='ph4').workStatus !== 'diambil') throw new Error('mode "semua" harus menandai sisa tugas yang masih ada di papan (termasuk yang estimasinya besok)');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('papanHapusMode').value = 'semua';
+      document.getElementById('papanHapusCustomFields').style.display = 'none';
+    }
+  });
+
   await step('a kasir restricted to one outlet (team_members.outlet_id) is locked to it: loadOutletsFromDB() forces currentOutletId there, switchOutlet() refuses other outlets, and the picker/switcher reflect the lock', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     const savedRole = currentRole;
@@ -2480,17 +2701,20 @@ const result = await page.evaluate(async () => {
     if (labels.length !== 6) throw new Error('expected 6 month labels, got ' + labels.length);
 
     const expected = [
-      { label: "Mar'26", omzet: 'Rp1.000' },
-      { label: "Apr'26", omzet: 'Rp2.000' },
-      { label: "Mei'26", omzet: 'Rp0' },
-      { label: "Jun'26", omzet: 'Rp5.000' }, // 2500+2500, termasuk transaksi 'belum lunas' -- sama seperti totalOmzet di chart harian
-      { label: "Jul'26", omzet: 'Rp3.000' },
-      { label: "Agu'26", omzet: 'Rp4.000' },
+      { label: "Mar'26", omzet: 'Rp1.000', compact: '1rb' },
+      { label: "Apr'26", omzet: 'Rp2.000', compact: '2rb' },
+      { label: "Mei'26", omzet: 'Rp0', compact: '0' },
+      { label: "Jun'26", omzet: 'Rp5.000', compact: '5rb' }, // 2500+2500, termasuk transaksi 'belum lunas' -- sama seperti totalOmzet di chart harian
+      { label: "Jul'26", omzet: 'Rp3.000', compact: '3rb' },
+      { label: "Agu'26", omzet: 'Rp4.000', compact: '4rb' },
     ];
     expected.forEach((exp, i) => {
       if (labels[i].textContent !== exp.label) throw new Error(`bar ${i}: expected label ${exp.label}, got ${labels[i].textContent}`);
       const title = bars[i].getAttribute('title');
       if (!title.includes(exp.omzet)) throw new Error(`bar ${i} (${exp.label}): expected title to include ${exp.omzet}, got "${title}"`);
+      // Nominal harus KELIHATAN langsung (bukan cuma di title/hover, yang tidak kepakai di HP).
+      const valEl = bars[i].querySelector('.bar-val');
+      if (!valEl || valEl.textContent !== exp.compact) throw new Error(`bar ${i} (${exp.label}): expected visible .bar-val "${exp.compact}", got ${valEl && valEl.textContent}`);
     });
     // Rp99.999 dari Feb 2026 (di luar jendela 6 bulan) tidak boleh nyelip ke bar manapun
     bars.forEach((b, i) => { if (b.getAttribute('title').includes('99.999')) throw new Error(`bar ${i} leaked the out-of-window Feb transaction: ${b.getAttribute('title')}`); });
