@@ -17,7 +17,7 @@
  * auth/login & panggilan API selalu langsung ke jaringan, tidak pernah
  * lewat cache ini.
  */
-const CACHE_NAME = 'laundry-batapas-v1';
+const CACHE_NAME = 'laundry-batapas-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -40,7 +40,13 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(req)
+    /* cache:'reload' memaksa fetch ini benar-benar tembus ke jaringan (skip
+       HTTP cache milik browser/WebView sendiri), bukan cuma mengandalkan
+       header cache-control dari server -- beberapa WebView Android (dipakai
+       PWA yang di-"Add to Home Screen") pernah kedapatan tetap menyajikan
+       respons HTTP cache lokal meski server sudah kirim must-revalidate,
+       kalau tab/app-nya tidak pernah benar-benar ditutup+dibuka ulang. */
+    fetch(req, { cache: 'reload' })
       .then((res) => {
         const resClone = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
