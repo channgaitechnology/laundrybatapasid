@@ -1121,6 +1121,50 @@ const result = await page.evaluate(async () => {
     if (!foundGreen) throw new Error('expected to find WhatsApp-green (#25D366) pixels in the rendered canvas');
   });
 
+  // --- Regression: on desktop, "Unduh Gambar" opened the OS-level Share sheet (Windows/Mac),
+  // which only lists other apps to share to and has NO plain "save file" option -- so a desktop
+  // user could never actually open the receipt image except by sending it through one of those
+  // apps. navigator.canShare({files}) reports true on desktop Chromium/Edge too, so the bug was
+  // using that alone to decide; the fix also requires a mobile user agent. ---
+  await step('shareOrDownloadNotaImage(): Web Share API (dialog Share OS) hanya dipakai di HP -- desktop selalu langsung unduh biasa meski browser lapor canShare mendukung', async () => {
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = 0;
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async () => { shareCalls++; };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    try {
+      const lines = [{ t: 'Test', s: 9 }];
+
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareOrDownloadNotaImage(lines, 'Test-Mobile', 80, 'Test');
+      if (shareCalls !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 0) throw new Error('HP seharusnya TIDAK ikut memicu <a download>.click() kalau navigator.share() jalan');
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareOrDownloadNotaImage(lines, 'Test-Desktop', 80, 'Test');
+      if (shareCalls !== 0) throw new Error('BUG: desktop (Windows UA) tidak boleh membuka dialog Share OS (tidak ada opsi simpan biasa di sana) meski canShare melaporkan dukung, got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 1 || !clickedDownloads[0].startsWith('Test-Desktop')) throw new Error('desktop seharusnya langsung memicu <a download>.click() biasa, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+    }
+  });
+
   await step('buildReceiptHTML() includes clickable wa.me and mailto links with icon badges', () => {
     const html = buildReceiptHTML({ kode:'PF-4', tanggal:'2026-08-27', nama:'Uji HTML', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', catatan:'' });
     if (!html.includes('dikembangkan oleh Tinggiran Tech Studio')) throw new Error('HTML receipt missing studio name');
