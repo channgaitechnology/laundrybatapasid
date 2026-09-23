@@ -1695,6 +1695,36 @@ const result = await page.evaluate(async () => {
     if (!newCard.querySelector('.work-harga') || !newCard.querySelector('.work-harga').textContent.includes('Rp6.000')) throw new Error('a newer, genuinely-unpaid card should keep showing its real harga: ' + newCard.innerHTML);
   });
 
+  await step('buildWorkItems()/renderWorkBoard(): 1 nota Tempo berisi beberapa layanan (batch_id sama, dari submitExtraServiceBatch()) tampil sebagai SATU kartu, bukan pecah per layanan (regresi bug nyata)', async () => {
+    transactions = [];
+    allWorkUsage = [
+      { id:'au-batch-1', subscriptionId:'sub-tempo-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Cuci Lipat Ekspress', qty:1, satuan:'kg', harga:37400, subtotal:37400, workStatus:'belum', batchId:'batch-mahkota' },
+      { id:'au-batch-2', subscriptionId:'sub-tempo-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Handuk', qty:1, satuan:'pcs', harga:5000, subtotal:5000, workStatus:'belum', batchId:'batch-mahkota' },
+      { id:'au-batch-3', subscriptionId:'sub-tempo-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Sajadah', qty:1, satuan:'pcs', harga:10000, subtotal:10000, workStatus:'belum', batchId:'batch-mahkota' },
+      { id:'au-batch-4', subscriptionId:'sub-tempo-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Bedcover 200x200', qty:1, satuan:'pcs', harga:40000, subtotal:40000, workStatus:'belum', batchId:'batch-mahkota' },
+    ];
+    renderWorkBoard();
+    let html = document.getElementById('workBoardGrid').innerHTML;
+    let cardCount = (html.match(/class="work-card"/g) || []).length;
+    if (cardCount !== 1) throw new Error(`1 nota Tempo dengan 4 layanan (batch_id sama) seharusnya jadi 1 kartu, bukan ${cardCount}: ` + html);
+    if (!html.includes('Cuci Lipat Ekspress') || !html.includes('Handuk') || !html.includes('Sajadah') || !html.includes('Bedcover 200x200')) throw new Error('kartu gabungan harus tetap menyebutkan keempat layanan: ' + html);
+    if (!html.includes('Rp92.400')) throw new Error('harga kartu gabungan harus dijumlahkan dari semua layanan (37400+5000+10000+40000=92400): ' + html);
+
+    // setWorkStatus() pada kartu gabungan harus memindahkan SEMUA baris DB dalam batch itu sekaligus
+    const cardIdMatch = html.match(/setWorkStatus\('([^']+)','belum'/);
+    if (!cardIdMatch) throw new Error('tidak menemukan id kartu gabungan di markup: ' + html);
+    const groupId = cardIdMatch[1];
+    if (groupId.split(',').length !== 4) throw new Error('id kartu gabungan harus berisi keempat id baris DB, got: ' + groupId);
+    await setWorkStatus(groupId, 'selesai', 'usage');
+    if (allWorkUsage.some(u => u.workStatus !== 'selesai')) throw new Error('setWorkStatus() pada kartu gabungan harus mengubah workStatus SEMUA baris dalam batch itu: ' + JSON.stringify(allWorkUsage));
+
+    await markPickedUp(groupId, 'usage');
+    if (allWorkUsage.some(u => u.workStatus !== 'diambil')) throw new Error('markPickedUp() pada kartu gabungan harus menandai SEMUA baris dalam batch itu sebagai diambil: ' + JSON.stringify(allWorkUsage));
+    renderWorkBoard();
+    html = document.getElementById('workBoardGrid').innerHTML;
+    if (html.includes('Cuci Lipat Ekspress')) throw new Error('kartu gabungan yang sudah diambil seharusnya hilang seluruhnya dari papan: ' + html);
+  });
+
   await step('expense catalog: add via addOrUpdateExpenseCatalogItem(), autocomplete fills harga/satuan, edit updates it', async () => {
     switchTab('pengeluaran');
     expenseCatalog = [];
@@ -3194,6 +3224,24 @@ const result = await page.evaluate(async () => {
       transactions = savedTransactions;
       currentOutletId = savedOutletId;
     }
+  });
+
+  await step('Unduhan: saveToDownloadsGallery()/loadUnduhanList() menyimpan & membaca balik file dari IndexedDB, openUnduhanModal() menampilkannya, deleteUnduhanEntry() menghapusnya', async () => {
+    const blob = new Blob(['isi tes'], { type: 'text/plain' });
+    await saveToDownloadsGallery(blob, 'tes-unduhan-otomatis.txt');
+    const items = await loadUnduhanList();
+    if (items.length < 1 || items[0].filename !== 'tes-unduhan-otomatis.txt') throw new Error('saveToDownloadsGallery()/loadUnduhanList() tidak menyimpan entry dengan benar');
+    if (!(items[0].blob instanceof Blob)) throw new Error('entry tersimpan tidak membawa blob asli');
+
+    await openUnduhanModal();
+    const list = document.getElementById('unduhanList');
+    if (!list.querySelector('.item-line')) throw new Error('renderUnduhanList() tidak menampilkan entry yang baru disimpan');
+    if (!list.textContent.includes('tes-unduhan-otomatis.txt')) throw new Error('nama file tidak muncul di daftar Unduhan');
+    closeUnduhanModal();
+
+    await deleteUnduhanEntry(items[0].id);
+    const afterDelete = await loadUnduhanList();
+    if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
   });
 
   return out;

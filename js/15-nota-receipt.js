@@ -158,7 +158,9 @@ function downloadReportPDF(){
   doc.text(t('Total Omzet'), colX.status, y);
   doc.text(rupiah(totalOmzet), colX.total, y, { align:'right' });
 
-  doc.save(`Laporan-${ym}.pdf`);
+  const filenameLaporanBulanan = `Laporan-${ym}.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filenameLaporanBulanan);
+  doc.save(filenameLaporanBulanan);
 }
 
 function receiptTextForWA(trx){

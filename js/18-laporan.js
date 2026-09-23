@@ -370,7 +370,9 @@ function downloadPerPelangganPDF(){
   doc.text(t('Belum Lunas'), colX.status, y);
   doc.text(rupiah(totalBelum), colX.total, y, { align:'right' });
 
-  doc.save(`Laporan-${nama.replace(/[^a-zA-Z0-9]/g,'_')}-${range.dari}_${range.sampai}.pdf`);
+  const filenamePerPelanggan = `Laporan-${nama.replace(/[^a-zA-Z0-9]/g,'_')}-${range.dari}_${range.sampai}.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filenamePerPelanggan);
+  doc.save(filenamePerPelanggan);
 }
 
 /* ===================== LABA RUGI (per bulan / per tahun) ===================== */
@@ -477,7 +479,9 @@ function downloadLabaRugiPDF(){
     y += 6.5;
   });
 
-  doc.save(`Laba-Rugi-${range.label.replace(/\s+/g,'-')}.pdf`);
+  const filenameLabaRugi = `Laba-Rugi-${range.label.replace(/\s+/g,'-')}.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filenameLabaRugi);
+  doc.save(filenameLabaRugi);
 }
 
 /* ===================== PERINGKAT PEMASUKAN PELANGGAN ===================== */
@@ -577,6 +581,8 @@ function downloadPeringkatPelangganPDF(){
     y += 6.5;
   });
 
-  doc.save(`Peringkat-Pelanggan-${range.label.replace(/\s+/g,'-')}.pdf`);
+  const filenamePeringkat = `Peringkat-Pelanggan-${range.label.replace(/\s+/g,'-')}.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filenamePeringkat);
+  doc.save(filenamePeringkat);
 }
 

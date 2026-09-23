@@ -18,6 +18,44 @@ function workBoardDate(t){ return t.estimasi || t.tanggal; }
    sebelum itu dan sudah pasti selesai/diambil lama, jadi sengaja tidak usah
    ikut muncul di papan biar tidak mengotori tampilan kerjaan yang aktif. */
 const PAPAN_KERJA_MULAI_TANGGAL = '2026-08-25';
+/* Urutan "kemajuan" status kerja, dari paling awal ke paling akhir --
+   dipakai untuk menggabungkan status beberapa baris subscription_usage
+   yang berasal dari satu batch (lihat groupUsageRowsByBatch()) jadi SATU
+   status kartu: dipilih yang PALING AWAL supaya kartu gabungan tidak
+   kelihatan "Selesai"/hilang dari papan kalau ada layanan di dalamnya yang
+   sebenarnya belum kelar semua. */
+const WORK_STATUS_ORDER = ['belum','sedang','selesai','diambil'];
+function groupWorkStatus(rows){
+  let idx = WORK_STATUS_ORDER.length-1;
+  rows.forEach(u=>{
+    const i = WORK_STATUS_ORDER.indexOf(u.workStatus||'belum');
+    if(i>=0 && i<idx) idx = i;
+  });
+  return WORK_STATUS_ORDER[idx];
+}
+/* 1 nota Tempo yang isinya beberapa layanan (mis. cuci lipat + handuk +
+   sajadah) disimpan sebagai beberapa baris subscription_usage terpisah
+   lewat submitExtraServiceBatch(), tapi semuanya berbagi batch_id yang
+   sama -- kalau tidak dikelompokkan disini, tiap baris jadi kartu Daftar
+   Tugas sendiri-sendiri (bug nyata: nota tempo pecah jadi banyak kartu
+   "Belum"/"Dikerjakan"/"Selesai" terpisah untuk satu pelanggan yang sama).
+   Baris lama tanpa batch_id (sebelum kolom ini ada) tetap dianggap satu
+   kartu tersendiri, sama seperti groupExtrasIntoTransactions(). */
+function groupUsageRowsByBatch(rows){
+  const map = new Map();
+  rows.forEach(u=>{
+    const key = u.batchId || `single-${u.id}`;
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(u);
+  });
+  return Array.from(map.values()).map(group=> group.slice().sort((a,b)=> a.id<b.id?-1:(a.id>b.id?1:0)));
+}
+/* Kartu yang berasal dari gabungan beberapa baris (id-nya digabung jadi
+   satu string "id1,id2,...") -- dipakai setWorkStatus()/markPickedUp()/
+   confirmPapanHapus() untuk tahu baris DB mana saja yang perlu diperbarui
+   sekaligus supaya seluruh isi nota tetap bergerak bersama sebagai satu
+   kartu. Untuk kartu biasa (1 baris), hasilnya tetap array 1 elemen. */
+function workItemIds(it){ return String(it.id).split(','); }
 /* Menyatukan SEMUA sumber kerjaan (transaksi reguler, layanan tambahan
    Bulanan/Tempo, timbangan kg polos) jadi satu daftar seragam TANPA
    filter apa pun. Dipakai oleh daftar tugas aktif (buildWorkItems, yang
@@ -37,11 +75,15 @@ function buildAllWorkItemsRaw(){
     harga:t.total, tanggal:t.tanggal, estimasi:t.estimasi, workStatus:t.workStatus||'belum',
     lunas:t.status==='lunas'
   }));
-  const usageItems = allWorkUsage.filter(u=>u.type==='layanan_tambahan' && visSubIds.has(String(u.subscriptionId))).map(u=>{
-    const sub = subscriptions.find(s=>s.id===u.subscriptionId);
+  const usageRows = allWorkUsage.filter(u=>u.type==='layanan_tambahan' && visSubIds.has(String(u.subscriptionId)));
+  const usageItems = groupUsageRowsByBatch(usageRows).map(group=>{
+    const sub = subscriptions.find(s=>s.id===group[0].subscriptionId);
+    const tanggal = group.reduce((max,u)=> u.tanggal>max?u.tanggal:max, group[0].tanggal);
+    const estimasi = group.reduce((max,u)=> (u.estimasi||'')>(max||'')?u.estimasi:max, group[0].estimasi);
     return {
-      id:u.id, source:'usage', nama: sub ? sub.nama : '-', hp: sub ? sub.hp : '', outletId: sub ? sub.outletId : null,
-      layanan:u.layananNama||'-', harga:u.subtotal, tanggal:u.tanggal, estimasi:u.estimasi, workStatus:u.workStatus||'belum',
+      id: group.map(u=>u.id).join(','), source:'usage', nama: sub ? sub.nama : '-', hp: sub ? sub.hp : '', outletId: sub ? sub.outletId : null,
+      layanan: group.map(u=>u.layananNama||'-').join(', '), harga: group.reduce((sum,u)=>sum+u.subtotal,0),
+      tanggal, estimasi, workStatus: groupWorkStatus(group),
       lunas: sub ? sub.statusBayar==='lunas' : false
     };
   });
@@ -89,14 +131,21 @@ function groupWorkItemsByDate(items){
   items.forEach(it=>{ const d = workBoardDate(it); (map[d] = map[d]||[]).push(it); });
   return Object.keys(map).sort().map(d=>({ date:d, items:map[d] }));
 }
+/* `id` disini bisa berupa gabungan beberapa id baris DB ("id1,id2,...")
+   kalau kartunya adalah 1 nota Tempo yang berisi beberapa layanan (lihat
+   groupUsageRowsByBatch()) -- semua baris dalam grup itu ikut diperbarui
+   sekaligus supaya seluruh isi nota tetap 1 kartu yang bergerak bersama. */
 async function setWorkStatus(id, status, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
   const list = source==='usage' ? allWorkUsage : transactions;
-  const item = list.find(x=>x.id===id);
-  if(!item) return;
-  const { error } = await sb.from(table).update({ work_status: status }).eq('id', id);
-  if(error){ showToast(t('Gagal memperbarui status kerja')); return; }
-  item.workStatus = status;
+  const ids = id.split(',');
+  for(const rowId of ids){
+    const item = list.find(x=>x.id===rowId);
+    if(!item) continue;
+    const { error } = await sb.from(table).update({ work_status: status }).eq('id', rowId);
+    if(error){ showToast(t('Gagal memperbarui status kerja')); return; }
+    item.workStatus = status;
+  }
   renderWorkBoard();
   if(status==='selesai' && settings.autoNotifySelesai) sendWorkDoneNotification(id, source);
 }
@@ -127,11 +176,14 @@ function sendWorkDoneNotification(id, source){
 async function markPickedUp(id, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
   const list = source==='usage' ? allWorkUsage : transactions;
-  const item = list.find(x=>x.id===id);
-  if(!item) return;
-  const { error } = await sb.from(table).update({ work_status: 'diambil' }).eq('id', id);
-  if(error){ showToast(t('Gagal menandai sudah diambil')); return; }
-  item.workStatus = 'diambil';
+  const ids = id.split(',');
+  for(const rowId of ids){
+    const item = list.find(x=>x.id===rowId);
+    if(!item) continue;
+    const { error } = await sb.from(table).update({ work_status: 'diambil' }).eq('id', rowId);
+    if(error){ showToast(t('Gagal menandai sudah diambil')); return; }
+    item.workStatus = 'diambil';
+  }
   showToast(t('Ditandai sudah diambil'));
   renderWorkBoard();
 }
@@ -280,10 +332,12 @@ async function confirmPapanHapus(){
   if(!confirm(`${t('Tandai')} ${items.length} ${t('tugas sebagai Sudah Diambil? Nota/transaksinya TIDAK ikut terhapus.')}`)) return;
   for(const it of items){
     const table = it.source==='usage' ? 'subscription_usage' : 'transactions';
-    await sb.from(table).update({ work_status:'diambil' }).eq('id', it.id);
     const list = it.source==='usage' ? allWorkUsage : transactions;
-    const rec = list.find(x=>x.id===it.id);
-    if(rec) rec.workStatus = 'diambil';
+    for(const rowId of workItemIds(it)){
+      await sb.from(table).update({ work_status:'diambil' }).eq('id', rowId);
+      const rec = list.find(x=>x.id===rowId);
+      if(rec) rec.workStatus = 'diambil';
+    }
   }
   closePapanHapusModal();
   showToast(`${items.length} ${t('tugas ditandai Sudah Diambil')}`);
@@ -325,6 +379,7 @@ async function downloadWorkBoardImage(){
     const filename = `daftar-pekerjaan-${dari}_sampai_${sampai}.jpg`;
     const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
     if(!blob){ showToast(t('Gagal membuat gambar Daftar Tugas')); return; }
+    saveToDownloadsGallery(blob, filename);
     try{
       const file = new File([blob], filename, { type:'image/jpeg' });
       if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){

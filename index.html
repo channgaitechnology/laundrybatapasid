@@ -463,6 +463,10 @@
       <span class="icon-btn-emoji" style="font-size:19px;white-space:nowrap;">📔<span style="font-size:0.62em;">✏️</span></span>
       <span class="icon-btn-label">Catatan</span>
     </button>
+    <button class="icon-btn" onclick="openUnduhanModal()" aria-label="Unduhan">
+      <span class="icon-btn-emoji">📥</span>
+      <span class="icon-btn-label">Unduhan</span>
+    </button>
     <button class="icon-btn kasir-only-logout" onclick="handleLogout()" aria-label="Keluar">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       <span class="icon-btn-label">Keluar</span>
@@ -1050,6 +1054,12 @@
         <button type="button" class="settings-tile" onclick="window.open('privacy.html','_blank')">
           <span class="settings-tile-emoji">📄</span><span class="settings-tile-label">Kebijakan Privasi</span>
         </button>
+        <button type="button" class="settings-tile" onclick="window.open('syarat-ketentuan.html','_blank')">
+          <span class="settings-tile-emoji">📜</span><span class="settings-tile-label">Syarat &amp; Ketentuan</span>
+        </button>
+        <button type="button" class="settings-tile" onclick="window.open('kebijakan-refund.html','_blank')">
+          <span class="settings-tile-emoji">💳</span><span class="settings-tile-label">Kebijakan Refund</span>
+        </button>
         <button type="button" class="settings-tile" id="settingsTileAdmin" style="display:none;" onclick="openSettingsSub('admin')">
           <span class="settings-tile-emoji">🔐</span><span class="settings-tile-label">Admin Platform</span>
         </button>
@@ -1182,6 +1192,16 @@
 </div>
 
 <!-- Catatan seputar laundry (buku catatan bebas, di luar sistem transaksi) -->
+<!-- Unduhan: galeri lokal nota/laporan yang pernah diunduh (lihat js/23-unduhan.js) -->
+<div class="modal-bg" id="unduhanModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeUnduhanModal()">✕</button>
+    <h3>📥 Unduhan</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Salinan nota/laporan yang pernah diunduh dari app ini, tersimpan di sini juga (di perangkat ini saja) supaya gampang dibuka lagi tanpa perlu keluar dari app.</p>
+    <div id="unduhanList"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="catatanModal">
   <div class="modal">
     <button class="modal-close" onclick="closeCatatan()">✕</button>
@@ -1766,6 +1786,7 @@
 <script src="js/20-catatan.js"></script>
 <script src="js/21-i18n.js"></script>
 <script src="js/22-rekap-pelanggan.js"></script>
+<script src="js/23-unduhan.js"></script>
 <script>
   /* Listener sesi login SENGAJA ditaruh di <script> paling akhir ini (bukan
      di js/01-auth.js tempat fungsi2 auth lain berada) -- supabase-js bisa
