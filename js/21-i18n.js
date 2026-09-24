@@ -24,6 +24,9 @@ const I18N_EN = {
     'Receipts/reports you download will also be saved here, so they\'re easy to reopen without leaving the app.',
   'Buka': 'Open',
   'File tidak ditemukan': 'File not found',
+  'Bagikan': 'Share',
+  'File diunduh. Buka WhatsApp/app tujuan lalu lampirkan dari folder Download.': 'File downloaded. Open WhatsApp/your target app and attach it from your Downloads folder.',
+  'File diunduh ke folder Download.': 'File downloaded to your Downloads folder.',
 
   /* ---------- Tab bar ---------- */
   'Transaksi': 'Transaction',

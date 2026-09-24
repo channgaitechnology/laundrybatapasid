@@ -109,6 +109,7 @@ async function renderUnduhanList(){
       <span>${escapeHTML(it.filename)}<br><span style="font-size:11px;color:var(--ink-soft);">${fmtUnduhanDate(it.createdAt)}</span></span>
       <span style="display:flex;gap:6px;flex:none;">
         <button class="btn btn-outline btn-sm" style="width:auto;padding:6px 10px;" onclick="openUnduhanEntry('${it.id}')">${t('Buka')}</button>
+        <button class="btn btn-accent btn-sm" style="width:auto;padding:6px 10px;" onclick="shareUnduhanEntry('${it.id}')">↗️ ${t('Bagikan')}</button>
         <button class="btn btn-ghost btn-sm" style="width:auto;padding:6px 10px;color:var(--danger);" onclick="deleteUnduhanEntry('${it.id}')">✕</button>
       </span>
     </div>
@@ -120,6 +121,32 @@ async function openUnduhanEntry(id){
   const url = URL.createObjectURL(record.blob);
   window.open(url, '_blank');
   setTimeout(()=> URL.revokeObjectURL(url), 60000);
+}
+/* "Bagikan" membuka dialog Share bawaan OS (WhatsApp, WhatsApp Business,
+   email, Bluetooth, dll -- apa pun yang terdaftar di HP-nya) lewat Web
+   Share API, persis pola yang sudah dipakai shareOrDownloadNotaImage()
+   (js/10-nota-cetak.js) -- termasuk gate isMobileDevice() yang SAMA:
+   navigator.canShare() melaporkan true di desktop juga, tapi
+   navigator.share() di desktop cuma membuka dialog Share OS tanpa opsi
+   simpan biasa, jadi desktop tetap fallback ke unduh biasa. */
+async function shareUnduhanEntry(id){
+  const record = await getUnduhanEntry(id);
+  if(!record){ showToast(t('File tidak ditemukan')); return; }
+  try{
+    const file = new File([record.blob], record.filename, { type: record.type || record.blob.type || '' });
+    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: record.filename });
+      return;
+    }
+  }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
+  const url = URL.createObjectURL(record.blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = record.filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  showToast(isMobileDevice()
+    ? t('File diunduh. Buka WhatsApp/app tujuan lalu lampirkan dari folder Download.')
+    : t('File diunduh ke folder Download.'));
 }
 async function deleteUnduhanEntry(id){
   try{

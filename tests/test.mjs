@@ -3331,6 +3331,54 @@ const result = await page.evaluate(async () => {
     if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
   });
 
+  await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() ikuti gate isMobileDevice() yang sama seperti shareOrDownloadNotaImage() -- HP pakai navigator.share(), desktop selalu unduh biasa', async () => {
+    const blob = new Blob(['isi tes share'], { type: 'text/plain' });
+    await saveToDownloadsGallery(blob, 'tes-share-unduhan.txt');
+    const items = await loadUnduhanList();
+    const entryId = items[0].id;
+
+    await openUnduhanModal();
+    const list = document.getElementById('unduhanList');
+    if (!list.innerHTML.includes(`shareUnduhanEntry('${entryId}')`)) throw new Error('tombol Bagikan (shareUnduhanEntry) tidak ada di baris entry: ' + list.innerHTML);
+    closeUnduhanModal();
+
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = 0;
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async () => { shareCalls++; };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    try {
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareUnduhanEntry(entryId);
+      if (shareCalls !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 0) throw new Error('HP seharusnya TIDAK ikut memicu <a download>.click() kalau navigator.share() jalan');
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareUnduhanEntry(entryId);
+      if (shareCalls !== 0) throw new Error('BUG: desktop tidak boleh membuka dialog Share OS meski canShare melaporkan dukung, got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 1 || clickedDownloads[0] !== 'tes-share-unduhan.txt') throw new Error('desktop seharusnya langsung memicu <a download>.click() biasa dengan nama file asli, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+      await deleteUnduhanEntry(entryId);
+    }
+  });
+
   return out;
 });
 
