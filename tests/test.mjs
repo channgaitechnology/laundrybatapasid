@@ -1157,6 +1157,28 @@ const result = await page.evaluate(async () => {
     if (!stillDefault) throw new Error('auth screen logo should stay the fixed default (icons/logo-auth.png), not follow shopLogoSrc(): ' + Array.from(authLogoImgs).map(i=>i.src).join(', '));
   });
 
+  await step('Layar Daftar: checkbox setuju Syarat & Ketentuan wajib dicentang sebelum handleAuthSubmit() lanjut ke signUp(), dan tersembunyi lagi di mode Masuk', async () => {
+    setAuthMode('masuk');
+    if (getComputedStyle(document.getElementById('authTosField')).display !== 'none') throw new Error('checkbox S&K seharusnya tersembunyi di mode Masuk');
+    if (!document.querySelector('.auth-footer-links').textContent.includes('Syarat & Ketentuan')) throw new Error('footer link S&K/Privasi/Refund harus tetap tampil di layar login (mode Masuk)');
+
+    setAuthMode('daftar');
+    if (getComputedStyle(document.getElementById('authTosField')).display === 'none') throw new Error('checkbox S&K seharusnya tampil di mode Daftar');
+    if (document.getElementById('authTosCheck').checked) throw new Error('checkbox S&K seharusnya belum tercentang saat baru pindah ke mode Daftar');
+
+    document.getElementById('authEmail').value = 'calon-pelanggan@example.com';
+    document.getElementById('authPassword').value = 'password123';
+    await handleAuthSubmit();
+    if (!document.getElementById('authMsg').textContent.includes('Syarat & Ketentuan')) throw new Error('submit tanpa centang harus diblok dengan pesan wajib setuju S&K, got: ' + document.getElementById('authMsg').textContent);
+
+    document.getElementById('authTosCheck').checked = true;
+    await handleAuthSubmit();
+    if (document.getElementById('authMsg').textContent.includes('Syarat & Ketentuan')) throw new Error('setelah dicentang, validasi S&K seharusnya tidak lagi menghalangi submit');
+
+    setAuthMode('masuk');
+    if (getComputedStyle(document.getElementById('authTosField')).display !== 'none' || document.getElementById('authTosCheck').checked) throw new Error('balik ke mode Masuk harus menyembunyikan & mereset checkbox S&K');
+  });
+
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
   await step('WA-text notas (tempo, bulanan, invoice, regular receipt) carry the new promo footer', () => {
     tempoSub.dp = 0;
