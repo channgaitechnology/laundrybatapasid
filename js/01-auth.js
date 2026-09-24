@@ -17,6 +17,8 @@ function setAuthMode(mode){
   document.getElementById('authSubmitBtn').textContent = mode==='masuk' ? t('Masuk') : t('Daftar');
   document.getElementById('authMsg').textContent = '';
   document.getElementById('regCodeField').style.display = mode==='daftar' ? 'block' : 'none';
+  document.getElementById('authTosField').style.display = mode==='daftar' ? 'flex' : 'none';
+  document.getElementById('authTosCheck').checked = false;
 }
 function setAuthMsg(msg, type){
   const el = document.getElementById('authMsg');
@@ -33,6 +35,10 @@ async function handleAuthSubmit(){
   if(authMode === 'daftar'){
     regCode = document.getElementById('regCodeInput').value.trim().toUpperCase();
     // kode pendaftaran sekarang OPSIONAL: kosongkan untuk trial 30 hari otomatis
+    if(!document.getElementById('authTosCheck').checked){
+      setAuthMsg(t('Kamu harus menyetujui Syarat & Ketentuan sebelum daftar'), 'error');
+      return;
+    }
   }
   card.classList.add('auth-loading');
   setAuthMsg(t('Memproses...'), '');

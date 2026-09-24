@@ -413,6 +413,11 @@
   .auth-msg.error{color:var(--danger);}
   .auth-msg.ok{color:var(--success);}
   .auth-loading{opacity:0.6;pointer-events:none;}
+  .auth-tos-check{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.4;color:var(--ink-soft);margin:-4px 0 14px;cursor:pointer;}
+  .auth-tos-check input{margin-top:2px;flex:none;width:15px;height:15px;}
+  .auth-tos-check a{color:var(--suds);font-weight:600;}
+  .auth-footer-links{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:16px;}
+  .auth-footer-links a{color:var(--ink-soft);}
 
   .user-chip{
     display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.9);font-size:11.5px;
@@ -1555,8 +1560,15 @@
       </button>
     </div>
     <div class="auth-msg" id="authMsg"></div>
+    <label id="authTosField" class="auth-tos-check" style="display:none;">
+      <input type="checkbox" id="authTosCheck">
+      <span>Saya sudah membaca &amp; setuju dengan <a href="syarat-ketentuan.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Refund</a></span>
+    </label>
     <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
     <button class="btn btn-ghost" style="margin-top:10px;" onclick="openForgotPassword()">Lupa Password?</button>
+    <div class="auth-footer-links">
+      <a href="syarat-ketentuan.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener">Kebijakan Refund</a>
+    </div>
   </div>
 </div>
 
