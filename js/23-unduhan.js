@@ -123,18 +123,22 @@ async function openUnduhanEntry(id){
   setTimeout(()=> URL.revokeObjectURL(url), 60000);
 }
 /* "Bagikan" membuka dialog Share bawaan OS (WhatsApp, WhatsApp Business,
-   email, Bluetooth, dll -- apa pun yang terdaftar di HP-nya) lewat Web
-   Share API, persis pola yang sudah dipakai shareOrDownloadNotaImage()
-   (js/10-nota-cetak.js) -- termasuk gate isMobileDevice() yang SAMA:
-   navigator.canShare() melaporkan true di desktop juga, tapi
-   navigator.share() di desktop cuma membuka dialog Share OS tanpa opsi
-   simpan biasa, jadi desktop tetap fallback ke unduh biasa. */
+   email, AirDrop/Nearby Share, dll -- apa pun yang terdaftar di perangkat)
+   lewat Web Share API. SENGAJA TIDAK memakai gate isMobileDevice() seperti
+   shareOrDownloadNotaImage() (js/10-nota-cetak.js) -- gate itu ada supaya
+   nota yang BARU DIBUAT tetap punya jalan "simpan" di desktop (Share OS
+   desktop kadang tidak punya opsi simpan biasa). Di galeri Unduhan, filenya
+   SUDAH tersimpan (itu tujuan galeri ini), jadi tidak butuh fallback simpan
+   -- yang dibutuhkan justru share-nya beneran jalan. Chrome/Edge desktop
+   modern (Windows 10/11) mendukung navigator.share() dengan file lewat
+   panel Share asli OS; browser yang sama sekali tidak mendukung baru
+   fallback ke unduh biasa. */
 async function shareUnduhanEntry(id){
   const record = await getUnduhanEntry(id);
   if(!record){ showToast(t('File tidak ditemukan')); return; }
   try{
     const file = new File([record.blob], record.filename, { type: record.type || record.blob.type || '' });
-    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
       await navigator.share({ files:[file], title: record.filename });
       return;
     }
@@ -144,9 +148,7 @@ async function shareUnduhanEntry(id){
   a.href = url; a.download = record.filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  showToast(isMobileDevice()
-    ? t('File diunduh. Buka WhatsApp/app tujuan lalu lampirkan dari folder Download.')
-    : t('File diunduh ke folder Download.'));
+  showToast(t('Berbagi file tidak didukung browser ini -- file diunduh ulang ke folder Download sebagai gantinya.'));
 }
 async function deleteUnduhanEntry(id){
   try{
