@@ -669,6 +669,59 @@ otomatisasi untuk itu butuh cara pengiriman kode pendaftaran ke orang yang
 belum login sama sekali (lewat email? halaman sukses setelah bayar?),
 belum diputuskan.
 
+## Notifikasi Email untuk Permintaan Baru (pendaftaran/perpanjangan manual)
+
+Setiap kali ada baris baru masuk ke tabel `payment_requests` (pendaftar
+mengisi `paymentInfoModal`, atau pemilik toko klik "Sudah Transfer
+Manual"), admin bisa dapat **email otomatis** — tidak perlu buka Admin
+Platform berulang-ulang cuma untuk cek ada permintaan baru atau belum.
+Ini murni notifikasi; approve/tolak tetap manual seperti biasa.
+
+Caranya: **Supabase Database Webhook** (fitur bawaan, tanpa kode
+tambahan di sisi Supabase) memanggil
+`netlify/functions/notify-new-payment-request.js` setiap kali ada
+**INSERT** baru ke `payment_requests`, function itu yang kirim email
+lewat [Resend](https://resend.com) (gratis, 100 email/hari & 3.000/bulan,
+**tidak perlu verifikasi domain** — asal kirim ke alamat email akun
+Resend sendiri).
+
+### 1. Daftar Resend & ambil API key
+
+1. Daftar di [resend.com](https://resend.com) pakai email yang sama
+   dengan `ADMIN_EMAIL` di kode (`mukhlispertama@gmail.com`) — email ini
+   otomatis "terverifikasi" sebagai penerima tanpa perlu setup domain.
+2. Buka **API Keys** → buat key baru → salin nilainya (cuma ditampilkan
+   sekali).
+
+### 2. Environment variables di Netlify
+
+Tambahkan di **Site settings → Environment variables** (bukan di
+kode/git):
+
+| Nama | Contoh nilai | Keterangan |
+|---|---|---|
+| `RESEND_API_KEY` | `re_xxxxxxxxxxxx` | API key dari langkah 1. |
+| `ADMIN_NOTIFY_EMAIL` | `mukhlispertama@gmail.com` | Harus sama dengan email akun Resend (syarat gratisan tanpa domain terverifikasi). |
+| `PAYMENT_WEBHOOK_SECRET` | string acak bebas, mis. hasil `openssl rand -hex 16` | Dicocokkan dengan header webhook Supabase di langkah 3 — mencegah orang lain memanggil endpoint ini sembarangan. |
+
+### 3. Buat Database Webhook di dashboard Supabase
+
+Dashboard Supabase proyek ini → **Database → Webhooks** → **Create a new
+webhook**:
+
+- **Name**: bebas, mis. `notify-admin-new-request`
+- **Table**: `payment_requests`
+- **Events**: centang **Insert** saja (jangan Update/Delete)
+- **Type**: HTTP Request
+- **Method**: `POST`
+- **URL**: `https://laundryassist.netlify.app/.netlify/functions/notify-new-payment-request`
+- **HTTP Headers**: tambah header
+  `X-Webhook-Secret: <nilai yang sama dengan PAYMENT_WEBHOOK_SECRET>`
+
+Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
+klik "Sudah Transfer Manual" di app — email harus masuk ke
+`ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas

@@ -17,15 +17,19 @@ scope; classic script yang dimuat berurutan berbagi satu global scope).
 Urutan tag `<script>` di `index.html` itu penting: modul yang isinya
 deklarasi state global harus dimuat sebelum modul yang memakainya.
 
-Sejak fitur pembayaran otomatis (Midtrans), aplikasi ini TIDAK LAGI murni
-statis: ada `netlify/functions/*.js` (Netlify Functions, Node/CommonJS,
+Sejak fitur pembayaran otomatis (Midtrans) dan notifikasi email (Resend +
+Supabase Database Webhook), aplikasi ini TIDAK LAGI murni statis: ada
+`netlify/functions/*.js` (Netlify Functions, Node/CommonJS,
 `exports.handler = async (event) => {...}`) yang jalan server-side —
-lihat bagian "Integrasi Pembayaran Otomatis (Midtrans)" di README.md
-untuk env var yang dibutuhkan. File-file itu TIDAK dimuat ke `index.html`
-sama sekali (browser cuma `fetch()` ke `/.netlify/functions/<nama>`),
-jadi tidak ikut kena aturan classic-script/global-scope di atas, dan
-tidak bisa diuji lewat suite Playwright (lihat `tests/
-test-midtrans-functions.mjs`, test Node murni terpisah).
+lihat bagian "Integrasi Pembayaran Otomatis (Midtrans)" dan "Notifikasi
+Email untuk Permintaan Baru" di README.md untuk env var yang dibutuhkan.
+File-file itu TIDAK dimuat ke `index.html` sama sekali (browser cuma
+`fetch()` ke `/.netlify/functions/<nama>`, dan untuk
+`notify-new-payment-request.js` malah tidak pernah dipanggil dari browser
+sama sekali — pemanggilnya Supabase Database Webhook), jadi tidak ikut
+kena aturan classic-script/global-scope di atas, dan tidak bisa diuji
+lewat suite Playwright (lihat `tests/test-midtrans-functions.mjs` dan
+`tests/test-notify-function.mjs`, test Node murni terpisah).
 
 # Konvensi Bisnis/Domain Penting (jangan dilanggar ulang)
 
