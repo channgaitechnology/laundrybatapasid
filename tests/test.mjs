@@ -3331,7 +3331,7 @@ const result = await page.evaluate(async () => {
     if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
   });
 
-  await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() ikuti gate isMobileDevice() yang sama seperti shareOrDownloadNotaImage() -- HP pakai navigator.share(), desktop selalu unduh biasa', async () => {
+  await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() memakai navigator.share() di HP MAUPUN desktop kalau didukung (TIDAK di-gate isMobileDevice() seperti shareOrDownloadNotaImage() -- filenya sudah tersimpan di galeri, jadi tidak butuh fallback simpan), baru unduh biasa kalau Web Share benar-benar tidak didukung', async () => {
     const blob = new Blob(['isi tes share'], { type: 'text/plain' });
     await saveToDownloadsGallery(blob, 'tes-share-unduhan.txt');
     const items = await loadUnduhanList();
@@ -3347,8 +3347,6 @@ const result = await page.evaluate(async () => {
     const originalCreateElement = document.createElement.bind(document);
     let shareCalls = 0;
     let clickedDownloads = [];
-    navigator.canShare = () => true;
-    navigator.share = async () => { shareCalls++; };
     document.createElement = (tag) => {
       const el = originalCreateElement(tag);
       if (tag === 'a') {
@@ -3359,17 +3357,30 @@ const result = await page.evaluate(async () => {
     };
     const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
     try {
+      // HP: Web Share didukung -> harus pakai navigator.share(), TIDAK unduh
       setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      navigator.canShare = () => true;
+      navigator.share = async () => { shareCalls++; };
       shareCalls = 0; clickedDownloads = [];
       await shareUnduhanEntry(entryId);
-      if (shareCalls !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got shareCalls=' + shareCalls);
+      if (shareCalls !== 1) throw new Error('HP seharusnya memakai navigator.share(), got shareCalls=' + shareCalls);
       if (clickedDownloads.length !== 0) throw new Error('HP seharusnya TIDAK ikut memicu <a download>.click() kalau navigator.share() jalan');
 
+      // Desktop TAPI Web Share didukung (Chrome/Edge Windows modern) -> harus TETAP
+      // pakai navigator.share() juga, BUKAN unduh biasa -- ini bug nyata yang dilaporkan
+      // user (tombol "Bagikan" di desktop cuma mengunduh ulang, tidak benar-benar share).
       setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
       shareCalls = 0; clickedDownloads = [];
       await shareUnduhanEntry(entryId);
-      if (shareCalls !== 0) throw new Error('BUG: desktop tidak boleh membuka dialog Share OS meski canShare melaporkan dukung, got shareCalls=' + shareCalls);
-      if (clickedDownloads.length !== 1 || clickedDownloads[0] !== 'tes-share-unduhan.txt') throw new Error('desktop seharusnya langsung memicu <a download>.click() biasa dengan nama file asli, got ' + JSON.stringify(clickedDownloads));
+      if (shareCalls !== 1) throw new Error('BUG: desktop yang mendukung Web Share API harus tetap pakai navigator.share(), bukan cuma unduh ulang, got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 0) throw new Error('desktop yang mendukung Web Share seharusnya TIDAK ikut mengunduh ulang: ' + JSON.stringify(clickedDownloads));
+
+      // Desktop DAN Web Share TIDAK didukung sama sekali -> baru fallback unduh biasa
+      navigator.canShare = undefined;
+      navigator.share = undefined;
+      shareCalls = 0; clickedDownloads = [];
+      await shareUnduhanEntry(entryId);
+      if (clickedDownloads.length !== 1 || clickedDownloads[0] !== 'tes-share-unduhan.txt') throw new Error('kalau Web Share benar-benar tidak didukung, seharusnya fallback unduh biasa dengan nama file asli, got ' + JSON.stringify(clickedDownloads));
     } finally {
       navigator.canShare = originalCanShare;
       navigator.share = originalShare;

@@ -25,8 +25,7 @@ const I18N_EN = {
   'Buka': 'Open',
   'File tidak ditemukan': 'File not found',
   'Bagikan': 'Share',
-  'File diunduh. Buka WhatsApp/app tujuan lalu lampirkan dari folder Download.': 'File downloaded. Open WhatsApp/your target app and attach it from your Downloads folder.',
-  'File diunduh ke folder Download.': 'File downloaded to your Downloads folder.',
+  'Berbagi file tidak didukung browser ini -- file diunduh ulang ke folder Download sebagai gantinya.': "Sharing isn't supported on this browser -- the file was downloaded to your Downloads folder instead.",
 
   /* ---------- Tab bar ---------- */
   'Transaksi': 'Transaction',
