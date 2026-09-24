@@ -67,6 +67,8 @@ function renderSubscriptionBadge(){
   }
 }
 function showPaywallModal(){
+  renderPlanSelectOptions('paywallPlan');
+  updatePlanAmountDisplay('paywallPlan', 'paywallAmount');
   const modal = document.getElementById('paywallModal');
   if(modal) modal.classList.add('show');
 }
@@ -105,18 +107,45 @@ async function payViaMidtrans(){
   }
   if(btn){ btn.disabled = false; btn.textContent = t('💳 Bayar Otomatis (QRIS / VA / E-wallet)'); }
 }
+/* Isi <select id="selectId"> dari SUBSCRIPTION_PLANS (satu-satunya sumber
+   harga TAMPILAN, lihat komentar di js/00-globals.js) -- dipakai untuk
+   dropdown paket di paywallModal (perpanjangan) MAUPUN paymentInfoModal
+   (pendaftaran baru), supaya keduanya selalu menyebut paket & harga yang
+   sama persis, tidak ditulis manual dua kali yang bisa kebablasan beda. */
+function renderPlanSelectOptions(selectId){
+  const sel = document.getElementById(selectId);
+  if(!sel || sel.dataset.filled) return;
+  sel.innerHTML = Object.keys(SUBSCRIPTION_PLANS).map(key=>{
+    const p = SUBSCRIPTION_PLANS[key];
+    const hematTxt = p.hemat>0 ? ` (${t('hemat')} ${p.hemat}%${key==='12bulan' ? ', '+t('paling hemat') : ''})` : '';
+    return `<option value="${key}"${key==='12bulan'?' selected':''}>${p.label} — ${rupiah(p.harga)}${hematTxt}</option>`;
+  }).join('');
+  sel.dataset.filled = '1';
+}
+/* Teks "Jumlah transfer" yang ditampilkan di dekat QRIS/rekening bank,
+   dan disebutkan juga di pesan WA konfirmasi -- supaya admin & pengguna
+   sama-sama tahu pasti nominalnya, tidak cuma nomor rekening kosongan. */
+function updatePlanAmountDisplay(selectId, displayId){
+  const sel = document.getElementById(selectId);
+  const disp = document.getElementById(displayId);
+  if(!sel || !disp) return;
+  const p = SUBSCRIPTION_PLANS[sel.value];
+  disp.textContent = p ? `${t('Jumlah transfer')}: ${rupiah(p.harga)} (${t('Paket')} ${p.label})` : '';
+}
 async function requestRenewal(){
   if(!shopOwnerId){ showToast(t('Data toko belum siap')); return; }
   const nama = (settings && settings.shopName) ? settings.shopName : t('Toko');
   const wa = (settings && settings.phone) ? settings.phone : '';
+  const plan = SUBSCRIPTION_PLANS[document.getElementById('paywallPlan').value];
+  const planTxt = plan ? `${plan.label} (${rupiah(plan.harga)})` : '';
   const { error } = await sb.from('payment_requests').insert({
-    nama, wa, catatan: t('Perpanjangan langganan aplikasi'),
+    nama, wa, catatan: `${t('Perpanjangan langganan aplikasi')} — ${t('Paket')} ${planTxt}`,
     status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId
   });
   if(error){ showToast(t('Gagal mengirim permintaan, coba lagi')); return; }
   showToast(t('Permintaan perpanjangan terkirim, admin akan verifikasi'));
-  const waNum = String(ADMIN_WA || '6283159294102').replace(/[^0-9]/g,'');
-  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Laundry Batapas.id untuk toko')} "${nama}". ${t('Berikut bukti pembayarannya.')}`);
+  const waNum = String(ADMIN_WA || '6285696487884').replace(/[^0-9]/g,'');
+  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Laundry Assistant untuk toko')} "${nama}", ${t('Paket')} ${planTxt}. ${t('Berikut bukti pembayarannya.')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
   closePaywallModal();
 }

@@ -1,17 +1,24 @@
 /* ===================== DATA (Supabase) ===================== */
 /* ===================== PERAN: PEMILIK / KASIR ===================== */
-function openPaymentInfo(){ document.getElementById('paymentInfoModal').classList.add('show'); }
+function openPaymentInfo(){
+  renderPlanSelectOptions('preqPlan');
+  updatePlanAmountDisplay('preqPlan', 'preqAmount');
+  document.getElementById('paymentInfoModal').classList.add('show');
+}
 function closePaymentInfo(){ document.getElementById('paymentInfoModal').classList.remove('show'); }
-const ADMIN_WA = '6283159294102'; // nomor WhatsApp admin
+const ADMIN_WA = '6285696487884'; // nomor WhatsApp admin
 
 async function submitPaymentRequest(){
   const nama = document.getElementById('preqNama').value.trim();
   const wa = document.getElementById('preqWA').value.trim();
   const catatan = document.getElementById('preqCatatan').value.trim();
+  const plan = SUBSCRIPTION_PLANS[document.getElementById('preqPlan').value];
+  const planTxt = plan ? `${plan.label} (${rupiah(plan.harga)})` : '';
   const msgEl = document.getElementById('preqMsg');
   if(!nama || !wa){ msgEl.className='auth-msg error'; msgEl.textContent=t('Isi nama dan no. WhatsApp dulu'); return; }
   msgEl.className='auth-msg'; msgEl.textContent=t('Mengirim...');
-  const { error } = await sb.from('payment_requests').insert({ nama, wa, catatan, status:'menunggu' });
+  const catatanWithPlan = `${t('Paket')} ${planTxt}${catatan ? ' — '+catatan : ''}`;
+  const { error } = await sb.from('payment_requests').insert({ nama, wa, catatan: catatanWithPlan, status:'menunggu' });
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent=t('Gagal mengirim, coba lagi'); return; }
   msgEl.className='auth-msg ok'; msgEl.textContent=t('Terkirim! Sekarang kirim juga notifikasi WA ke admin lewat tombol di bawah ini.');
   document.getElementById('preqNama').value='';
@@ -19,7 +26,7 @@ async function submitPaymentRequest(){
   document.getElementById('preqCatatan').value='';
 
   const text = encodeURIComponent(
-    `${t('🔔 *Pendaftaran Baru*')}\n\n${t('Nama')}: ${nama}\n${t('No. WA')}: ${wa}\n${t('Catatan')}: ${catatan || '-'}\n\n${t('Mohon dicek pembayarannya, terima kasih.')}`
+    `${t('🔔 *Pendaftaran Baru*')}\n\n${t('Nama')}: ${nama}\n${t('No. WA')}: ${wa}\n${t('Paket')}: ${planTxt}\n${t('Catatan')}: ${catatan || '-'}\n\n${t('Mohon dicek pembayarannya, terima kasih.')}`
   );
   document.getElementById('preqNotifBtn').style.display = 'block';
   document.getElementById('preqNotifBtn').onclick = function(){
