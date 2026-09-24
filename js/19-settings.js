@@ -52,7 +52,7 @@ function closeSettingsSub(){
   document.getElementById('settingsHome').style.display = 'block';
 }
 async function saveSettingsForm(){
-  settings.shopName = document.getElementById('setNama').value.trim() || 'Laundry Batapas.id';
+  settings.shopName = document.getElementById('setNama').value.trim() || 'Toko Laundry Saya';
   settings.address = document.getElementById('setAlamat').value.trim();
   settings.phone = document.getElementById('setHP').value.trim();
   settings.note = document.getElementById('setCatatan').value.trim();
@@ -62,7 +62,7 @@ async function saveSettingsForm(){
   showToast(t('Pengaturan disimpan'));
 }
 function applySettingsToUI(){
-  document.getElementById('shopNameLabel').textContent = settings.shopName || 'Laundry Batapas.id';
+  document.getElementById('shopNameLabel').textContent = settings.shopName || 'Toko Laundry Saya';
   const logoEl = document.getElementById('appbarLogo');
   if(logoEl) logoEl.src = shopLogoSrc();
 }

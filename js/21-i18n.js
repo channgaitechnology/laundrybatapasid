@@ -883,7 +883,7 @@ const I18N_EN = {
   'Masukkan kode ini saat mendaftar akun baru di aplikasi. Terima kasih!': 'Enter this code when signing up for a new account in the app. Thank you!',
   'Gagal mengaktifkan langganan': 'Failed to activate subscription',
   'Langganan aktif tapi gagal update status permintaan': 'Subscription activated, but failed to update the request status',
-  'perpanjangan langganan Laundry Batapas.id sudah diverifikasi': 'your Laundry Batapas.id subscription renewal has been verified',
+  'perpanjangan langganan Laundry Assistant sudah diverifikasi': 'your Laundry Assistant subscription renewal has been verified',
   'Langganan kamu aktif sampai': 'Your subscription is active until',
   'Terima kasih!': 'Thank you!',
   'Tolak permintaan ini?': 'Reject this request?',

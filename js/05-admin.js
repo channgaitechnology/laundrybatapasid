@@ -130,7 +130,7 @@ async function approveRenewalRequest(id){
   if(e2){ showToast(t('Langganan aktif tapi gagal update status permintaan')); }
   await loadAdminData();
   const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
-  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Laundry Batapas.id sudah diverifikasi')} ✅\n\n${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}. ${t('Terima kasih!')}`);
+  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Laundry Assistant sudah diverifikasi')} ✅\n\n${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}. ${t('Terima kasih!')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
 }
 async function rejectPaymentRequest(id){
@@ -183,7 +183,7 @@ async function initUserData(){
 async function loadSettingsFromDB(){
   const { data, error } = await sb.from('settings').select('*').eq('user_id', shopOwnerId).maybeSingle();
   if(data){
-    settings = { shopName:data.shop_name||'Laundry Batapas.id', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
+    settings = { shopName:data.shop_name||'Toko Laundry Saya', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
   }
 }
 async function loadTransactionsFromDB(){

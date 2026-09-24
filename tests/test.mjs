@@ -1127,6 +1127,41 @@ const result = await page.evaluate(async () => {
     settings.logoUrl = null;
   });
 
+  await step('BUG NYATA: toko baru (belum pernah isi Profil Toko) TIDAK BOLEH menampilkan nama/logo toko lain sebagai default -- loadSettingsFromDB()/applySettingsToUI() harus jatuh ke placeholder generik, bukan identitas toko tertentu', async () => {
+    const savedSettings = settings;
+    const savedShopOwnerId = shopOwnerId;
+    lastSettingsUpsert = null;
+    try {
+      // 1. Default global settings (state SEBELUM loadSettingsFromDB() pernah jalan,
+      //    persis kondisi user baru daftar) tidak boleh menyebut nama/logo toko manapun.
+      if (settings.shopName === 'Laundry Batapas.id') throw new Error('BUG: default shopName global masih hardcode nama toko tertentu (Laundry Batapas.id) -- akan tampil ke SEMUA toko baru yang belum isi Profil Toko');
+      if (SHOP_LOGO_B64.startsWith('data:')) throw new Error('BUG: SHOP_LOGO_B64 masih berupa foto asli (data URI) -- harus ikon generik (path file), bukan foto toko tertentu');
+
+      // 2. Baris settings tersimpan TAPI kosong (shop_name/logo_url null, mis. toko baru
+      //    yang baru sekali buka Pengaturan tanpa isi apa-apa) -- juga tidak boleh jatuh
+      //    ke nama/logo toko tertentu, harus placeholder generik.
+      shopOwnerId = 'owner-toko-baru-kosong';
+      lastSettingsUpsert = { user_id: shopOwnerId, shop_name: null, logo_url: null };
+      await loadSettingsFromDB();
+      if (settings.shopName === 'Laundry Batapas.id') throw new Error('BUG: loadSettingsFromDB() dengan shop_name kosong jatuh ke "Laundry Batapas.id" -- toko baru akan salah menampilkan nama toko lain');
+      if (settings.logoUrl !== null) throw new Error('logoUrl seharusnya tetap null kalau logo_url di DB kosong');
+      if (shopLogoSrc() !== SHOP_LOGO_B64 || SHOP_LOGO_B64.startsWith('data:')) throw new Error('BUG: shopLogoSrc() toko baru menampilkan foto asli, bukan ikon generik: ' + shopLogoSrc());
+
+      // 3. applySettingsToUI() harus merender placeholder generik itu ke DOM appbar,
+      //    tidak diam-diam menyisakan teks/gambar toko lama.
+      applySettingsToUI();
+      const label = document.getElementById('shopNameLabel').textContent;
+      if (label === 'Laundry Batapas.id') throw new Error('BUG: appbar shopNameLabel toko baru menampilkan "Laundry Batapas.id": ' + label);
+      const appbarLogo = document.getElementById('appbarLogo');
+      if (!appbarLogo.src.endsWith(SHOP_LOGO_B64)) throw new Error('appbar logo toko baru seharusnya ikon generik: ' + appbarLogo.src);
+    } finally {
+      settings = savedSettings;
+      shopOwnerId = savedShopOwnerId;
+      lastSettingsUpsert = null;
+      applySettingsToUI();
+    }
+  });
+
   await step('saveShopLogo() persists via a settings upsert and updates the appbar logo', async () => {
     lastSettingsUpsert = null;
     settings.shopName = 'Laundry Uji'; settings.address = ''; settings.phone = ''; settings.note = '';
@@ -1147,7 +1182,7 @@ const result = await page.evaluate(async () => {
     if (settings.logoUrl !== null) throw new Error('settings.logoUrl should be null after reset, got ' + settings.logoUrl);
     if (lastSettingsUpsert.logo_url !== null) throw new Error('reset should upsert logo_url:null, got ' + lastSettingsUpsert.logo_url);
     const appbarLogo = document.getElementById('appbarLogo');
-    if (appbarLogo.src !== SHOP_LOGO_B64) throw new Error('appbar logo should revert to default SHOP_LOGO_B64: ' + appbarLogo.src);
+    if (!appbarLogo.src.endsWith(SHOP_LOGO_B64)) throw new Error('appbar logo should revert to default SHOP_LOGO_B64 (' + SHOP_LOGO_B64 + '): ' + appbarLogo.src);
   });
 
   await step('The auth-screen (login) logo is a separate hardcoded <img>, unaffected by shopLogoSrc()', () => {
