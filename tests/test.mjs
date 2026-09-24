@@ -2635,6 +2635,71 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Pembayaran manual (transfer) selalu menyebut PAKET & JUMLAH transfer di pesan WA maupun catatan yang dilihat admin -- baik untuk perpanjangan (paywallModal/requestRenewal) maupun pendaftaran baru (paymentInfoModal/submitPaymentRequest), dan memakai nomor WA admin yang benar (regresi bug nyata)', async () => {
+    const originalOpen = window.open;
+    const originalFrom = sb.from;
+    const originalShopOwnerId = shopOwnerId;
+    const originalSettings = settings;
+    const openedUrls = [];
+    let capturedInsert = null;
+    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    sb.from = (table) => {
+      const q = originalFrom(table);
+      if (table === 'payment_requests') {
+        const origInsert = q.insert.bind(q);
+        q.insert = (row) => { capturedInsert = row; return origInsert(row); };
+      }
+      return q;
+    };
+    try {
+      // 1. Perpanjangan (sudah login): paywallModal harus punya 4 opsi paket, jumlah
+      //    transfer ikut berubah sesuai paket dipilih, dan pesan WA + catatan admin
+      //    menyebut paket & harganya -- SEBELUM perbaikan, pesan ini kosong info harga.
+      shopOwnerId = 'owner-uji-bayar';
+      settings = { shopName: 'Toko Uji Bayar' };
+      showPaywallModal();
+      if (document.getElementById('paywallPlan').options.length !== 4) throw new Error('dropdown paywallPlan harus berisi 4 pilihan paket (1/3/6/12 bulan)');
+      if (document.getElementById('paywallPlan').value !== '12bulan') throw new Error('paket 12 bulan harus tetap default (SENGAJA, lihat CLAUDE.md) -- jangan diubah tanpa diminta');
+      document.getElementById('paywallPlan').value = '1bulan';
+      updatePlanAmountDisplay('paywallPlan', 'paywallAmount');
+      if (!document.getElementById('paywallAmount').textContent.includes('Rp50.000')) throw new Error('jumlah transfer tidak ikut update ke Rp50.000 saat paket diganti ke 1 Bulan: ' + document.getElementById('paywallAmount').textContent);
+
+      await requestRenewal();
+      const renewalUrl = decodeURIComponent(openedUrls[openedUrls.length - 1] || '');
+      if (!renewalUrl.startsWith('https://wa.me/6285696487884')) throw new Error('link WA konfirmasi perpanjangan harus ke nomor admin 6285696487884, got: ' + renewalUrl);
+      if (!renewalUrl.includes('1 Bulan') || !renewalUrl.includes('Rp50.000')) throw new Error('BUG: pesan WA konfirmasi perpanjangan tidak menyebut paket & jumlah transfer sama sekali: ' + renewalUrl);
+      if (!capturedInsert || !capturedInsert.catatan.includes('1 Bulan') || !capturedInsert.catatan.includes('Rp50.000')) throw new Error('BUG: catatan payment_requests (perpanjangan) yang dilihat admin tidak menyebut paket & jumlah: ' + JSON.stringify(capturedInsert));
+
+      // 2. Pendaftaran baru (belum login): paymentInfoModal SEBELUMNYA tidak punya
+      //    pilihan paket sama sekali (bug nyata) -- sekarang harus ada 4 opsi juga,
+      //    dan submitPaymentRequest() harus menyebut paket & harga di catatan + WA.
+      openedUrls.length = 0;
+      capturedInsert = null;
+      openPaymentInfo();
+      if (document.getElementById('preqPlan').options.length !== 4) throw new Error('BUG: dropdown preqPlan (form Daftar) belum punya 4 pilihan paket 1/3/6/12 bulan');
+      document.getElementById('preqPlan').value = '6bulan';
+      updatePlanAmountDisplay('preqPlan', 'preqAmount');
+      if (!document.getElementById('preqAmount').textContent.includes('Rp240.000')) throw new Error('jumlah transfer form Daftar tidak update ke Rp240.000 saat pilih 6 Bulan: ' + document.getElementById('preqAmount').textContent);
+
+      document.getElementById('preqNama').value = 'Calon Pelanggan Uji';
+      document.getElementById('preqWA').value = '081234500000';
+      document.getElementById('preqCatatan').value = '';
+      await submitPaymentRequest();
+      if (!capturedInsert || !capturedInsert.catatan.includes('6 Bulan') || !capturedInsert.catatan.includes('Rp240.000')) throw new Error('BUG: catatan payment_requests (pendaftaran baru) tidak menyebut paket & jumlah transfer: ' + JSON.stringify(capturedInsert));
+      document.getElementById('preqNotifBtn').onclick();
+      const regUrl = decodeURIComponent(openedUrls[openedUrls.length - 1] || '');
+      if (!regUrl.startsWith('https://wa.me/6285696487884')) throw new Error('link WA konfirmasi pendaftaran harus ke nomor admin 6285696487884, got: ' + regUrl);
+      if (!regUrl.includes('6 Bulan') || !regUrl.includes('Rp240.000')) throw new Error('BUG: pesan WA konfirmasi pendaftaran tidak menyebut paket & jumlah transfer: ' + regUrl);
+    } finally {
+      window.open = originalOpen;
+      sb.from = originalFrom;
+      shopOwnerId = originalShopOwnerId;
+      settings = originalSettings;
+      closePaywallModal();
+      closePaymentInfo();
+    }
+  });
+
   await step('Papan Hapus (bulk): mode "mulai X ke belakang"/"semua" menandai tugas yang cocok jadi "diambil" sekaligus, tanpa mengubah data transaksinya sama sekali', async () => {
     const savedTransactions = transactions;
     const savedOutlets = outlets;
@@ -3264,6 +3329,54 @@ const result = await page.evaluate(async () => {
     await deleteUnduhanEntry(items[0].id);
     const afterDelete = await loadUnduhanList();
     if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
+  });
+
+  await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() ikuti gate isMobileDevice() yang sama seperti shareOrDownloadNotaImage() -- HP pakai navigator.share(), desktop selalu unduh biasa', async () => {
+    const blob = new Blob(['isi tes share'], { type: 'text/plain' });
+    await saveToDownloadsGallery(blob, 'tes-share-unduhan.txt');
+    const items = await loadUnduhanList();
+    const entryId = items[0].id;
+
+    await openUnduhanModal();
+    const list = document.getElementById('unduhanList');
+    if (!list.innerHTML.includes(`shareUnduhanEntry('${entryId}')`)) throw new Error('tombol Bagikan (shareUnduhanEntry) tidak ada di baris entry: ' + list.innerHTML);
+    closeUnduhanModal();
+
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = 0;
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async () => { shareCalls++; };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    try {
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareUnduhanEntry(entryId);
+      if (shareCalls !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 0) throw new Error('HP seharusnya TIDAK ikut memicu <a download>.click() kalau navigator.share() jalan');
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = 0; clickedDownloads = [];
+      await shareUnduhanEntry(entryId);
+      if (shareCalls !== 0) throw new Error('BUG: desktop tidak boleh membuka dialog Share OS meski canShare melaporkan dukung, got shareCalls=' + shareCalls);
+      if (clickedDownloads.length !== 1 || clickedDownloads[0] !== 'tes-share-unduhan.txt') throw new Error('desktop seharusnya langsung memicu <a download>.click() biasa dengan nama file asli, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+      await deleteUnduhanEntry(entryId);
+    }
   });
 
   return out;

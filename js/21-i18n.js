@@ -24,6 +24,9 @@ const I18N_EN = {
     'Receipts/reports you download will also be saved here, so they\'re easy to reopen without leaving the app.',
   'Buka': 'Open',
   'File tidak ditemukan': 'File not found',
+  'Bagikan': 'Share',
+  'File diunduh. Buka WhatsApp/app tujuan lalu lampirkan dari folder Download.': 'File downloaded. Open WhatsApp/your target app and attach it from your Downloads folder.',
+  'File diunduh ke folder Download.': 'File downloaded to your Downloads folder.',
 
   /* ---------- Tab bar ---------- */
   'Transaksi': 'Transaction',
@@ -834,8 +837,11 @@ const I18N_EN = {
   'Perpanjangan langganan aplikasi': 'App subscription renewal',
   'Gagal mengirim permintaan, coba lagi': 'Failed to send the request, please try again',
   'Permintaan perpanjangan terkirim, admin akan verifikasi': 'Renewal request sent — the admin will verify it',
-  'Halo admin, saya mau perpanjang langganan Laundry Batapas.id untuk toko': 'Hi admin, I\'d like to renew my Laundry Batapas.id subscription for the store',
+  'Halo admin, saya mau perpanjang langganan Laundry Assistant untuk toko': 'Hi admin, I\'d like to renew my Laundry Assistant subscription for the store',
   'Berikut bukti pembayarannya.': "Here's the payment proof.",
+  'hemat': 'save',
+  'paling hemat': 'best value',
+  'Jumlah transfer': 'Transfer amount',
   'Aktifkan Langganan': 'Activate Subscription',
   'Aktifkan atau perpanjang langganan untuk lanjut melakukan transaksi dan mengunduh laporan.': 'Activate or renew your subscription to keep making transactions and downloading reports.',
   'Langganan aktif otomatis begitu pembayaran diterima': 'Your subscription activates automatically once payment is received',
