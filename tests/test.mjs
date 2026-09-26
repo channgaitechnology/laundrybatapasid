@@ -1357,21 +1357,27 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  // Regression: user melaporkan (dengan screenshot PDF asli) versi PERTAMA
-  // buildNotaPDFBlob() tidak menggambar logo toko maupun ikon WA/Email sama
-  // sekali -- cuma teks polos, beda jauh dari versi JPG yang selalu punya
-  // logo lingkaran + badge hijau WA/abu-abu Email. Perbaikannya: logo lewat
-  // addImage() (loadCircularLogoDataURL()), dan badge WA/Email diganti label
-  // teks berwarna ("WA:" hijau, "Email:" merah) di depan nomor/alamatnya.
-  await step('buildNotaPDFBlob(): menggambar logo toko (addImage) dan label warna "WA:"/"Email:" (bukan cuma teks polos) untuk baris berflag icon', async () => {
+  // Regression, 2 iterasi: (1) user melaporkan (screenshot PDF asli) versi
+  // PERTAMA buildNotaPDFBlob() tidak menggambar logo toko maupun ikon WA/Email
+  // sama sekali -- cuma teks polos. (2) Perbaikan pertama (label teks
+  // berwarna "WA:"/"Email:") DITOLAK user -- user tegaskan itu tetap cuma
+  // tulisan, bukan logo/ikon sungguhan. Perbaikan final: drawIconBadgePDF()
+  // menggambar bentuk vektor SUNGGUHAN (lingkaran hijau utk WA, amplop merah
+  // utk Email) lewat primitif bawaan jsPDF (roundedRect/circle/rect/line).
+  await step('buildNotaPDFBlob(): menggambar logo toko (addImage) DAN ikon vektor sungguhan (bukan cuma label teks berwarna) untuk baris berflag icon wa/email', async () => {
     const originalJspdf = window.jspdf;
-    const calls = { texts: [], images: [], textColors: [] };
+    const calls = { texts: [], images: [], fillColors: [], roundedRects: [], circles: [], rects: [] };
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
-      setTextColor(r,g,b){ calls.textColors.push([r,g,b]); }
+      setFillColor(r,g,b){ calls.fillColors.push([r,g,b]); }
+      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
+      roundedRect(x,y,w,h,rx,ry,style){ calls.roundedRects.push({x,y,w,h,style}); }
+      circle(x,y,r,style){ calls.circles.push({x,y,r,style}); }
+      rect(x,y,w,h,style){ calls.rects.push({x,y,w,h,style}); }
+      line(){}
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }
@@ -1386,19 +1392,17 @@ const result = await page.evaluate(async () => {
       if (calls.images[0].format !== 'PNG' || !String(calls.images[0].data).startsWith('data:image/png')) throw new Error('logo harus berupa data URL PNG: ' + JSON.stringify(calls.images[0]));
       if (calls.images[0].w !== 16 || calls.images[0].h !== 16) throw new Error('ukuran logo harus 16x16mm (sama seperti buildNotaCanvas): ' + JSON.stringify(calls.images[0]));
 
-      const waLabel = calls.texts.find(c => c.str === 'WA: ');
-      const emailLabel = calls.texts.find(c => c.str === 'Email: ');
-      if (!waLabel) throw new Error('baris icon:"wa" harus punya label "WA: " (regresi: versi pertama cuma cetak nomornya polos tanpa label/ikon apa pun)');
-      if (!emailLabel) throw new Error('baris icon:"email" harus punya label "Email: " (regresi: versi pertama cuma cetak alamatnya polos tanpa label/ikon apa pun)');
-      if (!calls.texts.some(c => c.str === '081293228520')) throw new Error('nomor WA aslinya tetap harus tercetak setelah labelnya');
-      if (!calls.texts.some(c => c.str === 'tinggirantech@gmail.com')) throw new Error('alamat email aslinya tetap harus tercetak setelah labelnya');
+      // Bukan lagi cuma label teks "WA: "/"Email: " (ditolak user) -- teks yang
+      // dicetak untuk baris icon harus PERSIS isi aslinya, tanpa prefix apa pun.
+      if (calls.texts.some(c => c.str === 'WA: ' || c.str === 'Email: ')) throw new Error('REGRESI: masih pakai label teks "WA:"/"Email:" -- user sudah menegaskan itu bukan ikon sungguhan, harus diganti bentuk vektor');
+      if (!calls.texts.some(c => c.str === '081293228520')) throw new Error('nomor WA aslinya (tanpa prefix) tetap harus tercetak');
+      if (!calls.texts.some(c => c.str === 'tinggirantech@gmail.com')) throw new Error('alamat email aslinya (tanpa prefix) tetap harus tercetak');
 
-      const hasGreenForWA = calls.textColors.some(([r,g,b]) => r===37 && g===211 && b===102);
-      const hasRedForEmail = calls.textColors.some(([r,g,b]) => r===234 && g===67 && b===53);
-      if (!hasGreenForWA) throw new Error('label "WA:" harus diwarnai hijau WhatsApp (#25D366 / rgb 37,211,102): ' + JSON.stringify(calls.textColors));
-      if (!hasRedForEmail) throw new Error('label "Email:" harus diwarnai merah Gmail (#EA4335 / rgb 234,67,53): ' + JSON.stringify(calls.textColors));
-      const resetToBlack = calls.textColors.filter(([r,g,b]) => r===0 && g===0 && b===0).length;
-      if (resetToBlack < 2) throw new Error('warna harus direset ke hitam (0,0,0) setelah tiap label, supaya baris berikutnya tidak ikut berwarna: ' + JSON.stringify(calls.textColors));
+      const hasGreenFill = calls.fillColors.some(([r,g,b]) => r===37 && g===211 && b===102);
+      if (!hasGreenFill) throw new Error('badge WA harus diisi hijau WhatsApp (#25D366 / rgb 37,211,102): ' + JSON.stringify(calls.fillColors));
+      if (calls.roundedRects.length < 1) throw new Error('badge WA harus digambar sebagai bentuk vektor (roundedRect), bukan cuma teks -- got ' + calls.roundedRects.length);
+      if (calls.circles.length < 1) throw new Error('badge WA harus punya lingkaran putih di tengahnya (circle), bukan cuma teks -- got ' + calls.circles.length);
+      if (calls.rects.length < 1) throw new Error('badge Email harus digambar sebagai bentuk amplop (rect), bukan cuma teks -- got ' + calls.rects.length);
     } finally {
       if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
     }
@@ -1409,8 +1413,10 @@ const result = await page.evaluate(async () => {
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
-      setTextColor(){} getTextWidth(str){ return String(str).length * 2; }
+      getTextWidth(str){ return String(str).length * 2; }
       addImage(){}
+      setFillColor(){} setDrawColor(){} setLineWidth(){}
+      roundedRect(){} circle(){} rect(){} line(){}
       text(){}
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }

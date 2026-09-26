@@ -559,12 +559,33 @@ async function loadCircularLogoDataURL(sizePx){
    lebar tulisannya sebangun.
 
    Logo toko & badge ikon WA/Email (regresi bug nyata -- versi pertama PDF ini
-   TIDAK menggambar keduanya sama sekali, cuma teks polos): logo digambar
-   lewat addImage() (lihat loadCircularLogoDataURL() di atas), sedangkan badge
-   WA/Email TIDAK direplikasi sebagai vektor persis seperti canvas (jsPDF versi
-   ini tidak punya cara mudah menggambar path SVG arbitrer) -- diganti label
-   teks berwarna ("WA:"/"Email:") di depan nomor/alamat, cukup untuk pembaca
-   tahu itu kontak apa tanpa perlu ikon grafis persis. */
+   TIDAK menggambar keduanya sama sekali, cuma teks polos, lalu versi kedua
+   cuma ganti jadi label teks berwarna "WA:"/"Email:" yang user tegaskan
+   TETAP bukan logo/ikon sungguhan): logo digambar lewat addImage() (lihat
+   loadCircularLogoDataURL() di atas). Badge WA/Email digambar sebagai bentuk
+   vektor SUNGGUHAN lewat drawIconBadgePDF() di bawah -- bukan path SVG
+   presisi seperti drawIconBadgeOnCanvas() (jsPDF versi ini tidak punya cara
+   mudah menggambar path Bezier arbitrer), tapi bentuk lingkaran/amplop
+   sederhana dari primitif bawaan jsPDF (roundedRect/circle/rect/line) yang
+   tetap kebaca sebagai ikon WA (bulat hijau) & Email (amplop merah), bukan
+   cuma teks. */
+function drawIconBadgePDF(doc, kind, x, y, size){
+  if(kind==='wa'){
+    doc.setFillColor(37,211,102);
+    doc.roundedRect(x, y, size, size, size*0.23, size*0.23, 'F');
+    doc.setFillColor(255,255,255);
+    doc.circle(x+size/2, y+size/2, size*0.32, 'F');
+  } else {
+    doc.setFillColor(241,243,244);
+    doc.setDrawColor(189,193,198);
+    doc.setLineWidth(size*0.03);
+    doc.rect(x, y+size*0.18, size, size*0.6, 'FD');
+    doc.setDrawColor(234,67,53);
+    doc.setLineWidth(size*0.06);
+    doc.line(x, y+size*0.18, x+size/2, y+size*0.55);
+    doc.line(x+size/2, y+size*0.55, x+size, y+size*0.18);
+  }
+}
 async function buildNotaPDFBlob(lines, pageWidthMm){
   const { jsPDF } = window.jspdf;
   const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
@@ -588,15 +609,14 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
     doc.setFontSize(line.s||9);
     const indentMm = (line.indentPx||0) / SCALE;
     if(line.icon){
-      const label = line.icon==='wa' ? 'WA: ' : 'Email: ';
-      const color = line.icon==='wa' ? [37,211,102] : [234,67,53];
-      const labelW = doc.getTextWidth(label);
+      const sizeUnitMm = (line.s||9)*0.3528; // padanan px=ptToPx(line.s) di canvas, tanpa SCALE karena jsPDF sudah dalam mm
+      const sizeMm = sizeUnitMm*1.5; // padanan d=px*1.5
+      const gapMm = 1.3; // padanan mmToPx(1.3), sudah dalam mm jadi tidak perlu dibagi SCALE
       const textW = doc.getTextWidth(String(line.t));
-      const startX = line.c ? (centerXmm - (labelW+textW)/2) : (marginMm + indentMm);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(label, startX, y);
-      doc.setTextColor(0, 0, 0);
-      doc.text(String(line.t), startX + labelW, y);
+      const totalW = sizeMm + gapMm + textW;
+      const startX = line.c ? (centerXmm - totalW/2) : (marginMm + indentMm);
+      drawIconBadgePDF(doc, line.icon, startX, y - sizeUnitMm*0.9, sizeMm);
+      doc.text(String(line.t), startX + sizeMm + gapMm, y);
     } else if(line.c){
       doc.text(String(line.t), centerXmm, y, { align:'center' });
     } else {
