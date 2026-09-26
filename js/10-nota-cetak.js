@@ -464,10 +464,13 @@ async function buildNotaCanvas(lines, pageWidthMm){
 
   return canvas;
 }
-async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
+async function buildNotaJPEGBlob(lines, pageWidthMm){
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
+  return await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
+}
+async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
+  const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
-  const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
   saveToDownloadsGallery(blob, filename);
   try{
@@ -485,6 +488,42 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   showToast(isMobileDevice()
     ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
     : t('Gambar nota diunduh ke folder Download.'));
+}
+/* ===================== NOTA JPG "HD" (DIKIRIM SEBAGAI DOKUMEN) =====================
+   Kenapa JPG yang dibagikan lewat shareOrDownloadNotaImage() di atas selalu
+   buram di WA meski sumbernya sudah tajam: WhatsApp menentukan jalur "Foto"
+   vs "Dokumen" dari MIME type yang dikirim lewat Android share intent -- MIME
+   image/* SELALU masuk jalur Foto dan DIKOMPRES ULANG, berapa pun resolusi
+   sumbernya, dan ini TIDAK BISA dimatikan dari luar app WhatsApp lewat share
+   intent biasa. MIME selain image/*,video/*,audio/* masuk jalur Dokumen dan
+   TIDAK PERNAH dikompres -- persis perilaku tombol "Dokumen" di dalam
+   WhatsApp sendiri, di sini dipicu dari luar lewat MIME generik
+   (application/octet-stream) alih-alih lewat tombol itu. File-nya TETAP .jpg
+   biasa (tinggal tap untuk lihat sebagai foto, beda dari PDF yang butuh app
+   pembaca PDF) -- konsekuensinya cuma tampil sebagai bubble dokumen (bukan
+   thumbnail foto langsung) di chat WA, itu harga yang harus dibayar supaya
+   tidak dikompres, sama seperti nota PDF (buildNotaPDFBlob() di bawah), dan
+   tidak bisa dihindari karena ini kendali WhatsApp, bukan app ini. */
+async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm, shareTitle){
+  const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
+  const filename = `${filenameBase}-HD.jpg`;
+  if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
+  saveToDownloadsGallery(blob, filename);
+  try{
+    const file = new File([blob], filename, { type:'application/octet-stream' });
+    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: filename, text: shareTitle||'' });
+      return;
+    }
+  }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  showToast(isMobileDevice()
+    ? t('Gambar nota HD diunduh. Kalau dialog Bagikan tidak muncul otomatis, buka WhatsApp/WhatsApp Business lalu lampirkan lewat tombol Dokumen (bukan Galeri) dari folder Download supaya tidak dikompres.')
+    : t('Gambar nota HD diunduh ke folder Download.'));
 }
 /* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
    WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
@@ -560,6 +599,26 @@ async function downloadUsageNotaPDF(){
   const tempo = isTempo(s);
   const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
   await shareOrDownloadNotaPDF(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
+  closeUsageNotaOptions();
+}
+async function downloadUsageNotaImageHD(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareNotaImageAsDocument(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
   closeUsageNotaOptions();
 }
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================

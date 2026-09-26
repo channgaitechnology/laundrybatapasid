@@ -1410,6 +1410,60 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regression: user melaporkan nota JPG DULU tetap tajam saat dibagikan lewat WA
+  // (bukan PDF yang dulu dipakai) -- ternyata sebabnya bukan resolusi, tapi jalur
+  // "Foto" WA (MIME image/*) yang SELALU dikompres ulang WhatsApp sendiri, sedangkan
+  // jalur "Dokumen" (MIME lain) TIDAK PERNAH dikompres. shareNotaImageAsDocument()
+  // membagikan file .jpg yang SAMA tapi dengan MIME application/octet-stream supaya
+  // WhatsApp mengenalinya sebagai Dokumen, bukan Foto -- tetap format JPG biasa
+  // (gampang dibuka semua orang, beda dari PDF), cuma tidak dikompres.
+  await step('shareNotaImageAsDocument()/downloadReceiptImageHD(): membagikan file .jpg (BUKAN .pdf) tapi dengan MIME application/octet-stream (supaya WA memperlakukannya sebagai Dokumen, bukan Foto yang dikompres), dan tetap ikut pola isMobileDevice() yang sama', async () => {
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = [];
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async (data) => { shareCalls.push(data); };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    try {
+      const trx = { id:'test-jpghd-trx-id', kode:'PF-JPGHD-1', tanggal:'2026-09-26', nama:'Uji JPG HD', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptImageHD();
+      if (shareCalls.length !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got ' + shareCalls.length);
+      if (shareCalls[0].files[0].type !== 'application/octet-stream') throw new Error('file HD harus dibagikan dengan MIME application/octet-stream (bukan image/jpeg) supaya WA memperlakukannya sebagai Dokumen, got ' + shareCalls[0].files[0].type);
+      if (!shareCalls[0].files[0].name.endsWith('.jpg')) throw new Error('file HD harus tetap berekstensi .jpg (bukan .pdf) supaya gampang dibuka siapa saja, got ' + shareCalls[0].files[0].name);
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptImageHD();
+      if (shareCalls.length !== 0) throw new Error('desktop tidak boleh membuka dialog Share OS untuk JPG HD juga, got ' + shareCalls.length);
+      if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('.jpg')) throw new Error('desktop seharusnya langsung mengunduh file .jpg biasa, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+    }
+  });
+
   await step('buildReceiptHTML() includes clickable wa.me and mailto links with icon badges', () => {
     const html = buildReceiptHTML({ kode:'PF-4', tanggal:'2026-08-27', nama:'Uji HTML', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', catatan:'' });
     if (!html.includes('dikembangkan oleh Tinggiran Tech Studio')) throw new Error('HTML receipt missing studio name');
