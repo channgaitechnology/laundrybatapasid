@@ -490,40 +490,40 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
     : t('Gambar nota diunduh ke folder Download.'));
 }
 /* ===================== NOTA JPG "HD" (DIKIRIM SEBAGAI DOKUMEN) =====================
-   Kenapa JPG yang dibagikan lewat shareOrDownloadNotaImage() di atas selalu
-   buram di WA meski sumbernya sudah tajam: WhatsApp menentukan jalur "Foto"
-   vs "Dokumen" dari MIME type yang dikirim lewat Android share intent -- MIME
-   image/* SELALU masuk jalur Foto dan DIKOMPRES ULANG, berapa pun resolusi
-   sumbernya, dan ini TIDAK BISA dimatikan dari luar app WhatsApp lewat share
-   intent biasa. MIME selain image/*,video/*,audio/* masuk jalur Dokumen dan
-   TIDAK PERNAH dikompres -- persis perilaku tombol "Dokumen" di dalam
-   WhatsApp sendiri, di sini dipicu dari luar lewat MIME generik
-   (application/octet-stream) alih-alih lewat tombol itu. File-nya TETAP .jpg
-   biasa (tinggal tap untuk lihat sebagai foto, beda dari PDF yang butuh app
-   pembaca PDF) -- konsekuensinya cuma tampil sebagai bubble dokumen (bukan
-   thumbnail foto langsung) di chat WA, itu harga yang harus dibayar supaya
-   tidak dikompres, sama seperti nota PDF (buildNotaPDFBlob() di bawah), dan
-   tidak bisa dihindari karena ini kendali WhatsApp, bukan app ini. */
-async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm, shareTitle){
+   PERCOBAAN PERTAMA (sudah dicoba & GAGAL di HP asli -- lihat riwayat git):
+   membagikan file .jpg lewat navigator.share() dengan File bertipe
+   application/octet-stream, berharap WhatsApp mengenalinya sebagai Dokumen.
+   Ternyata Chrome/Android SENDIRI yang menolak: navigator.canShare() melihat
+   ketidakcocokan ekstensi .jpg dengan MIME generik itu dan menganggapnya
+   TIDAK didukung untuk dibagikan sama sekali (demi keamanan, mencegah situs
+   memalsukan jenis file) -- akibatnya kode selalu jatuh ke unduh biasa, dan
+   kalaupun user lalu mencoba bagikan file itu manual dari galeri, filenya
+   tetap dikenali sebagai foto biasa (MIME asli image/jpeg) dan tetap
+   dikompres WA seperti biasa. Jadi trik MIME ini TIDAK BISA dipaksakan lewat
+   Web Share API dari situs web -- baik Chrome maupun WhatsApp yang menolak,
+   bukan bug di app ini.
+
+   SATU-SATUNYA cara JPG beneran tidak dikompres WA: pakai tombol "Dokumen"
+   DI DALAM app WhatsApp sendiri (bukan lewat dialog Share dari luar) --
+   fitur asli WhatsApp untuk kirim file apa adanya. Ini tidak bisa dipicu
+   otomatis dari web, jadi di sini kita cuma memaksa unduh file (skip
+   navigator.share() sama sekali, supaya user tidak salah pakai tombol Share
+   biasa yang pasti berujung terkompres lagi) lalu memandu user lewat
+   alert() -- dipilih alert() (bukan showToast() yang cuma tampil sebentar)
+   karena isinya langkah-demi-langkah yang harus dibaca sampai selesai, sama
+   seperti pola kode undangan/kode pendaftaran di js/02-init-data.js &
+   js/05-admin.js. */
+async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm){
   const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}-HD.jpg`;
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
   saveToDownloadsGallery(blob, filename);
-  try{
-    const file = new File([blob], filename, { type:'application/octet-stream' });
-    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
-      await navigator.share({ files:[file], title: filename, text: shareTitle||'' });
-      return;
-    }
-  }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  showToast(isMobileDevice()
-    ? t('Gambar nota HD diunduh. Kalau dialog Bagikan tidak muncul otomatis, buka WhatsApp/WhatsApp Business lalu lampirkan lewat tombol Dokumen (bukan Galeri) dari folder Download supaya tidak dikompres.')
-    : t('Gambar nota HD diunduh ke folder Download.'));
+  alert(`${t('File JPG HD tersimpan:')} ${filename}\n\n${t('PENTING -- supaya TIDAK ikut dikompres WhatsApp, JANGAN pakai tombol Bagikan/Share biasa. Kirim manual begini:')}\n${t('1. Buka WhatsApp, pilih obrolan tujuan')}\n${t('2. Tekan ikon lampiran (📎)')}\n${t('3. Pilih "Dokumen" (BUKAN Galeri/Foto)')}\n${t('4. Cari & pilih file di atas dari folder Download')}`);
 }
 /* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
    WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
@@ -618,7 +618,7 @@ async function downloadUsageNotaImageHD(){
   }
   const tempo = isTempo(s);
   const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
-  await shareNotaImageAsDocument(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
+  await shareNotaImageAsDocument(lines, filenameBase, 80);
   closeUsageNotaOptions();
 }
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================

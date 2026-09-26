@@ -104,12 +104,13 @@ async function downloadReceiptImage(){
   closeReceiptShareOptions();
 }
 /* Lihat komentar di shareNotaImageAsDocument() (js/10-nota-cetak.js) soal
-   kenapa JPG ini tetap tajam saat dibagikan lewat WA (dikirim lewat jalur
-   Dokumen WA, bukan jalur Foto yang selalu dikompres ulang). */
+   kenapa ini cuma memaksa unduh + memandu lampir manual sebagai Dokumen di
+   WA (BUKAN lewat dialog Share) -- percobaan pakai navigator.share() dengan
+   MIME dipalsukan sudah dicoba & ditolak Chrome sendiri di HP asli. */
 async function downloadReceiptImageHD(){
   const trx = transactions.find(t=>t.id===notaShareTrxId);
   if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
-  await shareNotaImageAsDocument(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
+  await shareNotaImageAsDocument(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80);
   closeReceiptShareOptions();
 }
 /* Lihat komentar di buildNotaPDFBlob()/shareOrDownloadNotaPDF() (js/10-nota-cetak.js)

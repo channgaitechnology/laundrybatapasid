@@ -1411,20 +1411,29 @@ const result = await page.evaluate(async () => {
   });
 
   // Regression: user melaporkan nota JPG DULU tetap tajam saat dibagikan lewat WA
-  // (bukan PDF yang dulu dipakai) -- ternyata sebabnya bukan resolusi, tapi jalur
-  // "Foto" WA (MIME image/*) yang SELALU dikompres ulang WhatsApp sendiri, sedangkan
-  // jalur "Dokumen" (MIME lain) TIDAK PERNAH dikompres. shareNotaImageAsDocument()
-  // membagikan file .jpg yang SAMA tapi dengan MIME application/octet-stream supaya
-  // WhatsApp mengenalinya sebagai Dokumen, bukan Foto -- tetap format JPG biasa
-  // (gampang dibuka semua orang, beda dari PDF), cuma tidak dikompres.
-  await step('shareNotaImageAsDocument()/downloadReceiptImageHD(): membagikan file .jpg (BUKAN .pdf) tapi dengan MIME application/octet-stream (supaya WA memperlakukannya sebagai Dokumen, bukan Foto yang dikompres), dan tetap ikut pola isMobileDevice() yang sama', async () => {
+  // -- akar masalahnya adalah jalur "Foto" WA (MIME image/*) yang SELALU dikompres
+  // ulang WhatsApp sendiri, sedangkan jalur "Dokumen" (MIME lain) TIDAK PERNAH
+  // dikompres. Percobaan PERTAMA (membagikan file lewat navigator.share() dengan
+  // MIME application/octet-stream supaya WA menganggapnya Dokumen) GAGAL di HP
+  // asli: Chrome/Android sendiri menolak berbagi file dengan ekstensi .jpg tapi
+  // MIME yang tidak cocok -- navigator.canShare() jatuh ke unduh biasa, dan
+  // WhatsApp tetap menerimanya sebagai foto (dikompres) kalau dibagikan manual
+  // dari galeri. shareNotaImageAsDocument() sekarang SENGAJA tidak pernah
+  // memanggil navigator.share() sama sekali -- selalu memaksa unduh file, lalu
+  // memandu user lewat alert() untuk melampirkan manual sebagai "Dokumen" di
+  // dalam app WhatsApp sendiri (satu-satunya cara yang benar-benar terbukti
+  // tidak dikompres).
+  await step('shareNotaImageAsDocument()/downloadReceiptImageHD(): TIDAK PERNAH memanggil navigator.share() (percobaan MIME palsu sudah terbukti gagal di HP asli) -- selalu unduh file -HD.jpg lalu memandu user lewat alert() untuk lampir manual sebagai Dokumen di WhatsApp', async () => {
     const originalCanShare = navigator.canShare;
     const originalShare = navigator.share;
+    const originalAlert = window.alert;
     const originalCreateElement = document.createElement.bind(document);
-    let shareCalls = [];
+    let shareCalls = 0;
+    let alertMessages = [];
     let clickedDownloads = [];
-    navigator.canShare = () => true;
-    navigator.share = async (data) => { shareCalls.push(data); };
+    navigator.canShare = () => true; // meski browser LAPOR mendukung, fungsi ini tidak boleh memakainya
+    navigator.share = async () => { shareCalls++; };
+    window.alert = (msg) => { alertMessages.push(msg); };
     document.createElement = (tag) => {
       const el = originalCreateElement(tag);
       if (tag === 'a') {
@@ -1442,23 +1451,25 @@ const result = await page.evaluate(async () => {
       transactions.push(trx);
       notaShareTrxId = trx.id;
 
-      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
-      shareCalls = []; clickedDownloads = [];
-      await downloadReceiptImageHD();
-      if (shareCalls.length !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got ' + shareCalls.length);
-      if (shareCalls[0].files[0].type !== 'application/octet-stream') throw new Error('file HD harus dibagikan dengan MIME application/octet-stream (bukan image/jpeg) supaya WA memperlakukannya sebagai Dokumen, got ' + shareCalls[0].files[0].type);
-      if (!shareCalls[0].files[0].name.endsWith('.jpg')) throw new Error('file HD harus tetap berekstensi .jpg (bukan .pdf) supaya gampang dibuka siapa saja, got ' + shareCalls[0].files[0].name);
-
-      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-      shareCalls = []; clickedDownloads = [];
-      await downloadReceiptImageHD();
-      if (shareCalls.length !== 0) throw new Error('desktop tidak boleh membuka dialog Share OS untuk JPG HD juga, got ' + shareCalls.length);
-      if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('.jpg')) throw new Error('desktop seharusnya langsung mengunduh file .jpg biasa, got ' + JSON.stringify(clickedDownloads));
+      // Mobile MAUPUN desktop -- hasilnya harus sama persis (skip share, unduh, alert).
+      for (const ua of [
+        'Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      ]) {
+        setUA(ua);
+        shareCalls = 0; alertMessages = []; clickedDownloads = [];
+        await downloadReceiptImageHD();
+        if (shareCalls !== 0) throw new Error('shareNotaImageAsDocument() tidak boleh memanggil navigator.share() sama sekali (UA=' + ua + '), got ' + shareCalls);
+        if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('-HD.jpg')) throw new Error('harus langsung mengunduh file berakhiran -HD.jpg, got ' + JSON.stringify(clickedDownloads));
+        if (alertMessages.length !== 1) throw new Error('harus menampilkan alert() panduan tepat sekali, got ' + alertMessages.length);
+        if (!alertMessages[0].includes('Dokumen') || !alertMessages[0].includes('WhatsApp')) throw new Error('alert() harus memandu lampir manual sebagai Dokumen di WhatsApp: ' + alertMessages[0]);
+      }
     } finally {
       transactions = originalTransactions;
       notaShareTrxId = originalNotaShareTrxId;
       navigator.canShare = originalCanShare;
       navigator.share = originalShare;
+      window.alert = originalAlert;
       document.createElement = originalCreateElement;
       delete navigator.userAgent;
     }
