@@ -371,7 +371,7 @@ const I18N_EN = {
   'Catat Laundry Masuk': 'Log Laundry Drop-off',
   'Tambah Layanan Lain (di luar paket)': 'Add Another Service (outside the package)',
   'Pilih dari saran katalog atau ketik nama layanan sendiri — bisa tambah beberapa layanan sekaligus sebelum disimpan jadi satu nota.': 'Pick from catalog suggestions or type your own service name — you can add several services before saving them as one receipt.',
-  'cth. ekspres — pilih dari saran katalog atau ketik manual, ditagih bersama saat lunas.': 'e.g. express service — pick from catalog suggestions or type it manually, billed together when paid.',
+  'cth. ekspres — pilih dari saran katalog atau ketik manual. Bisa tambah beberapa layanan sekaligus sebelum disimpan jadi satu nota, ditagih bersama saat lunas.': 'e.g. express service — pick from catalog suggestions or type it manually. You can add several services at once before saving them as one receipt, billed together when paid.',
   '+ Tambah Layanan': '+ Add Service',
   '+ Tambah Layanan Ini': '+ Add This Service',
   'Rekap Riwayat Transaksi (Belum Ditagih)': 'Transaction History Summary (Not Yet Billed)',

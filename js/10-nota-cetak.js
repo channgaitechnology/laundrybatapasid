@@ -166,6 +166,63 @@ function usageNotaTextWA(usage, s){
   lines.push(...notaFooterLinesWA());
   return lines.join('\n');
 }
+/* Versi batch dari usageNotaTextWA() -- dipakai saat beberapa layanan tambahan
+   Paket Bulanan (non-Tempo) ditambahkan sekaligus lewat submitExtraServiceBatch()
+   sebelum disimpan jadi satu nota, sama seperti tempoBatchUsageNotaTextWA() untuk
+   Tempo. Sebelum ini, addExtraService() Paket Bulanan langsung insert satu-satu
+   TANPA batch_id -- jadi tiap layanan pecah jadi kartu Daftar Tugas sendiri-
+   sendiri (regresi bug nyata, dilaporkan lewat screenshot: nama pelanggan sama
+   & tanggal sama tapi kartunya terpisah). "Timbangan Sekarang" berisi beberapa
+   baris (bukan cuma satu), dihitung sampai TANGGAL PALING BARU di antara
+   newItems -- persis pola tempoBatchUsageNotaTextWA(). */
+function usageBatchNotaTextWA(newItems, s){
+  const lastDate = newItems.reduce((max,u)=> u.tanggal>max?u.tanggal:max, newItems[0].tanggal);
+  const upTo = pemakaianSampai({ tanggal: lastDate });
+  const terpakaiUpTo = upTo.reduce((sum,u)=>sum+u.berat, 0);
+  const sisaKg = Math.max(s.kuotaKg - terpakaiUpTo, 0);
+  const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
+  const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai({ tanggal: lastDate }, s, terpakaiUpTo);
+  const lines = [];
+  const hdr = notaHeaderInfo(s.outletId);
+  lines.push(`*${hdr.nama}*`);
+  if(hdr.subtitle) lines.push(hdr.subtitle);
+  if(hdr.alamat) lines.push(hdr.alamat);
+  if(hdr.telp) lines.push(hdr.telp);
+  lines.push('-------------------------------');
+  lines.push(`*${t('CATATAN TRANSAKSI')}*`);
+  lines.push(`${t('Pelanggan')}  : ${s.nama}`);
+  lines.push(`${t('Paket')}      : ${s.paketNama}`);
+  lines.push(`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`);
+  lines.push('-------------------------------');
+  lines.push(`*${t('Timbangan Sekarang')}*`);
+  newItems.forEach(u=>{
+    lines.push(`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+  });
+  lines.push('-------------------------------');
+  lines.push(`*${t('Riwayat Timbangan Paket Ini')}*`);
+  upTo.forEach((u,i)=>{
+    lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`);
+  });
+  if(extras.length>0){
+    lines.push('-------------------------------');
+    lines.push(`*${t('Layanan Tambahan (di luar paket)')}*`);
+    extras.forEach((u,i)=>{
+      lines.push(`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`);
+    });
+  }
+  lines.push('-------------------------------');
+  lines.push(`*${t('Total Terpakai')} : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg*`);
+  lines.push(excessKgQty>0 ? `${t('Lebih Kuota')} : ${fmtKg(excessKgQty)} kg` : `${t('Sisa Kuota')} : ${fmtKg(sisaKg)} kg`);
+  lines.push('-------------------------------');
+  lines.push(`${t('Harga Paket')}      : ${rupiah(s.hargaPaket||0)}`);
+  if(excessCost>0) lines.push(`${t('Kelebihan Kuota')}  : ${rupiah(excessCost)}`);
+  if(extraTotal>0) lines.push(`${t('Layanan Tambahan')} : ${rupiah(extraTotal)}`);
+  lines.push(`*${t('Total Harga Paket')} : ${rupiah(totalHarga)}*`);
+  lines.push('-------------------------------');
+  lines.push(settings.note || t('Terima kasih'));
+  lines.push(...notaFooterLinesWA());
+  return lines.join('\n');
+}
 function sendUsageNotaWA(target){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
@@ -174,7 +231,7 @@ function sendUsageNotaWA(target){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    text = isTempo(s) ? tempoBatchUsageNotaTextWA(newItems, s) : usageNotaTextWA(newItems[newItems.length-1], s);
+    text = isTempo(s) ? tempoBatchUsageNotaTextWA(newItems, s) : usageBatchNotaTextWA(newItems, s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -275,6 +332,60 @@ function buildUsageNotaPDFLines(usage, s){
   L.push({t: usage.type==='layanan_tambahan'
     ? `${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`
     : `${fmtDate(usage.tanggal)} — ${fmtKg(usage.berat)} kg${usage.catatan ? ' ('+usage.catatan+')' : ''}`, s:9});
+  L.push({t: div, s:9});
+  L.push({t:t('RIWAYAT TIMBANGAN PAKET INI'), b:true, s:9});
+  upTo.forEach((u,i)=>{
+    L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${fmtKg(u.berat)} kg`, s:8, indent:4});
+  });
+  if(extras.length>0){
+    L.push({t: div, s:9});
+    L.push({t:t('LAYANAN TAMBAHAN (di luar paket)'), b:true, s:9});
+    extras.forEach((u,i)=>{
+      L.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
+    });
+  }
+  L.push({t: div, s:9});
+  L.push({t:`${t('Total Terpakai')} : ${fmtKg(terpakaiUpTo)} / ${fmtKg(s.kuotaKg)} kg`, b:true, s:9});
+  L.push({t: excessKgQty>0 ? `${t('Lebih Kuota')}    : ${fmtKg(excessKgQty)} kg` : `${t('Sisa Kuota')}     : ${fmtKg(sisaKg)} kg`, s:9});
+  L.push({t: div, s:9});
+  L.push({t:`${t('Harga Paket')}      : ${rupiah(s.hargaPaket||0)}`, s:9, indent:19});
+  if(excessCost>0) L.push({t:`${t('Kelebihan Kuota')}  : ${rupiah(excessCost)}`, s:9, indent:19});
+  if(extraTotal>0) L.push({t:`${t('Layanan Tambahan')} : ${rupiah(extraTotal)}`, s:9, indent:19});
+  L.push({t:`${t('Total Harga Paket')} : ${rupiah(totalHarga)}`, b:true, s:9, indent:20});
+  L.push({t: div, s:9});
+  L.push({t: settings.note || t('Terima kasih'), c:true, s:8});
+  L.push(...notaFooterLinesPDF());
+  return L;
+}
+/* Versi batch dari buildUsageNotaPDFLines() -- lihat komentar
+   usageBatchNotaTextWA() soal kenapa ini perlu ada (regresi bug nyata:
+   layanan tambahan Paket Bulanan non-Tempo yang ditambahkan sekaligus
+   sebelumnya pecah jadi kartu Daftar Tugas terpisah-pisah karena
+   addExtraService() tidak pernah membubuhkan batch_id untuk non-Tempo). */
+function buildUsageBatchNotaPDFLines(newItems, s){
+  const lastDate = newItems.reduce((max,u)=> u.tanggal>max?u.tanggal:max, newItems[0].tanggal);
+  const upTo = pemakaianSampai({ tanggal: lastDate });
+  const terpakaiUpTo = upTo.reduce((sum,u)=>sum+u.berat, 0);
+  const L = [];
+  const div = '--------------------------------';
+  const sisaKg = Math.max(s.kuotaKg - terpakaiUpTo, 0);
+  const excessKgQty = Math.max(terpakaiUpTo - s.kuotaKg, 0);
+  const { excessCost, extras, extraTotal, totalHarga } = hitungHargaSampai({ tanggal: lastDate }, s, terpakaiUpTo);
+  const hdr = notaHeaderInfo(s.outletId);
+  L.push({t: hdr.nama, c:true, b:true, s:12});
+  if(hdr.subtitle) L.push({t: hdr.subtitle, c:true, s:8});
+  if(hdr.alamat) L.push({t: hdr.alamat, c:true, s:8});
+  if(hdr.telp) L.push({t: hdr.telp, c:true, s:8});
+  L.push({t: div, s:9});
+  L.push({t:t('CATATAN TRANSAKSI'), c:true, b:true, s:10});
+  L.push({t:`${t('Pelanggan')}  : ${s.nama}`, s:9, indent:13});
+  L.push({t:`${t('Paket')}      : ${s.paketNama}`, s:9, indent:13});
+  L.push({t:`${t('Periode')}    : ${fmtDate(s.tanggalMulai)} - ${fmtDate(s.tanggalSelesai)}`, s:9, indent:13});
+  L.push({t: div, s:9});
+  L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
+  newItems.forEach(u=>{
+    L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:9});
+  });
   L.push({t: div, s:9});
   L.push({t:t('RIWAYAT TIMBANGAN PAKET INI'), b:true, s:9});
   upTo.forEach((u,i)=>{
@@ -665,7 +776,7 @@ async function downloadUsageNotaPDF(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
     tanggalForName = newItems[0].tanggal;
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
@@ -685,7 +796,7 @@ async function downloadUsageNotaImageHD(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
     tanggalForName = newItems[0].tanggal;
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
@@ -867,7 +978,7 @@ async function printUsageNotaBluetooth(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -913,7 +1024,7 @@ function printUsageNotaViaBrowser(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
     if(!usage) return;
@@ -928,7 +1039,7 @@ async function downloadUsageNotaImage(){
   if(currentBatchUsageIds){
     const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
     if(newItems.length===0) return;
-    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
     tanggalForName = newItems[0].tanggal;
   } else {
     const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);

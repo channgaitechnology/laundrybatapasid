@@ -587,9 +587,42 @@ const result = await page.evaluate(async () => {
     if (!L[idx+2].t.includes('Setrika') || !L[idx+2].b) throw new Error('second batch line not bold: ' + JSON.stringify(L[idx+2]));
   });
 
-  await step('addExtraService() for Paket Bulanan still saves immediately (unchanged behavior), and also now accepts a manually-typed layanan name', async () => {
+  // Padanan non-Tempo dari test di atas -- sebelum ini, sendUsageNotaWA()/downloadUsageNotaImage()
+  // dkk. memanggil usageNotaTextWA(newItems[newItems.length-1], s) untuk batch Bulanan, yang
+  // cuma menampilkan item TERAKHIR (bukan semuanya) di "Timbangan Sekarang". usageBatchNotaTextWA()/
+  // buildUsageBatchNotaPDFLines() (baru) memperbaiki ini supaya SEMUA item di batch tampil,
+  // sama seperti versi Tempo, plus tetap menghitung kuota kg yang cuma berlaku utk Bulanan.
+  await step('usageBatchNotaTextWA()/buildUsageBatchNotaPDFLines() (Paket Bulanan) show EVERY newly-added item under "Timbangan Sekarang", not just the last one (regresi bug nyata)', () => {
+    const savedList = currentUsageList;
+    const newItems = [
+      { id:'bbatch1', tanggal:'2026-09-20', layananNama:'Handuk', qty:1, satuan:'pcs', harga:5000, subtotal:5000 },
+      { id:'bbatch2', tanggal:'2026-09-20', layananNama:'Sajadah', qty:1, satuan:'pcs', harga:10000, subtotal:10000 },
+    ];
+    currentUsageList = newItems;
+    const txt = usageBatchNotaTextWA(newItems, bulananSub);
+    if (txt.includes('TEMPO')) throw new Error('nota batch Paket Bulanan tidak boleh jatuh ke builder Tempo: ' + txt.slice(0,120));
+    if (!txt.includes('Handuk')) throw new Error('REGRESI: item pertama batch (Handuk) hilang dari "Timbangan Sekarang": ' + txt);
+    if (!txt.includes('Sajadah')) throw new Error('REGRESI: item kedua batch (Sajadah) hilang dari "Timbangan Sekarang" (dulu cuma item terakhir yang tampil): ' + txt);
+    if (!txt.includes('Total Terpakai')) throw new Error('nota batch Bulanan harus tetap menghitung kuota kg (fitur khas Bulanan): ' + txt);
+
+    const L = buildUsageBatchNotaPDFLines(newItems, bulananSub);
+    const idx = L.findIndex(l => l.t === 'TIMBANGAN SEKARANG');
+    if (idx === -1) throw new Error('TIMBANGAN SEKARANG header not found in PDF lines');
+    if (!L[idx+1].t.includes('Handuk')) throw new Error('REGRESI: baris PDF pertama batch (Handuk) hilang: ' + JSON.stringify(L[idx+1]));
+    if (!L[idx+2].t.includes('Sajadah')) throw new Error('REGRESI: baris PDF kedua batch (Sajadah) hilang: ' + JSON.stringify(L[idx+2]));
+    currentUsageList = savedList;
+  });
+
+  // Regression: addExtraService() used to insert Paket Bulanan rows straight to the
+  // DB one at a time, WITHOUT any batch_id -- so several layanan tambahan added in
+  // one visit for the same customer never shared an identifier and always rendered
+  // as separate Daftar Tugas cards, even though the cashier added them together as
+  // "one nota". Bulanan now stages drafts exactly like Tempo, so submitExtraServiceBatch()
+  // can tag them all with the same batch_id (see groupUsageRowsByBatch()).
+  await step('addExtraService() for Paket Bulanan (non-Tempo) now ALSO stages a draft (NOT saved immediately) -- same behavior as Tempo, and accepts a manually-typed layanan name', async () => {
     currentSubscriptionId = 'sub-bulanan-1';
     draftExtraItems = [];
+    renderExtraDraftList();
     const rowsBefore = fakeUsageRows.length;
     document.getElementById('extraTanggal').value = '2026-08-12';
     document.getElementById('extraLayanan').value = 'Layanan Manual Bulanan';
@@ -597,9 +630,52 @@ const result = await page.evaluate(async () => {
     document.getElementById('extraSatuan').value = 'pcs';
     document.getElementById('extraHarga').value = '10000';
     await addExtraService();
-    if (fakeUsageRows.length !== rowsBefore + 1) throw new Error('Bulanan should still insert immediately, one row, got ' + (fakeUsageRows.length - rowsBefore));
-    if (draftExtraItems.length !== 0) throw new Error('Bulanan should never use the draft queue');
+    if (fakeUsageRows.length !== rowsBefore) throw new Error('REGRESI: Bulanan tidak boleh lagi insert langsung ke DB, harus antre draft dulu seperti Tempo, got ' + (fakeUsageRows.length - rowsBefore) + ' baris baru');
+    if (draftExtraItems.length !== 1) throw new Error('expected 1 draft item for Bulanan, got ' + draftExtraItems.length);
+    if (draftExtraItems[0].nama !== 'Layanan Manual Bulanan') throw new Error('draft item mismatch: ' + JSON.stringify(draftExtraItems[0]));
+    if (document.getElementById('extraDraftListWrap').style.display === 'none') throw new Error('draft list wrap should become visible for Bulanan too, same as Tempo');
+
+    // submitExtraServiceBatch() harus tetap generik -- bisa dipakai Bulanan juga, bukan cuma Tempo.
+    const rowsBefore2 = fakeUsageRows.length;
+    await submitExtraServiceBatch();
+    if (fakeUsageRows.length !== rowsBefore2 + 1) throw new Error('submitExtraServiceBatch() harus benar-benar menyimpan draft Bulanan ke DB, got ' + (fakeUsageRows.length - rowsBefore2));
+    if (draftExtraItems.length !== 0) throw new Error('draft harus kosong lagi setelah submitExtraServiceBatch()');
+    closeUsageNotaOptions();
     currentSubscriptionId = 'sub-tempo-1';
+  });
+
+  // Regression, akar masalah nyata: loadAllWorkUsage() (pemuat data allWorkUsage
+  // dari DB saat login/reload) TIDAK PERNAH menyertakan batch_id dalam mapping-nya,
+  // padahal submitExtraServiceBatch() sudah menyimpannya dengan benar di kolom DB.
+  // Akibatnya: pengelompokan 1 nota berlayanan-banyak (baik Tempo maupun Bulanan)
+  // kelihatan berhasil SESAAT setelah disimpan (karena push manual ke allWorkUsage
+  // di submitExtraServiceBatch() sudah menyertakan batchId), tapi begitu halaman
+  // dimuat ulang (reload/login lagi), batchId-nya hilang dan kartunya pecah lagi
+  // jadi terpisah satu-satu -- inilah yang membuat perbaikan grouping sebelumnya
+  // (PR #23) kelihatan "belum berhasil" saat dilaporkan ulang oleh user.
+  await step('loadAllWorkUsage(): batch_id dari DB HARUS ikut ter-mapping ke batchId (regresi bug nyata -- dulu hilang lagi setiap kali halaman dimuat ulang)', async () => {
+    const originalFakeUsageRows = fakeUsageRows.slice();
+    const originalAllWorkUsage = allWorkUsage;
+    try {
+      fakeUsageRows = [
+        { id:'lwu-1', subscription_id:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layanan_nama:'Handuk', qty:1, satuan:'pcs', harga:5000, subtotal:5000, batch_id:'batch-reload-test' },
+        { id:'lwu-2', subscription_id:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layanan_nama:'Sajadah', qty:1, satuan:'pcs', harga:10000, subtotal:10000, batch_id:'batch-reload-test' },
+        { id:'lwu-3', subscription_id:'sub-bulanan-1', tanggal:'2026-09-18', type:'pemakaian', berat_kg:2, catatan:'' }, // baris lama tanpa batch_id sama sekali
+      ];
+      await loadAllWorkUsage();
+      if (allWorkUsage.length !== 3) throw new Error('expected 3 rows loaded, got ' + allWorkUsage.length);
+      const r1 = allWorkUsage.find(u=>u.id==='lwu-1'), r2 = allWorkUsage.find(u=>u.id==='lwu-2'), r3 = allWorkUsage.find(u=>u.id==='lwu-3');
+      if (!r1 || r1.batchId !== 'batch-reload-test') throw new Error('REGRESI: batch_id dari DB tidak ter-mapping ke batchId untuk baris 1: ' + JSON.stringify(r1));
+      if (!r2 || r2.batchId !== 'batch-reload-test') throw new Error('REGRESI: batch_id dari DB tidak ter-mapping ke batchId untuk baris 2: ' + JSON.stringify(r2));
+      if (!r3 || r3.batchId !== null) throw new Error('baris lama tanpa batch_id harus tetap batchId:null (bukan undefined), got: ' + JSON.stringify(r3));
+
+      // Buktikan dampaknya nyata: groupUsageRowsByBatch() harus menggabungkan r1+r2 jadi 1 grup.
+      const groups = groupUsageRowsByBatch(allWorkUsage.filter(u=>u.type==='layanan_tambahan'));
+      if (groups.length !== 1 || groups[0].length !== 2) throw new Error('setelah loadAllWorkUsage(), groupUsageRowsByBatch() harus tetap menyatukan 2 baris batch itu jadi 1 grup: ' + JSON.stringify(groups));
+    } finally {
+      fakeUsageRows = originalFakeUsageRows;
+      allWorkUsage = originalAllWorkUsage;
+    }
   });
 
   await step('usageNotaTextWA() for bulanan customer stays on original kg-based branch', () => {
@@ -1720,9 +1796,10 @@ const result = await page.evaluate(async () => {
     if (html.includes('Cuci Kilat')) throw new Error('usage-sourced card should disappear from the board after pickup: ' + html);
   });
 
-  await step('addExtraService() (Paket Bulanan, non-Tempo) saves estimasi and syncs the new row into allWorkUsage for the board', async () => {
+  await step('addExtraService()+submitExtraServiceBatch() (Paket Bulanan, non-Tempo) saves estimasi and syncs the new row into allWorkUsage for the board', async () => {
     currentSubscriptionId = 'sub-bulanan-1';
     allWorkUsage = [];
+    draftExtraItems = [];
     document.getElementById('extraTanggal').value = '2026-08-24';
     document.getElementById('extraEstimasi').value = '2026-08-26';
     document.getElementById('extraLayanan').value = 'Setrika Jas';
@@ -1730,9 +1807,12 @@ const result = await page.evaluate(async () => {
     document.getElementById('extraSatuan').value = 'pcs';
     document.getElementById('extraHarga').value = '20000';
     await addExtraService();
-    if (allWorkUsage.length !== 1) throw new Error('expected addExtraService (Bulanan) to push a row into allWorkUsage, got ' + allWorkUsage.length);
+    if (allWorkUsage.length !== 0) throw new Error('addExtraService() (Bulanan) hanya boleh mengantre draft, belum boleh mengisi allWorkUsage sebelum di-submit, got ' + allWorkUsage.length);
+    await submitExtraServiceBatch();
+    if (allWorkUsage.length !== 1) throw new Error('expected submitExtraServiceBatch() (Bulanan) to push a row into allWorkUsage, got ' + allWorkUsage.length);
     const row = allWorkUsage[0];
     if (row.layananNama !== 'Setrika Jas' || row.estimasi !== '2026-08-26' || row.subtotal !== 20000) throw new Error('allWorkUsage row mismatch: ' + JSON.stringify(row));
+    closeUsageNotaOptions();
     currentSubscriptionId = 'sub-tempo-1';
   });
 
@@ -1768,15 +1848,15 @@ const result = await page.evaluate(async () => {
     if (!allWorkUsage.some(u=>u.layananNama==='Setrika Jaket' && u.estimasi==='2026-08-27')) throw new Error('missing/mismatched Setrika Jaket row: ' + JSON.stringify(allWorkUsage));
   });
 
-  await step('deleteUsage() removes the row from allWorkUsage, and "Urungkan" restores it (preserving estimasi)', async () => {
+  await step('deleteUsage() removes the row from allWorkUsage, and "Urungkan" restores it (preserving estimasi AND batch_id -- regresi: dulu batch_id ikut hilang saat diurungkan, melepas item dari kartu gabungannya)', async () => {
     currentSubscriptionId = 'sub-tempo-1';
     fakeUsageRows = [
-      { id:'du-1', subscription_id:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layanan_nama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000 },
+      { id:'du-1', subscription_id:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layanan_nama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, batch_id:'batch-du-1' },
     ];
     allWorkUsage = [
-      { id:'du-1', subscriptionId:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layananNama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, workStatus:'belum' },
+      { id:'du-1', subscriptionId:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layananNama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, workStatus:'belum', batchId:'batch-du-1' },
     ];
-    currentUsageList = allWorkUsage.map(u=>({ id:u.id, tanggal:u.tanggal, estimasi:u.estimasi, berat:0, catatan:'', type:u.type, layananNama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal }));
+    currentUsageList = allWorkUsage.map(u=>({ id:u.id, tanggal:u.tanggal, estimasi:u.estimasi, berat:0, catatan:'', type:u.type, layananNama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal, batchId:u.batchId }));
     const originalConfirm = window.confirm;
     window.confirm = () => true;
     await deleteUsage('du-1');
@@ -1791,6 +1871,7 @@ const result = await page.evaluate(async () => {
     const restored = allWorkUsage.find(u=>u.layananNama==='Cuci Sepatu');
     if (!restored) throw new Error('Urungkan should restore the row into allWorkUsage');
     if (restored.estimasi !== '2026-08-25') throw new Error('Urungkan should preserve the estimasi date: ' + JSON.stringify(restored));
+    if (restored.batchId !== 'batch-du-1') throw new Error('REGRESI: Urungkan harus tetap membubuhkan batch_id aslinya, supaya item tidak lepas dari kartu Daftar Tugas gabungannya: ' + JSON.stringify(restored));
   });
 
   await step('deleteUsage() on a plain kg intake ("pemakaian") also removes it from allWorkUsage, and "Urungkan" restores it (preserving berat/estimasi)', async () => {
@@ -1993,6 +2074,25 @@ const result = await page.evaluate(async () => {
     renderWorkBoard();
     html = document.getElementById('workBoardGrid').innerHTML;
     if (html.includes('Cuci Lipat Ekspress')) throw new Error('kartu gabungan yang sudah diambil seharusnya hilang seluruhnya dari papan: ' + html);
+  });
+
+  // Padanan non-Tempo dari test di atas -- ini persis skenario yang dilaporkan user lewat
+  // screenshot (pelanggan Paket Bulanan biasa dengan beberapa layanan tambahan tanggal
+  // sama tapi kartunya terpisah-pisah). Sebelum perbaikan addExtraService()/loadAllWorkUsage(),
+  // baris-baris ini tidak akan pernah punya batch_id yang sama untuk Bulanan.
+  await step('buildWorkItems()/renderWorkBoard(): 1 nota Paket Bulanan (non-Tempo) berisi beberapa layanan tambahan (batch_id sama) tampil sebagai SATU kartu, bukan pecah per layanan (regresi bug nyata dilaporkan lewat screenshot)', async () => {
+    transactions = [];
+    allWorkUsage = [
+      { id:'bwi-1', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Cuci Setrika Super Ekspress', qty:1, satuan:'kg', harga:75900, subtotal:75900, workStatus:'belum', batchId:'batch-fitri' },
+      { id:'bwi-2', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Selimut Kecil', qty:1, satuan:'pcs', harga:5000, subtotal:5000, workStatus:'belum', batchId:'batch-fitri' },
+      { id:'bwi-3', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Selimut Perlak', qty:1, satuan:'pcs', harga:10000, subtotal:10000, workStatus:'belum', batchId:'batch-fitri' },
+    ];
+    renderWorkBoard();
+    const html = document.getElementById('workBoardGrid').innerHTML;
+    const cardCount = (html.match(/class="work-card"/g) || []).length;
+    if (cardCount !== 1) throw new Error(`1 nota Bulanan dengan 3 layanan tambahan (batch_id sama) seharusnya jadi 1 kartu, bukan ${cardCount}: ` + html);
+    if (!html.includes('Cuci Setrika Super Ekspress') || !html.includes('Selimut Kecil') || !html.includes('Selimut Perlak')) throw new Error('kartu gabungan harus tetap menyebutkan ketiga layanan: ' + html);
+    if (!html.includes('Rp90.900')) throw new Error('harga kartu gabungan harus dijumlahkan dari semua layanan (75900+5000+10000=90900): ' + html);
   });
 
   await step('expense catalog: add via addOrUpdateExpenseCatalogItem(), autocomplete fills harga/satuan, edit updates it', async () => {

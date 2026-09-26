@@ -48,6 +48,19 @@ async function loadSubscriptionsFromDB(){
    tidak diikutkan karena tidak punya harga per-baris yang jelas untuk
    ditampilkan di kartu Daftar Tugas. */
 var allWorkUsage = [];
+/* REGRESI BUG NYATA: mapping di sini dulu TIDAK menyertakan batch_id sama
+   sekali, padahal groupUsageRowsByBatch() (js/17-papan-laundry.js) butuh
+   field batchId itu untuk menggabungkan beberapa baris subscription_usage
+   yang ditambahkan sekaligus (Tempo maupun Paket Bulanan biasa) jadi SATU
+   kartu Daftar Tugas. Begitu ditambah lewat submitExtraServiceBatch(),
+   baris-baris itu memang langsung digabung benar di SESI yang sama (karena
+   push manual ke allWorkUsage sudah menyertakan batchId) -- tapi begitu
+   loadAllWorkUsage() dipanggil ulang (reload halaman, login ulang, buka
+   lagi besoknya), batchId-nya hilang lagi karena TIDAK IKUT DIMUAT DARI DB
+   di sini, dan kartunya pecah lagi jadi terpisah satu-satu. Ini akar
+   masalah kenapa perbaikan grouping Tempo sebelumnya (PR #23) kelihatan
+   "belum berhasil" -- bukan logic groupUsageRowsByBatch()-nya yang salah,
+   tapi data batchId-nya yang tidak pernah sampai ke sana lagi setelah reload. */
 async function loadAllWorkUsage(){
   const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
   if(error){ allWorkUsage = []; return; }
@@ -56,7 +69,7 @@ async function loadAllWorkUsage(){
     type:r.type||'pemakaian', layananNama:r.layanan_nama||'', qty:Number(r.qty)||0,
     satuan:r.satuan||'', harga:Number(r.harga)||0, subtotal:Number(r.subtotal)||0,
     berat:Number(r.berat_kg)||0, catatan:r.catatan||'',
-    workStatus:r.work_status||'belum'
+    workStatus:r.work_status||'belum', batchId:r.batch_id||null
   }));
 }
 async function loadAllUsageTotals(){
@@ -283,7 +296,7 @@ async function refreshSubsDetail(){
   document.getElementById('extraSectionHeading').textContent = tempo ? t('Catat Laundry Masuk') : t('Tambah Layanan Lain (di luar paket)');
   document.getElementById('extraSectionHint').textContent = tempo
     ? t('Pilih dari saran katalog atau ketik nama layanan sendiri — bisa tambah beberapa layanan sekaligus sebelum disimpan jadi satu nota.')
-    : t('cth. ekspres — pilih dari saran katalog atau ketik manual, ditagih bersama saat lunas.');
+    : t('cth. ekspres — pilih dari saran katalog atau ketik manual. Bisa tambah beberapa layanan sekaligus sebelum disimpan jadi satu nota, ditagih bersama saat lunas.');
   document.getElementById('extraSectionSubmitBtn').textContent = tempo ? t('+ Tambah Layanan') : t('+ Tambah Layanan Ini');
   document.getElementById('usageListHeading').textContent = tempo ? t('Rekap Riwayat Transaksi (Belum Ditagih)') : t('Riwayat Periode Ini');
   document.getElementById('sumHargaPaketRow').style.display = tempo ? 'none' : 'flex';
@@ -553,26 +566,24 @@ async function addExtraService(){
   const tanggal = document.getElementById('extraTanggal').value || todayISO();
   const estimasi = document.getElementById('extraEstimasi').value || null;
 
-  if(isTempo(s)){
-    draftExtraItems.push({ tanggal, estimasi, nama, qty, satuan, harga, subtotal });
-    document.getElementById('extraLayanan').value = '';
-    document.getElementById('extraQty').value = '1';
-    document.getElementById('extraHarga').value = '';
-    renderExtraDraftList();
-    return;
-  }
-
-  const { data, error } = await sb.from('subscription_usage').insert({
-    subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi,
-    type:'layanan_tambahan', layanan_nama: nama, qty, satuan, harga, subtotal
-  }).select().single();
-  if(error){ showToast(t('Gagal menambah layanan')); return; }
-  allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+  /* Dulu Paket Bulanan biasa (non-Tempo) langsung insert satu-satu di sini
+     TANPA batch_id begitu tombol ditekan -- beda dari Tempo yang sudah lebih
+     dulu antre ke draftExtraItems lalu disimpan sekaligus lewat
+     submitExtraServiceBatch() (dapat batch_id yang sama). Akibatnya kalau
+     kasir menambah beberapa layanan tambahan Paket Bulanan sekaligus untuk
+     satu pelanggan (mis. Handuk + Selimut + Sajadah dalam satu kunjungan),
+     tiap baris jadi kartu Daftar Tugas sendiri-sendiri (regresi bug nyata,
+     dilaporkan lewat screenshot: nama pelanggan & tanggal sama tapi kartu
+     terpisah-pisah). Sekarang SEMUA tipe paket (Tempo maupun biasa) antre
+     dulu ke draftExtraItems dengan cara yang sama, supaya submitExtraServiceBatch()
+     selalu membubuhkan satu batch_id yang sama untuk seluruh layanan yang
+     ditambahkan dalam satu sesi -- groupUsageRowsByBatch() (js/17-papan-laundry.js)
+     lalu menggabungkannya jadi SATU kartu Daftar Tugas, apa pun jenis paketnya. */
+  draftExtraItems.push({ tanggal, estimasi, nama, qty, satuan, harga, subtotal });
   document.getElementById('extraLayanan').value = '';
   document.getElementById('extraQty').value = '1';
   document.getElementById('extraHarga').value = '';
-  await refreshSubsDetail();
-  showToast(t('Layanan tambahan dicatat'));
+  renderExtraDraftList();
 }
 function renderExtraDraftList(){
   const wrap = document.getElementById('extraDraftListWrap');
@@ -627,12 +638,15 @@ async function deleteUsage(id){
     label: t('Urungkan'),
     onClick: async ()=>{
       const payload = item.type==='layanan_tambahan'
-        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal }
+        ? { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, type:'layanan_tambahan', layanan_nama: item.layananNama, qty: item.qty, satuan: item.satuan, harga: item.harga, subtotal: item.subtotal, batch_id: item.batchId||null }
         : { subscription_id: subId, user_id: shopOwnerId, tanggal: item.tanggal, estimasi: item.estimasi, berat_kg: item.berat, catatan: item.catatan, type:'pemakaian' };
       const { data, error: err2 } = await sb.from('subscription_usage').insert(payload).select().single();
       if(err2){ showToast(t('Gagal mengembalikan catatan')); return; }
       if(data && data.type==='layanan_tambahan'){
-        allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum' });
+        // batch_id ikut dipulihkan (bukan sekadar isi lain) -- kalau item ini
+        // aslinya bagian dari satu nota gabungan (lihat komentar loadAllWorkUsage()),
+        // "Urungkan" tidak boleh diam-diam melepaskannya jadi kartu terpisah sendiri.
+        allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum', batchId:data.batch_id||null });
       } else if(data){
         allWorkUsage.push({ id:data.id, subscriptionId:subId, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'pemakaian', layananNama:'', qty:0, satuan:'', harga:0, subtotal:0, berat:Number(data.berat_kg)||0, catatan:data.catatan||'', workStatus:'belum' });
       }
