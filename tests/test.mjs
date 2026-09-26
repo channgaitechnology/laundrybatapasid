@@ -1312,6 +1312,104 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regression: nota yang di-download JPG-nya tajam, tapi begitu dibagikan lewat WA
+  // hasilnya buram -- WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto
+  // (JPG/PNG), berapa pun tinggi resolusi sumbernya, tapi TIDAK PERNAH mengompres file
+  // PDF (dikirim sebagai dokumen apa adanya). buildNotaPDFBlob()/shareOrDownloadNotaPDF()
+  // (js/10-nota-cetak.js) adalah opsi baru supaya user bisa memilih kirim PDF kalau mau
+  // hasil yang pasti tajam. window.jspdf sungguhan tidak bisa dimuat di sandbox test ini
+  // (CDN di-stub kosong oleh page.route() di atas -- lihat komentar di awal file ini),
+  // jadi di sini window.jspdf DIPALSUKAN supaya logic pembungkusan baris & pemanggilan
+  // API jsPDF-nya tetap bisa diverifikasi tanpa jaringan sungguhan.
+  await step('buildNotaPDFBlob(): membungkus lines yang sama dengan versi JPG, pakai font courier monospace, dan rata tengah/indent sesuai flag c/indent tiap baris', async () => {
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [], fonts: [], sizes: [], formats: [] };
+    class FakeJsPDF {
+      constructor(opts){ calls.formats.push(opts.format); }
+      setFont(family, style){ calls.fonts.push(`${family}:${style}`); }
+      setFontSize(s){ calls.sizes.push(s); }
+      text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
+      output(type){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      const lines = [
+        { t: 'Toko Laundry Saya', c:true, b:true, s:12 },
+        { t: `${'Pelanggan'}  : Budi`, s:9, indent:13 },
+        { t: 'Baris biasa rata kiri', s:9 },
+      ];
+      const blob = await buildNotaPDFBlob(lines, 80);
+      if (!(blob instanceof Blob)) throw new Error('buildNotaPDFBlob() harus mengembalikan Blob');
+      if (calls.formats.length !== 1) throw new Error('jsPDF harus dibuat tepat sekali');
+      const [w, h] = calls.formats[0];
+      if (w !== 80) throw new Error('lebar halaman PDF harus sama dengan pageWidthMm yang diminta (80), got ' + w);
+      if (!(h > 0)) throw new Error('tinggi halaman PDF harus dihitung dari jumlah baris, got ' + h);
+      if (!calls.fonts.every(f => f.startsWith('courier:'))) throw new Error('semua baris harus pakai font courier (monospace, sama seperti versi JPG): ' + JSON.stringify(calls.fonts));
+      const centered = calls.texts.find(c => c.str === 'Toko Laundry Saya');
+      if (!centered || centered.align !== 'center') throw new Error('baris berflag c:true harus dirender rata tengah: ' + JSON.stringify(centered));
+      const leftAligned = calls.texts.find(c => c.str === 'Baris biasa rata kiri');
+      if (!leftAligned || leftAligned.align) throw new Error('baris tanpa flag c harus rata kiri (align tidak diset): ' + JSON.stringify(leftAligned));
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
+  await step('shareOrDownloadNotaPDF()/downloadReceiptPDF(): menghasilkan file .pdf (bukan .jpg), dan tetap ikut pola isMobileDevice() yang sama seperti shareOrDownloadNotaImage()', async () => {
+    const originalJspdf = window.jspdf;
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){}
+      text(){}
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = [];
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async (data) => { shareCalls.push(data); };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    try {
+      const trx = { id:'test-pdf-trx-id', kode:'PF-PDF-1', tanggal:'2026-09-26', nama:'Uji PDF', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptPDF();
+      if (shareCalls.length !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got ' + shareCalls.length);
+      if (shareCalls[0].files[0].type !== 'application/pdf') throw new Error('file yang dibagikan harus bertipe application/pdf, got ' + shareCalls[0].files[0].type);
+      if (!shareCalls[0].files[0].name.endsWith('.pdf')) throw new Error('nama file yang dibagikan harus berakhiran .pdf, got ' + shareCalls[0].files[0].name);
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptPDF();
+      if (shareCalls.length !== 0) throw new Error('desktop tidak boleh membuka dialog Share OS untuk PDF juga (sama seperti versi JPG), got ' + shareCalls.length);
+      if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('.pdf')) throw new Error('desktop seharusnya langsung mengunduh file .pdf biasa, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
   await step('buildReceiptHTML() includes clickable wa.me and mailto links with icon badges', () => {
     const html = buildReceiptHTML({ kode:'PF-4', tanggal:'2026-08-27', nama:'Uji HTML', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', catatan:'' });
     if (!html.includes('dikembangkan oleh Tinggiran Tech Studio')) throw new Error('HTML receipt missing studio name');

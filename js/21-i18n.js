@@ -225,6 +225,7 @@ const I18N_EN = {
   'No. WhatsApp pelanggan belum diisi': "Customer's WhatsApp number hasn't been filled in",
   'Nota tidak ditemukan': 'Receipt not found',
   'Gagal membuat gambar nota': 'Failed to create receipt image',
+  'Gagal membuat PDF nota': 'Failed to create receipt PDF',
 
   /* ---------- Daftar Tugas / Papan Laundry ---------- */
   'Daftar Tugas': 'Task Board',
@@ -458,6 +459,8 @@ const I18N_EN = {
   'Gagal mencetak — coba sambungkan ulang printernya': 'Failed to print — try reconnecting the printer',
   'Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.': 'Receipt image downloaded. Open WhatsApp/WhatsApp Business and attach it from your Downloads folder.',
   'Gambar nota diunduh ke folder Download.': 'Receipt image downloaded to your Downloads folder.',
+  'PDF nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download -- PDF tidak dikompres WA, jadi tetap tajam.': "Receipt PDF downloaded. Open WhatsApp/WhatsApp Business and attach it from your Downloads folder -- WhatsApp doesn't recompress PDFs, so it stays sharp.",
+  'PDF nota diunduh ke folder Download.': 'Receipt PDF downloaded to your Downloads folder.',
   'Nota-Transaksi': 'Receipt-Transaction',
   'Nota-Timbangan': 'Receipt-WeighIn',
   'Nota transaksi laundry': 'Laundry transaction receipt',
@@ -964,6 +967,7 @@ const I18N_EN = {
   'Lewati': 'Skip',
   'Tempo — Bayar Nanti (tanpa kuota)': 'Pay Later (no quota)',
   'Unduh / Bagikan Nota (JPG)': 'Download / Share Receipt (JPG)',
+  '📄 Unduh / Bagikan Nota (PDF, kualitas HD)': '📄 Download / Share Receipt (PDF, HD quality)',
   'cth. 50': 'e.g. 50',
   'cth. Cuci + Setrika (pilih dari saran)': 'e.g. Wash + Iron (pick from suggestions)',
   'cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.': 'e.g. express service — from the Regular Catalog, billed together when paid.',

@@ -103,6 +103,15 @@ async function downloadReceiptImage(){
   await shareOrDownloadNotaImage(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
   closeReceiptShareOptions();
 }
+/* Lihat komentar di buildNotaPDFBlob()/shareOrDownloadNotaPDF() (js/10-nota-cetak.js)
+   soal kenapa PDF, bukan cuma JPG resolusi lebih tinggi, yang jadi solusi
+   nyata untuk nota buram saat dibagikan lewat WA. */
+async function downloadReceiptPDF(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
+  await shareOrDownloadNotaPDF(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
+  closeReceiptShareOptions();
+}
 
 /* ===================== PDF: LAPORAN ===================== */
 function downloadReportPDF(){

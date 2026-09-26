@@ -486,6 +486,82 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
     ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
     : t('Gambar nota diunduh ke folder Download.'));
 }
+/* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
+   WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
+   berapa pun tinggi resolusi sumbernya -- sehingga hasilnya tetap terlihat
+   buram di sisi penerima. File PDF sebaliknya dikirim WhatsApp sebagai
+   dokumen, TANPA kompresi ulang apa pun. Jadi versi PDF ini bukan sekadar
+   format alternatif, tapi cara nyata mendapatkan nota yang tetap tajam saat
+   dibagikan lewat WA. Pakai array `lines` yang sama dengan versi JPG/Bluetooth/
+   Browser print supaya isinya tetap konsisten, dan pakai wrapCanvasLines() yang
+   sama juga untuk membungkus baris panjang & menghitung tinggi halaman --
+   font 'Courier New' (canvas) & 'courier' (jsPDF) sama-sama monospace jadi
+   lebar tulisannya sebangun. */
+async function buildNotaPDFBlob(lines, pageWidthMm){
+  const { jsPDF } = window.jspdf;
+  const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
+  const marginMm = 4, lhMm = 4.6;
+  const usableWidthPx = (pageWidthMm - marginMm*2) * SCALE;
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*0.3528*SCALE);
+  const heightMm = Math.max(wrapped.length*lhMm + marginMm*2 + 4, 40);
+  const doc = new jsPDF({ unit:'mm', format:[pageWidthMm, heightMm] });
+  let y = marginMm + 3;
+  wrapped.forEach(line=>{
+    const style = line.b ? (line.it ? 'bolditalic' : 'bold') : (line.it ? 'italic' : 'normal');
+    doc.setFont('courier', style);
+    doc.setFontSize(line.s||9);
+    const indentMm = (line.indentPx||0) / SCALE;
+    if(line.c){
+      doc.text(String(line.t), pageWidthMm/2, y, { align:'center' });
+    } else {
+      doc.text(String(line.t), marginMm + indentMm, y);
+    }
+    y += lhMm;
+  });
+  return doc.output('blob');
+}
+async function shareOrDownloadNotaPDF(lines, filenameBase, pageWidthMm, shareTitle){
+  const blob = await buildNotaPDFBlob(lines, pageWidthMm);
+  const filename = `${filenameBase}.pdf`;
+  if(!blob){ showToast(t('Gagal membuat PDF nota')); return; }
+  saveToDownloadsGallery(blob, filename);
+  try{
+    const file = new File([blob], filename, { type:'application/pdf' });
+    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: filename, text: shareTitle||'' });
+      return;
+    }
+  }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  showToast(isMobileDevice()
+    ? t('PDF nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download -- PDF tidak dikompres WA, jadi tetap tajam.')
+    : t('PDF nota diunduh ke folder Download.'));
+}
+async function downloadUsageNotaPDF(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareOrDownloadNotaPDF(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
+  closeUsageNotaOptions();
+}
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
    Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)
    untuk mengirim nota langsung ke printer thermal 58mm/80mm lewat ESC/POS raw
