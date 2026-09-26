@@ -1323,11 +1323,14 @@ const result = await page.evaluate(async () => {
   // API jsPDF-nya tetap bisa diverifikasi tanpa jaringan sungguhan.
   await step('buildNotaPDFBlob(): membungkus lines yang sama dengan versi JPG, pakai font courier monospace, dan rata tengah/indent sesuai flag c/indent tiap baris', async () => {
     const originalJspdf = window.jspdf;
-    const calls = { texts: [], fonts: [], sizes: [], formats: [] };
+    const calls = { texts: [], fonts: [], sizes: [], formats: [], images: [], textColors: [] };
     class FakeJsPDF {
       constructor(opts){ calls.formats.push(opts.format); }
       setFont(family, style){ calls.fonts.push(`${family}:${style}`); }
       setFontSize(s){ calls.sizes.push(s); }
+      setTextColor(r,g,b){ calls.textColors.push([r,g,b]); }
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
       output(type){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }
@@ -1354,11 +1357,60 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regression: user melaporkan (dengan screenshot PDF asli) versi PERTAMA
+  // buildNotaPDFBlob() tidak menggambar logo toko maupun ikon WA/Email sama
+  // sekali -- cuma teks polos, beda jauh dari versi JPG yang selalu punya
+  // logo lingkaran + badge hijau WA/abu-abu Email. Perbaikannya: logo lewat
+  // addImage() (loadCircularLogoDataURL()), dan badge WA/Email diganti label
+  // teks berwarna ("WA:" hijau, "Email:" merah) di depan nomor/alamatnya.
+  await step('buildNotaPDFBlob(): menggambar logo toko (addImage) dan label warna "WA:"/"Email:" (bukan cuma teks polos) untuk baris berflag icon', async () => {
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [], images: [], textColors: [] };
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){}
+      setTextColor(r,g,b){ calls.textColors.push([r,g,b]); }
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
+      text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      const lines = [
+        { t: '081293228520', c:true, s:6, icon:'wa' },
+        { t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email' },
+      ];
+      await buildNotaPDFBlob(lines, 80);
+      if (calls.images.length !== 1) throw new Error('logo toko harus digambar via addImage() tepat sekali (regresi: versi pertama tidak menggambar logo sama sekali), got ' + calls.images.length);
+      if (calls.images[0].format !== 'PNG' || !String(calls.images[0].data).startsWith('data:image/png')) throw new Error('logo harus berupa data URL PNG: ' + JSON.stringify(calls.images[0]));
+      if (calls.images[0].w !== 16 || calls.images[0].h !== 16) throw new Error('ukuran logo harus 16x16mm (sama seperti buildNotaCanvas): ' + JSON.stringify(calls.images[0]));
+
+      const waLabel = calls.texts.find(c => c.str === 'WA: ');
+      const emailLabel = calls.texts.find(c => c.str === 'Email: ');
+      if (!waLabel) throw new Error('baris icon:"wa" harus punya label "WA: " (regresi: versi pertama cuma cetak nomornya polos tanpa label/ikon apa pun)');
+      if (!emailLabel) throw new Error('baris icon:"email" harus punya label "Email: " (regresi: versi pertama cuma cetak alamatnya polos tanpa label/ikon apa pun)');
+      if (!calls.texts.some(c => c.str === '081293228520')) throw new Error('nomor WA aslinya tetap harus tercetak setelah labelnya');
+      if (!calls.texts.some(c => c.str === 'tinggirantech@gmail.com')) throw new Error('alamat email aslinya tetap harus tercetak setelah labelnya');
+
+      const hasGreenForWA = calls.textColors.some(([r,g,b]) => r===37 && g===211 && b===102);
+      const hasRedForEmail = calls.textColors.some(([r,g,b]) => r===234 && g===67 && b===53);
+      if (!hasGreenForWA) throw new Error('label "WA:" harus diwarnai hijau WhatsApp (#25D366 / rgb 37,211,102): ' + JSON.stringify(calls.textColors));
+      if (!hasRedForEmail) throw new Error('label "Email:" harus diwarnai merah Gmail (#EA4335 / rgb 234,67,53): ' + JSON.stringify(calls.textColors));
+      const resetToBlack = calls.textColors.filter(([r,g,b]) => r===0 && g===0 && b===0).length;
+      if (resetToBlack < 2) throw new Error('warna harus direset ke hitam (0,0,0) setelah tiap label, supaya baris berikutnya tidak ikut berwarna: ' + JSON.stringify(calls.textColors));
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
   await step('shareOrDownloadNotaPDF()/downloadReceiptPDF(): menghasilkan file .pdf (bukan .jpg), dan tetap ikut pola isMobileDevice() yang sama seperti shareOrDownloadNotaImage()', async () => {
     const originalJspdf = window.jspdf;
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
+      setTextColor(){} getTextWidth(str){ return String(str).length * 2; }
+      addImage(){}
       text(){}
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }

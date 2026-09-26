@@ -525,6 +525,27 @@ async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm){
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
   alert(`${t('File JPG HD tersimpan:')} ${filename}\n\n${t('PENTING -- supaya TIDAK ikut dikompres WhatsApp, JANGAN pakai tombol Bagikan/Share biasa. Kirim manual begini:')}\n${t('1. Buka WhatsApp, pilih obrolan tujuan')}\n${t('2. Tekan ikon lampiran (📎)')}\n${t('3. Pilih "Dokumen" (BUKAN Galeri/Foto)')}\n${t('4. Cari & pilih file di atas dari folder Download')}`);
 }
+/* Render shopLogoSrc() ke canvas persegi kecil dengan clip lingkaran (sama
+   seperti logo di buildNotaCanvas()), lalu kembalikan sebagai data URL PNG --
+   jsPDF butuh data gambar mentah (base64/Image element langsung tidak selalu
+   konsisten antar versi), dan PNG dipilih karena selalu valid apapun format
+   sumbernya (JPEG upload user maupun ikon default). null kalau logo gagal
+   dimuat (mis. belum ada koneksi ke Supabase Storage) -- caller tinggal skip
+   menggambar logo, sama seperti try/catch di buildNotaCanvas(). */
+async function loadCircularLogoDataURL(sizePx){
+  try{
+    const img = await loadImageEl(shopLogoSrc());
+    const c = document.createElement('canvas');
+    c.width = sizePx; c.height = sizePx;
+    const cctx = c.getContext('2d');
+    cctx.beginPath();
+    cctx.arc(sizePx/2, sizePx/2, sizePx/2, 0, Math.PI*2);
+    cctx.closePath();
+    cctx.clip();
+    cctx.drawImage(img, 0, 0, sizePx, sizePx);
+    return c.toDataURL('image/png');
+  }catch(e){ return null; }
+}
 /* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
    WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
    berapa pun tinggi resolusi sumbernya -- sehingga hasilnya tetap terlihat
@@ -535,24 +556,49 @@ async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm){
    Browser print supaya isinya tetap konsisten, dan pakai wrapCanvasLines() yang
    sama juga untuk membungkus baris panjang & menghitung tinggi halaman --
    font 'Courier New' (canvas) & 'courier' (jsPDF) sama-sama monospace jadi
-   lebar tulisannya sebangun. */
+   lebar tulisannya sebangun.
+
+   Logo toko & badge ikon WA/Email (regresi bug nyata -- versi pertama PDF ini
+   TIDAK menggambar keduanya sama sekali, cuma teks polos): logo digambar
+   lewat addImage() (lihat loadCircularLogoDataURL() di atas), sedangkan badge
+   WA/Email TIDAK direplikasi sebagai vektor persis seperti canvas (jsPDF versi
+   ini tidak punya cara mudah menggambar path SVG arbitrer) -- diganti label
+   teks berwarna ("WA:"/"Email:") di depan nomor/alamat, cukup untuk pembaca
+   tahu itu kontak apa tanpa perlu ikon grafis persis. */
 async function buildNotaPDFBlob(lines, pageWidthMm){
   const { jsPDF } = window.jspdf;
   const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
-  const marginMm = 4, lhMm = 4.6;
+  const marginMm = 4, lhMm = 4.6, logoSizeMm = 16;
   const usableWidthPx = (pageWidthMm - marginMm*2) * SCALE;
   const measureCtx = document.createElement('canvas').getContext('2d');
   const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*0.3528*SCALE);
-  const heightMm = Math.max(wrapped.length*lhMm + marginMm*2 + 4, 40);
+  const logoDataUrl = await loadCircularLogoDataURL(256);
+  const heightMm = Math.max(wrapped.length*lhMm + marginMm*2 + 4 + (logoDataUrl ? logoSizeMm + 3 : 0), 40);
   const doc = new jsPDF({ unit:'mm', format:[pageWidthMm, heightMm] });
-  let y = marginMm + 3;
+  const centerXmm = pageWidthMm/2;
+  let y = marginMm;
+  if(logoDataUrl){
+    doc.addImage(logoDataUrl, 'PNG', centerXmm - logoSizeMm/2, y, logoSizeMm, logoSizeMm);
+    y += logoSizeMm + 3;
+  }
+  y += 3;
   wrapped.forEach(line=>{
     const style = line.b ? (line.it ? 'bolditalic' : 'bold') : (line.it ? 'italic' : 'normal');
     doc.setFont('courier', style);
     doc.setFontSize(line.s||9);
     const indentMm = (line.indentPx||0) / SCALE;
-    if(line.c){
-      doc.text(String(line.t), pageWidthMm/2, y, { align:'center' });
+    if(line.icon){
+      const label = line.icon==='wa' ? 'WA: ' : 'Email: ';
+      const color = line.icon==='wa' ? [37,211,102] : [234,67,53];
+      const labelW = doc.getTextWidth(label);
+      const textW = doc.getTextWidth(String(line.t));
+      const startX = line.c ? (centerXmm - (labelW+textW)/2) : (marginMm + indentMm);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(label, startX, y);
+      doc.setTextColor(0, 0, 0);
+      doc.text(String(line.t), startX + labelW, y);
+    } else if(line.c){
+      doc.text(String(line.t), centerXmm, y, { align:'center' });
     } else {
       doc.text(String(line.t), marginMm + indentMm, y);
     }
