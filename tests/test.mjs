@@ -1323,12 +1323,11 @@ const result = await page.evaluate(async () => {
   // API jsPDF-nya tetap bisa diverifikasi tanpa jaringan sungguhan.
   await step('buildNotaPDFBlob(): membungkus lines yang sama dengan versi JPG, pakai font courier monospace, dan rata tengah/indent sesuai flag c/indent tiap baris', async () => {
     const originalJspdf = window.jspdf;
-    const calls = { texts: [], fonts: [], sizes: [], formats: [], images: [], textColors: [] };
+    const calls = { texts: [], fonts: [], sizes: [], formats: [], images: [] };
     class FakeJsPDF {
       constructor(opts){ calls.formats.push(opts.format); }
       setFont(family, style){ calls.fonts.push(`${family}:${style}`); }
       setFontSize(s){ calls.sizes.push(s); }
-      setTextColor(r,g,b){ calls.textColors.push([r,g,b]); }
       getTextWidth(str){ return String(str).length * 2; }
       addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
@@ -1357,27 +1356,24 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  // Regression, 2 iterasi: (1) user melaporkan (screenshot PDF asli) versi
+  // Regression, 3 iterasi: (1) user melaporkan (screenshot PDF asli) versi
   // PERTAMA buildNotaPDFBlob() tidak menggambar logo toko maupun ikon WA/Email
   // sama sekali -- cuma teks polos. (2) Perbaikan pertama (label teks
-  // berwarna "WA:"/"Email:") DITOLAK user -- user tegaskan itu tetap cuma
-  // tulisan, bukan logo/ikon sungguhan. Perbaikan final: drawIconBadgePDF()
-  // menggambar bentuk vektor SUNGGUHAN (lingkaran hijau utk WA, amplop merah
-  // utk Email) lewat primitif bawaan jsPDF (roundedRect/circle/rect/line).
-  await step('buildNotaPDFBlob(): menggambar logo toko (addImage) DAN ikon vektor sungguhan (bukan cuma label teks berwarna) untuk baris berflag icon wa/email', async () => {
+  // berwarna "WA:"/"Email:") DITOLAK -- masih cuma tulisan. (3) Perbaikan
+  // kedua (bentuk vektor buatan sendiri: roundedRect+circle polos) JUGA
+  // DITOLAK -- user melampirkan screenshot logo WhatsApp asli dan menegaskan
+  // hasilnya masih salah/tidak mirip. Perbaikan final: svgStringToPNGDataURL()
+  // merasterisasi iconBadgeSVG() yang SAMA PERSIS dipakai nota versi HTML
+  // (bubble hijau + gagang telepon asli, amplop + flap merah asli) jadi PNG,
+  // lalu di-addImage() -- dijamin identik bentuknya, bukan reka ulang lagi.
+  await step('buildNotaPDFBlob(): menggambar logo toko DAN ikon WA/Email lewat addImage() memakai SVG yang sama persis dengan iconBadgeSVG() (bukan reka ulang bentuk sendiri)', async () => {
     const originalJspdf = window.jspdf;
-    const calls = { texts: [], images: [], fillColors: [], roundedRects: [], circles: [], rects: [] };
+    const calls = { texts: [], images: [] };
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
-      setFillColor(r,g,b){ calls.fillColors.push([r,g,b]); }
-      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
-      roundedRect(x,y,w,h,rx,ry,style){ calls.roundedRects.push({x,y,w,h,style}); }
-      circle(x,y,r,style){ calls.circles.push({x,y,r,style}); }
-      rect(x,y,w,h,style){ calls.rects.push({x,y,w,h,style}); }
-      line(){}
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }
@@ -1388,21 +1384,19 @@ const result = await page.evaluate(async () => {
         { t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email' },
       ];
       await buildNotaPDFBlob(lines, 80);
-      if (calls.images.length !== 1) throw new Error('logo toko harus digambar via addImage() tepat sekali (regresi: versi pertama tidak menggambar logo sama sekali), got ' + calls.images.length);
-      if (calls.images[0].format !== 'PNG' || !String(calls.images[0].data).startsWith('data:image/png')) throw new Error('logo harus berupa data URL PNG: ' + JSON.stringify(calls.images[0]));
-      if (calls.images[0].w !== 16 || calls.images[0].h !== 16) throw new Error('ukuran logo harus 16x16mm (sama seperti buildNotaCanvas): ' + JSON.stringify(calls.images[0]));
+      // 3 gambar: logo toko + ikon WA + ikon Email, semuanya lewat addImage() PNG.
+      if (calls.images.length !== 3) throw new Error('harus ada tepat 3 addImage() (logo + ikon WA + ikon Email), got ' + calls.images.length + ': ' + JSON.stringify(calls.images.map(i=>({x:i.x,y:i.y,w:i.w}))));
+      if (!calls.images.every(img => img.format === 'PNG' && String(img.data).startsWith('data:image/png'))) throw new Error('semua gambar (logo & ikon) harus berupa data URL PNG: ' + JSON.stringify(calls.images));
+      const logoImg = calls.images.find(img => img.w === 16 && img.h === 16);
+      if (!logoImg) throw new Error('logo toko harus digambar 16x16mm (sama seperti buildNotaCanvas): ' + JSON.stringify(calls.images));
+      const iconImgs = calls.images.filter(img => img !== logoImg);
+      if (iconImgs.length !== 2) throw new Error('harus ada tepat 2 gambar ikon (WA & Email) selain logo: ' + JSON.stringify(calls.images));
 
-      // Bukan lagi cuma label teks "WA: "/"Email: " (ditolak user) -- teks yang
-      // dicetak untuk baris icon harus PERSIS isi aslinya, tanpa prefix apa pun.
-      if (calls.texts.some(c => c.str === 'WA: ' || c.str === 'Email: ')) throw new Error('REGRESI: masih pakai label teks "WA:"/"Email:" -- user sudah menegaskan itu bukan ikon sungguhan, harus diganti bentuk vektor');
+      // Teks yang dicetak untuk baris icon harus PERSIS isi aslinya, tanpa
+      // prefix "WA:"/"Email:" apa pun (itu perbaikan yang sudah ditolak user).
+      if (calls.texts.some(c => c.str === 'WA: ' || c.str === 'Email: ')) throw new Error('REGRESI: masih pakai label teks "WA:"/"Email:" alih-alih ikon gambar sungguhan');
       if (!calls.texts.some(c => c.str === '081293228520')) throw new Error('nomor WA aslinya (tanpa prefix) tetap harus tercetak');
       if (!calls.texts.some(c => c.str === 'tinggirantech@gmail.com')) throw new Error('alamat email aslinya (tanpa prefix) tetap harus tercetak');
-
-      const hasGreenFill = calls.fillColors.some(([r,g,b]) => r===37 && g===211 && b===102);
-      if (!hasGreenFill) throw new Error('badge WA harus diisi hijau WhatsApp (#25D366 / rgb 37,211,102): ' + JSON.stringify(calls.fillColors));
-      if (calls.roundedRects.length < 1) throw new Error('badge WA harus digambar sebagai bentuk vektor (roundedRect), bukan cuma teks -- got ' + calls.roundedRects.length);
-      if (calls.circles.length < 1) throw new Error('badge WA harus punya lingkaran putih di tengahnya (circle), bukan cuma teks -- got ' + calls.circles.length);
-      if (calls.rects.length < 1) throw new Error('badge Email harus digambar sebagai bentuk amplop (rect), bukan cuma teks -- got ' + calls.rects.length);
     } finally {
       if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
     }
@@ -1415,8 +1409,6 @@ const result = await page.evaluate(async () => {
       setFont(){} setFontSize(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(){}
-      setFillColor(){} setDrawColor(){} setLineWidth(){}
-      roundedRect(){} circle(){} rect(){} line(){}
       text(){}
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
     }

@@ -324,9 +324,13 @@ const ICON_WA_PHONE_PATH = 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.2
 const ICON_WA_PHONE_XF = { tx:6.48, ty:6.48, scale:0.46 };
 const ICON_EMAIL_BODY = { x:2, y:5, w:20, h:14 };
 const ICON_EMAIL_FLAP_PATH = 'M3 6.5 L12 14.5 L21 6.5';
+/* xmlns WAJIB ada -- tanpa itu <img>/new Image() menolak me-load SVG ini
+   lewat blob URL (dipakai svgStringToPNGDataURL() di bawah untuk nota PDF).
+   Aman ditambahkan meski dipakai juga lewat innerHTML (js/15-nota-receipt.js)
+   -- xmlns diabaikan begitu saja saat SVG disisipkan ke dokumen HTML. */
 function iconBadgeSVG(kind){
   if(kind==='wa'){
-    return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="${ICON_WA_SQUARE.x}" y="${ICON_WA_SQUARE.y}" width="${ICON_WA_SQUARE.w}" height="${ICON_WA_SQUARE.h}" rx="${ICON_WA_SQUARE.rx}" fill="#25D366"/>
       <path d="${ICON_WA_TAIL_PATH}" fill="#fff"/>
       <circle cx="${ICON_WA_RING.cx}" cy="${ICON_WA_RING.cy}" r="${ICON_WA_RING.rOuter}" fill="#fff"/>
@@ -336,7 +340,7 @@ function iconBadgeSVG(kind){
       </g>
     </svg>`;
   }
-  return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
     <rect x="${ICON_EMAIL_BODY.x}" y="${ICON_EMAIL_BODY.y}" width="${ICON_EMAIL_BODY.w}" height="${ICON_EMAIL_BODY.h}" rx="2" fill="#F1F3F4" stroke="#BDC1C6" stroke-width="1.8"/>
     <path d="${ICON_EMAIL_FLAP_PATH}" fill="none" stroke="#EA4335" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
@@ -546,6 +550,28 @@ async function loadCircularLogoDataURL(sizePx){
     return c.toDataURL('image/png');
   }catch(e){ return null; }
 }
+/* Rasterisasi string SVG (dipakai bareng iconBadgeSVG() di atas -- SVG yang
+   SAMA PERSIS dipakai nota versi HTML) jadi data URL PNG lewat canvas
+   perantara, supaya bisa di-addImage() ke PDF. Ini yang membuat ikon WA/Email
+   di PDF benar-benar identik bentuknya dengan versi HTML/JPG (bubble hijau +
+   gagang telepon asli, amplop + flap merah asli), bukan replika kasar dari
+   primitif bentuk jsPDF (percobaan sebelumnya cuma lingkaran hijau polos --
+   user menunjukkan screenshot logo WA asli dan menegaskan itu masih salah). */
+function svgStringToPNGDataURL(svgString, sizePx){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(new Blob([svgString], { type:'image/svg+xml' }));
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement('canvas');
+      c.width = sizePx; c.height = sizePx;
+      c.getContext('2d').drawImage(img, 0, 0, sizePx, sizePx);
+      URL.revokeObjectURL(url);
+      try{ resolve(c.toDataURL('image/png')); }catch(e){ reject(e); }
+    };
+    img.onerror = (e)=>{ URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
 /* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
    WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
    berapa pun tinggi resolusi sumbernya -- sehingga hasilnya tetap terlihat
@@ -558,34 +584,14 @@ async function loadCircularLogoDataURL(sizePx){
    font 'Courier New' (canvas) & 'courier' (jsPDF) sama-sama monospace jadi
    lebar tulisannya sebangun.
 
-   Logo toko & badge ikon WA/Email (regresi bug nyata -- versi pertama PDF ini
-   TIDAK menggambar keduanya sama sekali, cuma teks polos, lalu versi kedua
-   cuma ganti jadi label teks berwarna "WA:"/"Email:" yang user tegaskan
-   TETAP bukan logo/ikon sungguhan): logo digambar lewat addImage() (lihat
-   loadCircularLogoDataURL() di atas). Badge WA/Email digambar sebagai bentuk
-   vektor SUNGGUHAN lewat drawIconBadgePDF() di bawah -- bukan path SVG
-   presisi seperti drawIconBadgeOnCanvas() (jsPDF versi ini tidak punya cara
-   mudah menggambar path Bezier arbitrer), tapi bentuk lingkaran/amplop
-   sederhana dari primitif bawaan jsPDF (roundedRect/circle/rect/line) yang
-   tetap kebaca sebagai ikon WA (bulat hijau) & Email (amplop merah), bukan
-   cuma teks. */
-function drawIconBadgePDF(doc, kind, x, y, size){
-  if(kind==='wa'){
-    doc.setFillColor(37,211,102);
-    doc.roundedRect(x, y, size, size, size*0.23, size*0.23, 'F');
-    doc.setFillColor(255,255,255);
-    doc.circle(x+size/2, y+size/2, size*0.32, 'F');
-  } else {
-    doc.setFillColor(241,243,244);
-    doc.setDrawColor(189,193,198);
-    doc.setLineWidth(size*0.03);
-    doc.rect(x, y+size*0.18, size, size*0.6, 'FD');
-    doc.setDrawColor(234,67,53);
-    doc.setLineWidth(size*0.06);
-    doc.line(x, y+size*0.18, x+size/2, y+size*0.55);
-    doc.line(x+size/2, y+size*0.55, x+size, y+size*0.18);
-  }
-}
+   Logo toko & badge ikon WA/Email (regresi bug nyata, 2 iterasi sebelumnya
+   masih ditolak user): versi pertama PDF ini TIDAK menggambar logo/ikon sama
+   sekali (cuma teks polos); versi kedua ganti jadi label teks berwarna
+   "WA:"/"Email:" (masih bukan ikon); versi ketiga ganti jadi bentuk vektor
+   buatan sendiri (roundedRect+circle polos) yang TIDAK mirip logo WhatsApp
+   asli. Perbaikan final: pakai ULANG SVG yang SAMA PERSIS dengan iconBadgeSVG()
+   (dipakai nota versi HTML) lewat svgStringToPNGDataURL() di atas, supaya
+   bentuknya identik -- bukan reka ulang bentuk baru lagi. */
 async function buildNotaPDFBlob(lines, pageWidthMm){
   const { jsPDF } = window.jspdf;
   const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
@@ -593,7 +599,11 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
   const usableWidthPx = (pageWidthMm - marginMm*2) * SCALE;
   const measureCtx = document.createElement('canvas').getContext('2d');
   const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*0.3528*SCALE);
-  const logoDataUrl = await loadCircularLogoDataURL(256);
+  const [logoDataUrl, waIconDataUrl, emailIconDataUrl] = await Promise.all([
+    loadCircularLogoDataURL(256),
+    svgStringToPNGDataURL(iconBadgeSVG('wa'), 128).catch(()=>null),
+    svgStringToPNGDataURL(iconBadgeSVG('email'), 128).catch(()=>null),
+  ]);
   const heightMm = Math.max(wrapped.length*lhMm + marginMm*2 + 4 + (logoDataUrl ? logoSizeMm + 3 : 0), 40);
   const doc = new jsPDF({ unit:'mm', format:[pageWidthMm, heightMm] });
   const centerXmm = pageWidthMm/2;
@@ -615,7 +625,8 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
       const textW = doc.getTextWidth(String(line.t));
       const totalW = sizeMm + gapMm + textW;
       const startX = line.c ? (centerXmm - totalW/2) : (marginMm + indentMm);
-      drawIconBadgePDF(doc, line.icon, startX, y - sizeUnitMm*0.9, sizeMm);
+      const iconDataUrl = line.icon==='wa' ? waIconDataUrl : emailIconDataUrl;
+      if(iconDataUrl) doc.addImage(iconDataUrl, 'PNG', startX, y - sizeUnitMm*0.9, sizeMm, sizeMm);
       doc.text(String(line.t), startX + sizeMm + gapMm, y);
     } else if(line.c){
       doc.text(String(line.t), centerXmm, y, { align:'center' });
