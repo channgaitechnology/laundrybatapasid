@@ -324,9 +324,13 @@ const ICON_WA_PHONE_PATH = 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.2
 const ICON_WA_PHONE_XF = { tx:6.48, ty:6.48, scale:0.46 };
 const ICON_EMAIL_BODY = { x:2, y:5, w:20, h:14 };
 const ICON_EMAIL_FLAP_PATH = 'M3 6.5 L12 14.5 L21 6.5';
+/* xmlns WAJIB ada -- tanpa itu <img>/new Image() menolak me-load SVG ini
+   lewat blob URL (dipakai svgStringToPNGDataURL() di bawah untuk nota PDF).
+   Aman ditambahkan meski dipakai juga lewat innerHTML (js/15-nota-receipt.js)
+   -- xmlns diabaikan begitu saja saat SVG disisipkan ke dokumen HTML. */
 function iconBadgeSVG(kind){
   if(kind==='wa'){
-    return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="${ICON_WA_SQUARE.x}" y="${ICON_WA_SQUARE.y}" width="${ICON_WA_SQUARE.w}" height="${ICON_WA_SQUARE.h}" rx="${ICON_WA_SQUARE.rx}" fill="#25D366"/>
       <path d="${ICON_WA_TAIL_PATH}" fill="#fff"/>
       <circle cx="${ICON_WA_RING.cx}" cy="${ICON_WA_RING.cy}" r="${ICON_WA_RING.rOuter}" fill="#fff"/>
@@ -336,7 +340,7 @@ function iconBadgeSVG(kind){
       </g>
     </svg>`;
   }
-  return `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
     <rect x="${ICON_EMAIL_BODY.x}" y="${ICON_EMAIL_BODY.y}" width="${ICON_EMAIL_BODY.w}" height="${ICON_EMAIL_BODY.h}" rx="2" fill="#F1F3F4" stroke="#BDC1C6" stroke-width="1.8"/>
     <path d="${ICON_EMAIL_FLAP_PATH}" fill="none" stroke="#EA4335" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
@@ -464,10 +468,13 @@ async function buildNotaCanvas(lines, pageWidthMm){
 
   return canvas;
 }
-async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
+async function buildNotaJPEGBlob(lines, pageWidthMm){
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
+  return await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
+}
+async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
+  const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
-  const blob = await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
   saveToDownloadsGallery(blob, filename);
   try{
@@ -485,6 +492,211 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   showToast(isMobileDevice()
     ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
     : t('Gambar nota diunduh ke folder Download.'));
+}
+/* ===================== NOTA JPG "HD" (DIKIRIM SEBAGAI DOKUMEN) =====================
+   PERCOBAAN PERTAMA (sudah dicoba & GAGAL di HP asli -- lihat riwayat git):
+   membagikan file .jpg lewat navigator.share() dengan File bertipe
+   application/octet-stream, berharap WhatsApp mengenalinya sebagai Dokumen.
+   Ternyata Chrome/Android SENDIRI yang menolak: navigator.canShare() melihat
+   ketidakcocokan ekstensi .jpg dengan MIME generik itu dan menganggapnya
+   TIDAK didukung untuk dibagikan sama sekali (demi keamanan, mencegah situs
+   memalsukan jenis file) -- akibatnya kode selalu jatuh ke unduh biasa, dan
+   kalaupun user lalu mencoba bagikan file itu manual dari galeri, filenya
+   tetap dikenali sebagai foto biasa (MIME asli image/jpeg) dan tetap
+   dikompres WA seperti biasa. Jadi trik MIME ini TIDAK BISA dipaksakan lewat
+   Web Share API dari situs web -- baik Chrome maupun WhatsApp yang menolak,
+   bukan bug di app ini.
+
+   SATU-SATUNYA cara JPG beneran tidak dikompres WA: pakai tombol "Dokumen"
+   DI DALAM app WhatsApp sendiri (bukan lewat dialog Share dari luar) --
+   fitur asli WhatsApp untuk kirim file apa adanya. Ini tidak bisa dipicu
+   otomatis dari web, jadi di sini kita cuma memaksa unduh file (skip
+   navigator.share() sama sekali, supaya user tidak salah pakai tombol Share
+   biasa yang pasti berujung terkompres lagi) lalu memandu user lewat
+   alert() -- dipilih alert() (bukan showToast() yang cuma tampil sebentar)
+   karena isinya langkah-demi-langkah yang harus dibaca sampai selesai, sama
+   seperti pola kode undangan/kode pendaftaran di js/02-init-data.js &
+   js/05-admin.js. */
+async function shareNotaImageAsDocument(lines, filenameBase, pageWidthMm){
+  const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
+  const filename = `${filenameBase}-HD.jpg`;
+  if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
+  saveToDownloadsGallery(blob, filename);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  alert(`${t('File JPG HD tersimpan:')} ${filename}\n\n${t('PENTING -- supaya TIDAK ikut dikompres WhatsApp, JANGAN pakai tombol Bagikan/Share biasa. Kirim manual begini:')}\n${t('1. Buka WhatsApp, pilih obrolan tujuan')}\n${t('2. Tekan ikon lampiran (📎)')}\n${t('3. Pilih "Dokumen" (BUKAN Galeri/Foto)')}\n${t('4. Cari & pilih file di atas dari folder Download')}`);
+}
+/* Render shopLogoSrc() ke canvas persegi kecil dengan clip lingkaran (sama
+   seperti logo di buildNotaCanvas()), lalu kembalikan sebagai data URL PNG --
+   jsPDF butuh data gambar mentah (base64/Image element langsung tidak selalu
+   konsisten antar versi), dan PNG dipilih karena selalu valid apapun format
+   sumbernya (JPEG upload user maupun ikon default). null kalau logo gagal
+   dimuat (mis. belum ada koneksi ke Supabase Storage) -- caller tinggal skip
+   menggambar logo, sama seperti try/catch di buildNotaCanvas(). */
+async function loadCircularLogoDataURL(sizePx){
+  try{
+    const img = await loadImageEl(shopLogoSrc());
+    const c = document.createElement('canvas');
+    c.width = sizePx; c.height = sizePx;
+    const cctx = c.getContext('2d');
+    cctx.beginPath();
+    cctx.arc(sizePx/2, sizePx/2, sizePx/2, 0, Math.PI*2);
+    cctx.closePath();
+    cctx.clip();
+    cctx.drawImage(img, 0, 0, sizePx, sizePx);
+    return c.toDataURL('image/png');
+  }catch(e){ return null; }
+}
+/* Rasterisasi string SVG (dipakai bareng iconBadgeSVG() di atas -- SVG yang
+   SAMA PERSIS dipakai nota versi HTML) jadi data URL PNG lewat canvas
+   perantara, supaya bisa di-addImage() ke PDF. Ini yang membuat ikon WA/Email
+   di PDF benar-benar identik bentuknya dengan versi HTML/JPG (bubble hijau +
+   gagang telepon asli, amplop + flap merah asli), bukan replika kasar dari
+   primitif bentuk jsPDF (percobaan sebelumnya cuma lingkaran hijau polos --
+   user menunjukkan screenshot logo WA asli dan menegaskan itu masih salah). */
+function svgStringToPNGDataURL(svgString, sizePx){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(new Blob([svgString], { type:'image/svg+xml' }));
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement('canvas');
+      c.width = sizePx; c.height = sizePx;
+      c.getContext('2d').drawImage(img, 0, 0, sizePx, sizePx);
+      URL.revokeObjectURL(url);
+      try{ resolve(c.toDataURL('image/png')); }catch(e){ reject(e); }
+    };
+    img.onerror = (e)=>{ URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+/* ===================== NOTA VERSI PDF (KUALITAS HD SAAT DIBAGIKAN) =====================
+   WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto (JPG/PNG) --
+   berapa pun tinggi resolusi sumbernya -- sehingga hasilnya tetap terlihat
+   buram di sisi penerima. File PDF sebaliknya dikirim WhatsApp sebagai
+   dokumen, TANPA kompresi ulang apa pun. Jadi versi PDF ini bukan sekadar
+   format alternatif, tapi cara nyata mendapatkan nota yang tetap tajam saat
+   dibagikan lewat WA. Pakai array `lines` yang sama dengan versi JPG/Bluetooth/
+   Browser print supaya isinya tetap konsisten, dan pakai wrapCanvasLines() yang
+   sama juga untuk membungkus baris panjang & menghitung tinggi halaman --
+   font 'Courier New' (canvas) & 'courier' (jsPDF) sama-sama monospace jadi
+   lebar tulisannya sebangun.
+
+   Logo toko & badge ikon WA/Email (regresi bug nyata, 2 iterasi sebelumnya
+   masih ditolak user): versi pertama PDF ini TIDAK menggambar logo/ikon sama
+   sekali (cuma teks polos); versi kedua ganti jadi label teks berwarna
+   "WA:"/"Email:" (masih bukan ikon); versi ketiga ganti jadi bentuk vektor
+   buatan sendiri (roundedRect+circle polos) yang TIDAK mirip logo WhatsApp
+   asli. Perbaikan final: pakai ULANG SVG yang SAMA PERSIS dengan iconBadgeSVG()
+   (dipakai nota versi HTML) lewat svgStringToPNGDataURL() di atas, supaya
+   bentuknya identik -- bukan reka ulang bentuk baru lagi. */
+async function buildNotaPDFBlob(lines, pageWidthMm){
+  const { jsPDF } = window.jspdf;
+  const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
+  const marginMm = 4, lhMm = 4.6, logoSizeMm = 16;
+  const usableWidthPx = (pageWidthMm - marginMm*2) * SCALE;
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*0.3528*SCALE);
+  const [logoDataUrl, waIconDataUrl, emailIconDataUrl] = await Promise.all([
+    loadCircularLogoDataURL(256),
+    svgStringToPNGDataURL(iconBadgeSVG('wa'), 128).catch(()=>null),
+    svgStringToPNGDataURL(iconBadgeSVG('email'), 128).catch(()=>null),
+  ]);
+  const heightMm = Math.max(wrapped.length*lhMm + marginMm*2 + 4 + (logoDataUrl ? logoSizeMm + 3 : 0), 40);
+  const doc = new jsPDF({ unit:'mm', format:[pageWidthMm, heightMm] });
+  const centerXmm = pageWidthMm/2;
+  let y = marginMm;
+  if(logoDataUrl){
+    doc.addImage(logoDataUrl, 'PNG', centerXmm - logoSizeMm/2, y, logoSizeMm, logoSizeMm);
+    y += logoSizeMm + 3;
+  }
+  y += 3;
+  wrapped.forEach(line=>{
+    const style = line.b ? (line.it ? 'bolditalic' : 'bold') : (line.it ? 'italic' : 'normal');
+    doc.setFont('courier', style);
+    doc.setFontSize(line.s||9);
+    const indentMm = (line.indentPx||0) / SCALE;
+    if(line.icon){
+      const sizeUnitMm = (line.s||9)*0.3528; // padanan px=ptToPx(line.s) di canvas, tanpa SCALE karena jsPDF sudah dalam mm
+      const sizeMm = sizeUnitMm*1.5; // padanan d=px*1.5
+      const gapMm = 1.3; // padanan mmToPx(1.3), sudah dalam mm jadi tidak perlu dibagi SCALE
+      const textW = doc.getTextWidth(String(line.t));
+      const totalW = sizeMm + gapMm + textW;
+      const startX = line.c ? (centerXmm - totalW/2) : (marginMm + indentMm);
+      const iconDataUrl = line.icon==='wa' ? waIconDataUrl : emailIconDataUrl;
+      if(iconDataUrl) doc.addImage(iconDataUrl, 'PNG', startX, y - sizeUnitMm*0.9, sizeMm, sizeMm);
+      doc.text(String(line.t), startX + sizeMm + gapMm, y);
+    } else if(line.c){
+      doc.text(String(line.t), centerXmm, y, { align:'center' });
+    } else {
+      doc.text(String(line.t), marginMm + indentMm, y);
+    }
+    y += lhMm;
+  });
+  return doc.output('blob');
+}
+async function shareOrDownloadNotaPDF(lines, filenameBase, pageWidthMm, shareTitle){
+  const blob = await buildNotaPDFBlob(lines, pageWidthMm);
+  const filename = `${filenameBase}.pdf`;
+  if(!blob){ showToast(t('Gagal membuat PDF nota')); return; }
+  saveToDownloadsGallery(blob, filename);
+  try{
+    const file = new File([blob], filename, { type:'application/pdf' });
+    if(isMobileDevice() && navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: filename, text: shareTitle||'' });
+      return;
+    }
+  }catch(e){ /* dibatalkan atau tidak didukung, lanjut unduh biasa */ }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  showToast(isMobileDevice()
+    ? t('PDF nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download -- PDF tidak dikompres WA, jadi tetap tajam.')
+    : t('PDF nota diunduh ke folder Download.'));
+}
+async function downloadUsageNotaPDF(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareOrDownloadNotaPDF(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
+  closeUsageNotaOptions();
+}
+async function downloadUsageNotaImageHD(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageNotaPDFLines(newItems[newItems.length-1], s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareNotaImageAsDocument(lines, filenameBase, 80);
+  closeUsageNotaOptions();
 }
 /* ===================== CETAK BLUETOOTH (PRINTER THERMAL) =====================
    Pakai Web Bluetooth API (Chrome Android/desktop — TIDAK didukung Safari/iOS)

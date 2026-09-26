@@ -1127,6 +1127,41 @@ const result = await page.evaluate(async () => {
     settings.logoUrl = null;
   });
 
+  await step('BUG NYATA: toko baru (belum pernah isi Profil Toko) TIDAK BOLEH menampilkan nama/logo toko lain sebagai default -- loadSettingsFromDB()/applySettingsToUI() harus jatuh ke placeholder generik, bukan identitas toko tertentu', async () => {
+    const savedSettings = settings;
+    const savedShopOwnerId = shopOwnerId;
+    lastSettingsUpsert = null;
+    try {
+      // 1. Default global settings (state SEBELUM loadSettingsFromDB() pernah jalan,
+      //    persis kondisi user baru daftar) tidak boleh menyebut nama/logo toko manapun.
+      if (settings.shopName === 'Laundry Batapas.id') throw new Error('BUG: default shopName global masih hardcode nama toko tertentu (Laundry Batapas.id) -- akan tampil ke SEMUA toko baru yang belum isi Profil Toko');
+      if (SHOP_LOGO_B64.startsWith('data:')) throw new Error('BUG: SHOP_LOGO_B64 masih berupa foto asli (data URI) -- harus ikon generik (path file), bukan foto toko tertentu');
+
+      // 2. Baris settings tersimpan TAPI kosong (shop_name/logo_url null, mis. toko baru
+      //    yang baru sekali buka Pengaturan tanpa isi apa-apa) -- juga tidak boleh jatuh
+      //    ke nama/logo toko tertentu, harus placeholder generik.
+      shopOwnerId = 'owner-toko-baru-kosong';
+      lastSettingsUpsert = { user_id: shopOwnerId, shop_name: null, logo_url: null };
+      await loadSettingsFromDB();
+      if (settings.shopName === 'Laundry Batapas.id') throw new Error('BUG: loadSettingsFromDB() dengan shop_name kosong jatuh ke "Laundry Batapas.id" -- toko baru akan salah menampilkan nama toko lain');
+      if (settings.logoUrl !== null) throw new Error('logoUrl seharusnya tetap null kalau logo_url di DB kosong');
+      if (shopLogoSrc() !== SHOP_LOGO_B64 || SHOP_LOGO_B64.startsWith('data:')) throw new Error('BUG: shopLogoSrc() toko baru menampilkan foto asli, bukan ikon generik: ' + shopLogoSrc());
+
+      // 3. applySettingsToUI() harus merender placeholder generik itu ke DOM appbar,
+      //    tidak diam-diam menyisakan teks/gambar toko lama.
+      applySettingsToUI();
+      const label = document.getElementById('shopNameLabel').textContent;
+      if (label === 'Laundry Batapas.id') throw new Error('BUG: appbar shopNameLabel toko baru menampilkan "Laundry Batapas.id": ' + label);
+      const appbarLogo = document.getElementById('appbarLogo');
+      if (!appbarLogo.src.endsWith(SHOP_LOGO_B64)) throw new Error('appbar logo toko baru seharusnya ikon generik: ' + appbarLogo.src);
+    } finally {
+      settings = savedSettings;
+      shopOwnerId = savedShopOwnerId;
+      lastSettingsUpsert = null;
+      applySettingsToUI();
+    }
+  });
+
   await step('saveShopLogo() persists via a settings upsert and updates the appbar logo', async () => {
     lastSettingsUpsert = null;
     settings.shopName = 'Laundry Uji'; settings.address = ''; settings.phone = ''; settings.note = '';
@@ -1147,7 +1182,7 @@ const result = await page.evaluate(async () => {
     if (settings.logoUrl !== null) throw new Error('settings.logoUrl should be null after reset, got ' + settings.logoUrl);
     if (lastSettingsUpsert.logo_url !== null) throw new Error('reset should upsert logo_url:null, got ' + lastSettingsUpsert.logo_url);
     const appbarLogo = document.getElementById('appbarLogo');
-    if (appbarLogo.src !== SHOP_LOGO_B64) throw new Error('appbar logo should revert to default SHOP_LOGO_B64: ' + appbarLogo.src);
+    if (!appbarLogo.src.endsWith(SHOP_LOGO_B64)) throw new Error('appbar logo should revert to default SHOP_LOGO_B64 (' + SHOP_LOGO_B64 + '): ' + appbarLogo.src);
   });
 
   await step('The auth-screen (login) logo is a separate hardcoded <img>, unaffected by shopLogoSrc()', () => {
@@ -1272,6 +1307,219 @@ const result = await page.evaluate(async () => {
     } finally {
       navigator.canShare = originalCanShare;
       navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+    }
+  });
+
+  // Regression: nota yang di-download JPG-nya tajam, tapi begitu dibagikan lewat WA
+  // hasilnya buram -- WhatsApp SELALU mengompres ulang file yang dikirim sebagai foto
+  // (JPG/PNG), berapa pun tinggi resolusi sumbernya, tapi TIDAK PERNAH mengompres file
+  // PDF (dikirim sebagai dokumen apa adanya). buildNotaPDFBlob()/shareOrDownloadNotaPDF()
+  // (js/10-nota-cetak.js) adalah opsi baru supaya user bisa memilih kirim PDF kalau mau
+  // hasil yang pasti tajam. window.jspdf sungguhan tidak bisa dimuat di sandbox test ini
+  // (CDN di-stub kosong oleh page.route() di atas -- lihat komentar di awal file ini),
+  // jadi di sini window.jspdf DIPALSUKAN supaya logic pembungkusan baris & pemanggilan
+  // API jsPDF-nya tetap bisa diverifikasi tanpa jaringan sungguhan.
+  await step('buildNotaPDFBlob(): membungkus lines yang sama dengan versi JPG, pakai font courier monospace, dan rata tengah/indent sesuai flag c/indent tiap baris', async () => {
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [], fonts: [], sizes: [], formats: [], images: [] };
+    class FakeJsPDF {
+      constructor(opts){ calls.formats.push(opts.format); }
+      setFont(family, style){ calls.fonts.push(`${family}:${style}`); }
+      setFontSize(s){ calls.sizes.push(s); }
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
+      text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
+      output(type){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      const lines = [
+        { t: 'Toko Laundry Saya', c:true, b:true, s:12 },
+        { t: `${'Pelanggan'}  : Budi`, s:9, indent:13 },
+        { t: 'Baris biasa rata kiri', s:9 },
+      ];
+      const blob = await buildNotaPDFBlob(lines, 80);
+      if (!(blob instanceof Blob)) throw new Error('buildNotaPDFBlob() harus mengembalikan Blob');
+      if (calls.formats.length !== 1) throw new Error('jsPDF harus dibuat tepat sekali');
+      const [w, h] = calls.formats[0];
+      if (w !== 80) throw new Error('lebar halaman PDF harus sama dengan pageWidthMm yang diminta (80), got ' + w);
+      if (!(h > 0)) throw new Error('tinggi halaman PDF harus dihitung dari jumlah baris, got ' + h);
+      if (!calls.fonts.every(f => f.startsWith('courier:'))) throw new Error('semua baris harus pakai font courier (monospace, sama seperti versi JPG): ' + JSON.stringify(calls.fonts));
+      const centered = calls.texts.find(c => c.str === 'Toko Laundry Saya');
+      if (!centered || centered.align !== 'center') throw new Error('baris berflag c:true harus dirender rata tengah: ' + JSON.stringify(centered));
+      const leftAligned = calls.texts.find(c => c.str === 'Baris biasa rata kiri');
+      if (!leftAligned || leftAligned.align) throw new Error('baris tanpa flag c harus rata kiri (align tidak diset): ' + JSON.stringify(leftAligned));
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
+  // Regression, 3 iterasi: (1) user melaporkan (screenshot PDF asli) versi
+  // PERTAMA buildNotaPDFBlob() tidak menggambar logo toko maupun ikon WA/Email
+  // sama sekali -- cuma teks polos. (2) Perbaikan pertama (label teks
+  // berwarna "WA:"/"Email:") DITOLAK -- masih cuma tulisan. (3) Perbaikan
+  // kedua (bentuk vektor buatan sendiri: roundedRect+circle polos) JUGA
+  // DITOLAK -- user melampirkan screenshot logo WhatsApp asli dan menegaskan
+  // hasilnya masih salah/tidak mirip. Perbaikan final: svgStringToPNGDataURL()
+  // merasterisasi iconBadgeSVG() yang SAMA PERSIS dipakai nota versi HTML
+  // (bubble hijau + gagang telepon asli, amplop + flap merah asli) jadi PNG,
+  // lalu di-addImage() -- dijamin identik bentuknya, bukan reka ulang lagi.
+  await step('buildNotaPDFBlob(): menggambar logo toko DAN ikon WA/Email lewat addImage() memakai SVG yang sama persis dengan iconBadgeSVG() (bukan reka ulang bentuk sendiri)', async () => {
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [], images: [] };
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){}
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
+      text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      const lines = [
+        { t: '081293228520', c:true, s:6, icon:'wa' },
+        { t: 'tinggirantech@gmail.com', c:true, s:6, icon:'email' },
+      ];
+      await buildNotaPDFBlob(lines, 80);
+      // 3 gambar: logo toko + ikon WA + ikon Email, semuanya lewat addImage() PNG.
+      if (calls.images.length !== 3) throw new Error('harus ada tepat 3 addImage() (logo + ikon WA + ikon Email), got ' + calls.images.length + ': ' + JSON.stringify(calls.images.map(i=>({x:i.x,y:i.y,w:i.w}))));
+      if (!calls.images.every(img => img.format === 'PNG' && String(img.data).startsWith('data:image/png'))) throw new Error('semua gambar (logo & ikon) harus berupa data URL PNG: ' + JSON.stringify(calls.images));
+      const logoImg = calls.images.find(img => img.w === 16 && img.h === 16);
+      if (!logoImg) throw new Error('logo toko harus digambar 16x16mm (sama seperti buildNotaCanvas): ' + JSON.stringify(calls.images));
+      const iconImgs = calls.images.filter(img => img !== logoImg);
+      if (iconImgs.length !== 2) throw new Error('harus ada tepat 2 gambar ikon (WA & Email) selain logo: ' + JSON.stringify(calls.images));
+
+      // Teks yang dicetak untuk baris icon harus PERSIS isi aslinya, tanpa
+      // prefix "WA:"/"Email:" apa pun (itu perbaikan yang sudah ditolak user).
+      if (calls.texts.some(c => c.str === 'WA: ' || c.str === 'Email: ')) throw new Error('REGRESI: masih pakai label teks "WA:"/"Email:" alih-alih ikon gambar sungguhan');
+      if (!calls.texts.some(c => c.str === '081293228520')) throw new Error('nomor WA aslinya (tanpa prefix) tetap harus tercetak');
+      if (!calls.texts.some(c => c.str === 'tinggirantech@gmail.com')) throw new Error('alamat email aslinya (tanpa prefix) tetap harus tercetak');
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
+  await step('shareOrDownloadNotaPDF()/downloadReceiptPDF(): menghasilkan file .pdf (bukan .jpg), dan tetap ikut pola isMobileDevice() yang sama seperti shareOrDownloadNotaImage()', async () => {
+    const originalJspdf = window.jspdf;
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){}
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(){}
+      text(){}
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = [];
+    let clickedDownloads = [];
+    navigator.canShare = () => true;
+    navigator.share = async (data) => { shareCalls.push(data); };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    try {
+      const trx = { id:'test-pdf-trx-id', kode:'PF-PDF-1', tanggal:'2026-09-26', nama:'Uji PDF', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptPDF();
+      if (shareCalls.length !== 1) throw new Error('HP (Android UA) seharusnya memakai navigator.share(), got ' + shareCalls.length);
+      if (shareCalls[0].files[0].type !== 'application/pdf') throw new Error('file yang dibagikan harus bertipe application/pdf, got ' + shareCalls[0].files[0].type);
+      if (!shareCalls[0].files[0].name.endsWith('.pdf')) throw new Error('nama file yang dibagikan harus berakhiran .pdf, got ' + shareCalls[0].files[0].name);
+
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = []; clickedDownloads = [];
+      await downloadReceiptPDF();
+      if (shareCalls.length !== 0) throw new Error('desktop tidak boleh membuka dialog Share OS untuk PDF juga (sama seperti versi JPG), got ' + shareCalls.length);
+      if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('.pdf')) throw new Error('desktop seharusnya langsung mengunduh file .pdf biasa, got ' + JSON.stringify(clickedDownloads));
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
+  // Regression: user melaporkan nota JPG DULU tetap tajam saat dibagikan lewat WA
+  // -- akar masalahnya adalah jalur "Foto" WA (MIME image/*) yang SELALU dikompres
+  // ulang WhatsApp sendiri, sedangkan jalur "Dokumen" (MIME lain) TIDAK PERNAH
+  // dikompres. Percobaan PERTAMA (membagikan file lewat navigator.share() dengan
+  // MIME application/octet-stream supaya WA menganggapnya Dokumen) GAGAL di HP
+  // asli: Chrome/Android sendiri menolak berbagi file dengan ekstensi .jpg tapi
+  // MIME yang tidak cocok -- navigator.canShare() jatuh ke unduh biasa, dan
+  // WhatsApp tetap menerimanya sebagai foto (dikompres) kalau dibagikan manual
+  // dari galeri. shareNotaImageAsDocument() sekarang SENGAJA tidak pernah
+  // memanggil navigator.share() sama sekali -- selalu memaksa unduh file, lalu
+  // memandu user lewat alert() untuk melampirkan manual sebagai "Dokumen" di
+  // dalam app WhatsApp sendiri (satu-satunya cara yang benar-benar terbukti
+  // tidak dikompres).
+  await step('shareNotaImageAsDocument()/downloadReceiptImageHD(): TIDAK PERNAH memanggil navigator.share() (percobaan MIME palsu sudah terbukti gagal di HP asli) -- selalu unduh file -HD.jpg lalu memandu user lewat alert() untuk lampir manual sebagai Dokumen di WhatsApp', async () => {
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalAlert = window.alert;
+    const originalCreateElement = document.createElement.bind(document);
+    let shareCalls = 0;
+    let alertMessages = [];
+    let clickedDownloads = [];
+    navigator.canShare = () => true; // meski browser LAPOR mendukung, fungsi ini tidak boleh memakainya
+    navigator.share = async () => { shareCalls++; };
+    window.alert = (msg) => { alertMessages.push(msg); };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    try {
+      const trx = { id:'test-jpghd-trx-id', kode:'PF-JPGHD-1', tanggal:'2026-09-26', nama:'Uji JPG HD', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      // Mobile MAUPUN desktop -- hasilnya harus sama persis (skip share, unduh, alert).
+      for (const ua of [
+        'Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      ]) {
+        setUA(ua);
+        shareCalls = 0; alertMessages = []; clickedDownloads = [];
+        await downloadReceiptImageHD();
+        if (shareCalls !== 0) throw new Error('shareNotaImageAsDocument() tidak boleh memanggil navigator.share() sama sekali (UA=' + ua + '), got ' + shareCalls);
+        if (clickedDownloads.length !== 1 || !clickedDownloads[0].endsWith('-HD.jpg')) throw new Error('harus langsung mengunduh file berakhiran -HD.jpg, got ' + JSON.stringify(clickedDownloads));
+        if (alertMessages.length !== 1) throw new Error('harus menampilkan alert() panduan tepat sekali, got ' + alertMessages.length);
+        if (!alertMessages[0].includes('Dokumen') || !alertMessages[0].includes('WhatsApp')) throw new Error('alert() harus memandu lampir manual sebagai Dokumen di WhatsApp: ' + alertMessages[0]);
+      }
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      window.alert = originalAlert;
       document.createElement = originalCreateElement;
       delete navigator.userAgent;
     }

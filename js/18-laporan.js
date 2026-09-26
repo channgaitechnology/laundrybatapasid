@@ -107,7 +107,7 @@ function printReport(){
     </tr>`).join('');
   document.getElementById('printArea').innerHTML = `
     <div style="font-family:'Inter',sans-serif;padding:24px;max-width:700px;margin:0 auto;">
-      <h2 style="font-family:'Sora',sans-serif;margin-bottom:2px;">${escapeHTML(settings.shopName||'Laundry Batapas.id')}</h2>
+      <h2 style="font-family:'Sora',sans-serif;margin-bottom:2px;">${escapeHTML(settings.shopName||'Toko Laundry Saya')}</h2>
       <p style="color:#555;margin-top:0;">${t('Laporan Transaksi')} — ${ym}</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead><tr style="border-bottom:2px solid #333;text-align:left;">
@@ -288,7 +288,7 @@ function downloadPerPelangganPDF(){
   const colX = { kode:14, tgl:50, status:130, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
@@ -446,7 +446,7 @@ function downloadLabaRugiPDF(){
   const doc = new jsPDF({ unit:'mm', format:'a4' });
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
@@ -547,7 +547,7 @@ function downloadPeringkatPelangganPDF(){
   const colX = { no:14, nama:26, count:140, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);

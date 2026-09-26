@@ -245,7 +245,7 @@ function downloadExpensePDF(){
   const colX = { tgl:14, nama:40, kategori:112, qty:150, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);

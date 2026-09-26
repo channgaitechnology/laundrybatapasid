@@ -103,6 +103,25 @@ async function downloadReceiptImage(){
   await shareOrDownloadNotaImage(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
   closeReceiptShareOptions();
 }
+/* Lihat komentar di shareNotaImageAsDocument() (js/10-nota-cetak.js) soal
+   kenapa ini cuma memaksa unduh + memandu lampir manual sebagai Dokumen di
+   WA (BUKAN lewat dialog Share) -- percobaan pakai navigator.share() dengan
+   MIME dipalsukan sudah dicoba & ditolak Chrome sendiri di HP asli. */
+async function downloadReceiptImageHD(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
+  await shareNotaImageAsDocument(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80);
+  closeReceiptShareOptions();
+}
+/* Lihat komentar di buildNotaPDFBlob()/shareOrDownloadNotaPDF() (js/10-nota-cetak.js)
+   soal kenapa PDF, bukan cuma JPG resolusi lebih tinggi, yang jadi solusi
+   nyata untuk nota buram saat dibagikan lewat WA. */
+async function downloadReceiptPDF(){
+  const trx = transactions.find(t=>t.id===notaShareTrxId);
+  if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
+  await shareOrDownloadNotaPDF(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
+  closeReceiptShareOptions();
+}
 
 /* ===================== PDF: LAPORAN ===================== */
 function downloadReportPDF(){
@@ -116,7 +135,7 @@ function downloadReportPDF(){
   const colX = { kode:14, tgl:44, nama:72, status:138, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Laundry Batapas.id', 14, 16);
+  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
