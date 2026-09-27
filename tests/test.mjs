@@ -3062,6 +3062,7 @@ const result = await page.evaluate(async () => {
       if (!renewalUrl.startsWith('https://wa.me/6285696487884')) throw new Error('link WA konfirmasi perpanjangan harus ke nomor admin 6285696487884, got: ' + renewalUrl);
       if (!renewalUrl.includes('1 Bulan') || !renewalUrl.includes('Rp50.000')) throw new Error('BUG: pesan WA konfirmasi perpanjangan tidak menyebut paket & jumlah transfer sama sekali: ' + renewalUrl);
       if (!capturedInsert || !capturedInsert.catatan.includes('1 Bulan') || !capturedInsert.catatan.includes('Rp50.000')) throw new Error('BUG: catatan payment_requests (perpanjangan) yang dilihat admin tidak menyebut paket & jumlah: ' + JSON.stringify(capturedInsert));
+      if (capturedInsert.plan_days !== 30) throw new Error('REGRESI: requestRenewal() harus menyimpan plan_days sesuai paket dipilih (1 Bulan = 30 hari), supaya approveRenewalRequest() tidak salah aktifkan durasi: ' + JSON.stringify(capturedInsert));
 
       // 2. Pendaftaran baru (belum login): paymentInfoModal SEBELUMNYA tidak punya
       //    pilihan paket sama sekali (bug nyata) -- sekarang harus ada 4 opsi juga,
@@ -3090,6 +3091,78 @@ const result = await page.evaluate(async () => {
       settings = originalSettings;
       closePaywallModal();
       closePaymentInfo();
+    }
+  });
+
+  // Regression bug nyata dilaporkan user (screenshot Admin Platform): user mengajukan
+  // perpanjangan Paket 12 Bulan, tapi tombol admin selalu berbunyi "Aktifkan 30 Hari"
+  // dan approveRenewalRequest() SELALU memaksa 30 hari apa pun paketnya, karena dulu
+  // requestRenewal() tidak menyimpan plan_days sama sekali. Sekarang plan_days dibaca
+  // (renewalPlanDaysFor()), dengan fallback menebak dari teks catatan untuk baris LAMA
+  // yang sudah masuk sebelum perbaikan ini (tidak punya plan_days sama sekali).
+  await step('approveRenewalRequest()/renewalPlanDaysFor(): mengaktifkan sesuai plan_days paket yang diajukan (bukan selalu 30 hari), termasuk fallback tebak dari catatan untuk baris lama tanpa plan_days', async () => {
+    const originalFrom = sb.from;
+    const originalOpen = window.open;
+    const originalPaymentReqCache = paymentReqCache;
+    window.open = () => ({ closed: false });
+    let subUpdatePayload = null, subInsertPayload = null, reqUpdatePayload = null;
+    let fakeSub = null; // belum ada app_subscriptions untuk owner ini
+    sb.from = (table) => {
+      if (table === 'app_subscriptions') {
+        const q = {
+          select: () => q, eq: () => q,
+          maybeSingle: () => Promise.resolve({ data: fakeSub, error: null }),
+          update: (payload) => { subUpdatePayload = payload; return q; },
+          insert: (payload) => { subInsertPayload = payload; return q; },
+          then: (resolve) => resolve({ data: null, error: null }),
+        };
+        return q;
+      }
+      if (table === 'payment_requests') {
+        const q = {
+          select: () => q, eq: () => q, order: () => q, limit: () => q, in: () => q,
+          update: (payload) => { reqUpdatePayload = payload; return q; },
+          then: (resolve) => resolve({ data: [], error: null }),
+        };
+        return q;
+      }
+      return originalFrom(table);
+    };
+    try {
+      // Kasus 1: baris BARU dengan plan_days tersimpan benar (12 Bulan = 365 hari).
+      paymentReqCache = [{ id:'preq-365', nama:'Toko Baru', wa:'0812', owner_id:'owner-365', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket 12 Bulan (Rp420.000)', plan_days:365 }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 365) throw new Error('renewalPlanDaysFor() harus baca plan_days=365 langsung, got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      let html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('Aktifkan 365 Hari') && !html.includes('365')) throw new Error('REGRESI: tombol admin harus menyebut 365 Hari (paket 12 Bulan), bukan selalu "30 Hari": ' + html);
+
+      fakeSub = null; subInsertPayload = null; subUpdatePayload = null; reqUpdatePayload = null;
+      await approveRenewalRequest('preq-365');
+      if (!subInsertPayload) throw new Error('belum ada app_subscriptions sebelumnya -- approveRenewalRequest() harus insert baris baru');
+      const daysGranted365 = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGranted365 < 364 || daysGranted365 > 365) throw new Error('REGRESI: paket 12 Bulan (plan_days=365) harus mengaktifkan ~365 hari, bukan 30 hari: got ' + daysGranted365 + ' hari, payload=' + JSON.stringify(subInsertPayload));
+
+      // Kasus 2: baris LAMA (sebelum perbaikan ini) tanpa plan_days sama sekali --
+      // tetap harus benar 365 hari lewat tebakan dari teks catatan "Paket 12 Bulan".
+      paymentReqCache = [{ id:'preq-legacy', nama:'Toko Lama', wa:'0813', owner_id:'owner-legacy', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket 12 Bulan (Rp420.000)' }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 365) throw new Error('REGRESI: baris lama tanpa plan_days harus tetap ditebak 365 hari dari teks catatan "Paket 12 Bulan", got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('365')) throw new Error('REGRESI: baris lama tanpa plan_days harus tetap menampilkan 365 Hari di tombolnya (bukan 30): ' + html);
+
+      fakeSub = null; subInsertPayload = null;
+      await approveRenewalRequest('preq-legacy');
+      const daysGrantedLegacy = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGrantedLegacy < 364 || daysGrantedLegacy > 365) throw new Error('REGRESI: baris lama (tebakan dari catatan) harus tetap mengaktifkan ~365 hari, got ' + daysGrantedLegacy);
+
+      // Kasus 3: baris benar-benar tanpa plan_days DAN catatannya tidak menyebut paket
+      // apa pun (tidak bisa ditebak) -- harus tetap fallback 30 hari, bukan error/NaN.
+      if (renewalPlanDaysFor({ catatan: 'catatan bebas tanpa nama paket' }) !== 30) throw new Error('fallback terakhir harus tetap 30 hari kalau plan_days kosong dan catatan tidak bisa ditebak');
+    } finally {
+      sb.from = originalFrom;
+      window.open = originalOpen;
+      paymentReqCache = originalPaymentReqCache;
+      renderPaymentReqList();
     }
   });
 

@@ -140,7 +140,8 @@ async function requestRenewal(){
   const planTxt = plan ? `${plan.label} (${rupiah(plan.harga)})` : '';
   const { error } = await sb.from('payment_requests').insert({
     nama, wa, catatan: `${t('Perpanjangan langganan aplikasi')} — ${t('Paket')} ${planTxt}`,
-    status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId
+    status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId,
+    plan_days: plan ? plan.hari : 30
   });
   if(error){ showToast(t('Gagal mengirim permintaan, coba lagi')); return; }
   showToast(t('Permintaan perpanjangan terkirim, admin akan verifikasi'));

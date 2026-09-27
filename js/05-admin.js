@@ -78,6 +78,27 @@ async function deleteRegCode(id){
   if(error){ showToast(t('Gagal membatalkan kode')); return; }
   await loadAdminData();
 }
+/* Berapa hari yang harus diberikan saat approveRenewalRequest() -- REGRESI
+   BUG NYATA: dulu approveRenewalRequest() selalu memaksa 30 hari APA PUN
+   paket yang diajukan user (mis. user minta Paket 12 Bulan tapi cuma
+   diaktifkan 30 hari), karena requestRenewal() (js/03-langganan.js) belum
+   menyimpan plan_days sama sekali -- cuma nama paketnya ditulis sebagai teks
+   bebas di `catatan`. Sekarang requestRenewal() SUDAH menyimpan plan_days,
+   tapi baris LAMA yang sudah lebih dulu masuk (diajukan sebelum perbaikan
+   ini) tidak punya plan_days sama sekali -- makanya di sini plan_days
+   diprioritaskan, baru kalau kosong coba tebak dari teks catatan (yang
+   selalu menyebut label paket asli, mis. "Paket 12 Bulan"), baru fallback
+   30 hari kalau benar-benar tidak ketemu (sama seperti fallback di
+   netlify/functions/midtrans-webhook.js untuk baris lama sebelum kolom ini
+   ada). */
+function inferPlanDaysFromCatatan(catatan){
+  if(!catatan) return null;
+  const match = Object.values(SUBSCRIPTION_PLANS).find(p=>catatan.includes(p.label));
+  return match ? match.hari : null;
+}
+function renewalPlanDaysFor(req){
+  return Number(req.plan_days) || inferPlanDaysFromCatatan(req.catatan) || 30;
+}
 function renderPaymentReqList(){
   const el = document.getElementById('paymentReqList');
   if(!el) return;
@@ -92,7 +113,7 @@ function renderPaymentReqList(){
       <div style="font-size:12.5px;">${isRenewal ? '<span style="color:#c8860a;">🔄 '+t('Perpanjangan')+'</span> — ' : ''}<b>${escapeHTML(r.nama)}</b> — ${escapeHTML(r.wa)}${r.catatan ? '<br><span style=\"color:var(--ink-soft);\">'+escapeHTML(r.catatan)+'</span>' : ''}</div>
       <div style="display:flex;gap:8px;width:100%;">
         ${isRenewal
-          ? `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approveRenewalRequest('${r.id}')">✅ ${t('Aktifkan 30 Hari')}</button>`
+          ? `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approveRenewalRequest('${r.id}')">✅ ${t('Aktifkan')} ${renewalPlanDaysFor(r)} ${t('Hari')}</button>`
           : `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approvePaymentRequest('${r.id}')">✅ ${t('Setujui & Buat Kode')}</button>`}
         <button class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="rejectPaymentRequest('${r.id}')">${t('Tolak')}</button>
       </div>
@@ -118,7 +139,8 @@ async function approveRenewalRequest(id){
   const { data: existing } = await sb.from('app_subscriptions').select('*').eq('owner_id', req.owner_id).maybeSingle();
   const now = new Date();
   const base = (existing && existing.paid_until && new Date(existing.paid_until) > now) ? new Date(existing.paid_until) : now;
-  const newPaidUntil = new Date(base.getTime() + 30*24*60*60*1000).toISOString();
+  const planDays = renewalPlanDaysFor(req);
+  const newPaidUntil = new Date(base.getTime() + planDays*24*60*60*1000).toISOString();
   let upErr;
   if(existing){
     ({ error: upErr } = await sb.from('app_subscriptions').update({ status:'aktif', paid_until: newPaidUntil }).eq('owner_id', req.owner_id));
