@@ -2584,6 +2584,51 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regression: user melaporkan (screenshot) transaksi tanggal 26 Sep muncul DI ANTARA
+  // dua transaksi tanggal 22 Sep di Riwayat -- sebabnya renderHistory() cuma pakai
+  // .reverse() (urutan input dibalik), bukan diurutkan berdasarkan field tanggal-nya
+  // sendiri. Backdated entry (tanggal lebih lama tapi diinput belakangan, mis. lewat
+  // "Rekap Transaksi Pelanggan" atau edit tanggal manual) akan salah urut kalau cuma
+  // dibalik urutan inputnya. Fix: urutkan berdasarkan tanggal descending (terbaru
+  // dulu), dan pencarian (searchInput) memakai list yang sama jadi ikut terurut juga.
+  await step('renderHistory(): urutan berdasarkan TANGGAL transaksi (terbaru dulu), bukan urutan input -- regresi bug nyata dilaporkan lewat screenshot', () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    // Sengaja diinput TIDAK berurutan tanggalnya (mis3 "26 Sep" diinput di antara dua
+    // entri "22 Sep" -- lebih baru tanggalnya, tapi bukan yang paling baru diinput).
+    transactions = [
+      { id:'ord-1', kode:'LND-0144', nama:'Amat', hp:'', tanggal:'2026-09-22', estimasi:null, items:[], diskon:0, total:10600, dp:0, status:'belum', catatan:'' },
+      { id:'ord-2', kode:'LND-0145', nama:'Najwa', hp:'', tanggal:'2026-09-26', estimasi:null, items:[], diskon:0, total:500000, dp:500000, status:'lunas', catatan:'' },
+      { id:'ord-3', kode:'LND-0146', nama:'Pak Rudi', hp:'', tanggal:'2026-09-22', estimasi:null, items:[], diskon:0, total:38000, dp:38000, status:'lunas', catatan:'' },
+    ];
+    try {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+      renderHistory();
+      const html = document.getElementById('historyList').innerHTML;
+      const idxNajwa = html.indexOf('Najwa'), idxAmat = html.indexOf('Amat'), idxRudi = html.indexOf('Pak Rudi');
+      if (idxNajwa === -1 || idxAmat === -1 || idxRudi === -1) throw new Error('ketiga transaksi harus tetap tampil: ' + html);
+      if (idxNajwa > idxAmat || idxNajwa > idxRudi) throw new Error('REGRESI: Najwa (26 Sep, tanggal PALING BARU) harus tampil PALING ATAS, bukan di tengah/bawah: ' + html);
+
+      // Pencarian (searchInput) memakai list yang sama -- harus ikut terurut tanggal juga.
+      document.getElementById('searchInput').value = 'a'; // cocok ke "Amat", "Najwa", dan "Pak Rudi" (mengandung huruf 'a')
+      renderHistory();
+      const html2 = document.getElementById('historyList').innerHTML;
+      const idxNajwa2 = html2.indexOf('Najwa'), idxAmat2 = html2.indexOf('Amat'), idxRudi2 = html2.indexOf('Pak Rudi');
+      if (idxNajwa2 === -1 || idxAmat2 === -1 || idxRudi2 === -1) throw new Error('hasil pencarian "a" harus tetap menampilkan ketiganya: ' + html2);
+      if (idxNajwa2 > idxAmat2 || idxNajwa2 > idxRudi2) throw new Error('REGRESI: hasil pencarian juga harus terurut tanggal terbaru dulu (Najwa di atas): ' + html2);
+    } finally {
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('searchInput').value = '';
+    }
+  });
+
   await step('buildAllWorkItemsRaw()/Daftar Tugas only includes cucian belonging to the active outlet, for both direct transactions and Paket/Tempo customers linked via subscriptions', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     const subA = subscriptions.find(s=>s.nama==='Sub Outlet A');

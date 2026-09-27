@@ -13,12 +13,21 @@ function renderHistory(){
   const anyFilterActive = !!(statusFilter || dariFilter || sampaiFilter);
   document.getElementById('historyResetFilterBtn').style.display = anyFilterActive ? 'block' : 'none';
   const el = document.getElementById('historyList');
-  const list = visibleTransactions().slice().reverse().filter(t=>
-    (t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q))
-    && (!statusFilter || t.status===statusFilter)
-    && (!dariFilter || t.tanggal>=dariFilter)
-    && (!sampaiFilter || t.tanggal<=sampaiFilter)
-  );
+  /* Urutkan berdasarkan TANGGAL TRANSAKSI (terbaru dulu), bukan urutan input --
+     regresi bug nyata dilaporkan user: transaksi tanggal 26 Sep muncul di antara
+     dua transaksi tanggal 22 Sep karena sebelumnya cuma .reverse() urutan array
+     (urutan input/insert), bukan diurutkan berdasarkan field tanggal-nya sendiri.
+     .reverse() dulu (jadi input-terbaru-duluan), BARU sort stabil descending
+     berdasarkan tanggal saja -- supaya transaksi bertanggal SAMA tetap urut
+     input-terbaru-duluan di antara sesamanya (JS Array.sort() terjamin stabil). */
+  const list = visibleTransactions().slice().reverse()
+    .sort((a,b)=> a.tanggal<b.tanggal ? 1 : (a.tanggal>b.tanggal ? -1 : 0))
+    .filter(t=>
+      (t.nama.toLowerCase().includes(q) || t.kode.toLowerCase().includes(q))
+      && (!statusFilter || t.status===statusFilter)
+      && (!dariFilter || t.tanggal>=dariFilter)
+      && (!sampaiFilter || t.tanggal<=sampaiFilter)
+    );
 
   const today = todayISO();
   const todayList = visibleTransactions().filter(t=>t.tanggal===today);
