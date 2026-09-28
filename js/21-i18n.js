@@ -127,7 +127,7 @@ const I18N_EN = {
   'Masuk': 'Log In',
   'Daftar': 'Sign Up',
   'Diagnosa Masalah Admin, Kami Kasih Obatnya': 'We Diagnose Your Admin Headaches, Then Cure Them',
-  'Capek nota manual & hitung-hitung sendiri? Masuk dan mulai sembuhkan admin laundry kamu.': 'Tired of manual receipts and doing the math yourself? Log in and start curing your laundry admin.',
+  'Capek nota manual, hitung-hitung sendiri, dan laporan kacau gara-gara hitungan manual? Masuk dan mulai sembuhkan admin laundry kamu.': 'Tired of manual receipts, doing the math yourself, and messy reports from manual calculations? Log in and start curing your laundry admin.',
   'Kode Pendaftaran (opsional)': 'Registration Code (optional)',
   'Kosongkan untuk trial 30 hari gratis': 'Leave blank for a free 30-day trial',
   'Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin?': 'Sign up now to start your free 30-day trial. Already paid and have a code from the admin?',
