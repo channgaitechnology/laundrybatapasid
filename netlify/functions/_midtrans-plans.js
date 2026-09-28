@@ -7,16 +7,20 @@
  * Harga diatur lewat env var di Netlify (Site settings -> Environment
  * variables), BUKAN di-hardcode di sini, supaya bisa diubah tanpa perlu
  * ubah kode:
- *   SUBSCRIPTION_PRICE_1M   (mis. "50000")
- *   SUBSCRIPTION_PRICE_3M   (mis. "135000")
- *   SUBSCRIPTION_PRICE_6M   (mis. "240000")
- *   SUBSCRIPTION_PRICE_12M  (mis. "420000")
+ *   SUBSCRIPTION_PRICE_1M         (mis. "50000")
+ *   SUBSCRIPTION_PRICE_3M         (mis. "135000")
+ *   SUBSCRIPTION_PRICE_6M         (mis. "240000")
+ *   SUBSCRIPTION_PRICE_12M        (mis. "420000")
+ *   SUBSCRIPTION_PRICE_LIFETIME   (mis. "1350000")
  */
 const PLANS = {
   '1bulan': { days: 30, envVar: 'SUBSCRIPTION_PRICE_1M', label: '1 Bulan' },
   '3bulan': { days: 90, envVar: 'SUBSCRIPTION_PRICE_3M', label: '3 Bulan' },
   '6bulan': { days: 180, envVar: 'SUBSCRIPTION_PRICE_6M', label: '6 Bulan' },
   '12bulan': { days: 365, envVar: 'SUBSCRIPTION_PRICE_12M', label: '12 Bulan' },
+  // 36500 hari (~100 tahun) -- lihat komentar SUBSCRIPTION_PLANS di js/00-globals.js
+  // soal kenapa "seumur hidup" dibuat lewat angka hari yang sangat besar, bukan flag khusus.
+  'seumurhidup': { days: 36500, envVar: 'SUBSCRIPTION_PRICE_LIFETIME', label: 'Seumur Hidup' },
 };
 
 function getPlanPrice(planKey) {

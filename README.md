@@ -640,6 +640,7 @@ tidak ikut ter-commit ke git):
 | `SUBSCRIPTION_PRICE_3M` | `135000` | Harga paket 3 Bulan (90 hari). |
 | `SUBSCRIPTION_PRICE_6M` | `240000` | Harga paket 6 Bulan (180 hari). |
 | `SUBSCRIPTION_PRICE_12M` | `420000` | Harga paket 12 Bulan (365 hari). |
+| `SUBSCRIPTION_PRICE_LIFETIME` | `1350000` | Harga paket Seumur Hidup. Internal disimpan sebagai 36500 hari (~100 tahun) dari tanggal aktivasi/perpanjangan terakhir -- BUKAN kolom/flag terpisah, jadi lewat jalur perhitungan tanggal yang sama dengan paket lain (lihat komentar `SUBSCRIPTION_PLANS` di `js/00-globals.js`). |
 | `SUPABASE_URL` | `https://xxxx.supabase.co` | Sama dengan URL yang dipakai `index.html`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Dari Supabase Project Settings → API → `service_role` key. **BUKAN** `anon` key — key ini bisa baca/tulis apa saja tanpa RLS, cuma boleh dipakai di server (Netlify Function), TIDAK PERNAH di kode browser. |
 

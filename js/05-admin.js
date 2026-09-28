@@ -60,6 +60,17 @@ async function loadAdminData(){
   renderPaymentReqList();
   await loadAdminSubscriptionsOverview();
 }
+/* Ambang batas (10 tahun) untuk mendeteksi paket 'seumurhidup' dari
+   TANGGAL-nya saja (bukan dari data paket yang dibeli -- app_subscriptions
+   tidak menyimpan paket mana yang dipakai, cuma paid_until hasil akhirnya).
+   Paket ini pakai hari:36500 (~100 tahun, lihat SUBSCRIPTION_PLANS di
+   js/00-globals.js), jadi paid_until-nya pasti jauh di atas ambang ini --
+   paket lain paling lama cuma 365 hari dari kapan pun basisnya dihitung. */
+const LIFETIME_DAYS_THRESHOLD = 3650;
+function isLifetimePaidUntil(paidUntil){
+  if(!paidUntil) return false;
+  return (new Date(paidUntil) - new Date()) / (24*60*60*1000) >= LIFETIME_DAYS_THRESHOLD;
+}
 /* Status langganan 1 toko dari baris app_subscriptions mentah -- dipakai
    ringkasan admin (semua toko) DAN bisa dipakai ulang kalau nanti perlu di
    tempat lain. Logic aktif/trial-berakhir-nya SENGAJA disamakan persis
@@ -67,16 +78,16 @@ async function loadAdminData(){
    supaya status yang admin lihat di sini tidak pernah beda arti dengan
    status yang dipakai untuk mengunci fitur toko itu sendiri. */
 function computeSubStatusFor(sub){
-  if(!sub) return { statusLabel: t('Belum Ada Data'), active:false, endDate:null };
+  if(!sub) return { statusLabel: t('Belum Ada Data'), active:false, endDate:null, isLifetime:false };
   if(sub.status==='aktif'){
     const active = !sub.paid_until || new Date(sub.paid_until) >= new Date();
-    return { statusLabel: active ? t('Aktif') : t('Tidak Aktif'), active, endDate: sub.paid_until||null };
+    return { statusLabel: active ? t('Aktif') : t('Tidak Aktif'), active, endDate: sub.paid_until||null, isLifetime: isLifetimePaidUntil(sub.paid_until) };
   }
   if(sub.status==='trial'){
     const active = new Date(sub.trial_ends_at) >= new Date();
-    return { statusLabel: active ? t('Trial') : t('Trial Berakhir'), active, endDate: sub.trial_ends_at||null };
+    return { statusLabel: active ? t('Trial') : t('Trial Berakhir'), active, endDate: sub.trial_ends_at||null, isLifetime:false };
   }
-  return { statusLabel: t('Tidak Aktif'), active:false, endDate:null };
+  return { statusLabel: t('Tidak Aktif'), active:false, endDate:null, isLifetime:false };
 }
 var adminSubsOverviewCache = [];
 /* Ringkasan SEMUA toko (bukan cuma toko sendiri) -- khusus ADMIN_EMAIL.
@@ -131,7 +142,7 @@ function renderAdminSubscriptionsOverview(){
   el.innerHTML = adminSubsOverviewCache.map(s=>`
     <div class="item-line" style="align-items:center;">
       <span style="font-size:12.5px;">${escapeHTML(s.nama)}</span>
-      <span class="badge ${s.active ? 'badge-lunas' : 'badge-belum'}" style="font-size:11px;">${s.statusLabel}${s.endDate ? ' · '+fmtDate(String(s.endDate).slice(0,10)) : ''}</span>
+      <span class="badge ${s.active ? 'badge-lunas' : 'badge-belum'}" style="font-size:11px;">${s.statusLabel}${s.isLifetime ? ' · '+t('Seumur Hidup') : (s.endDate ? ' · '+fmtDate(String(s.endDate).slice(0,10)) : '')}</span>
     </div>`).join('');
 }
 function renderRegCodeList(){
@@ -174,6 +185,13 @@ function inferPlanDaysFromCatatan(catatan){
 function renewalPlanDaysFor(req){
   return Number(req.plan_days) || inferPlanDaysFromCatatan(req.catatan) || 30;
 }
+/* Sama seperti isLifetimePaidUntil() di atas, tapi dari sisi jumlah HARI
+   (belum ada base tanggal saat tombol ini dirender) -- dipakai supaya
+   admin lihat "Aktifkan Seumur Hidup", bukan "Aktifkan 36500 Hari". */
+function renewalDurationLabelFor(req){
+  const days = renewalPlanDaysFor(req);
+  return days >= LIFETIME_DAYS_THRESHOLD ? t('Seumur Hidup') : `${days} ${t('Hari')}`;
+}
 function renderPaymentReqList(){
   const el = document.getElementById('paymentReqList');
   if(!el) return;
@@ -188,7 +206,7 @@ function renderPaymentReqList(){
       <div style="font-size:12.5px;">${isRenewal ? '<span style="color:#c8860a;">🔄 '+t('Perpanjangan')+'</span> — ' : ''}<b>${escapeHTML(r.nama)}</b> — ${escapeHTML(r.wa)}${r.catatan ? '<br><span style=\"color:var(--ink-soft);\">'+escapeHTML(r.catatan)+'</span>' : ''}</div>
       <div style="display:flex;gap:8px;width:100%;">
         ${isRenewal
-          ? `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approveRenewalRequest('${r.id}')">✅ ${t('Aktifkan')} ${renewalPlanDaysFor(r)} ${t('Hari')}</button>`
+          ? `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approveRenewalRequest('${r.id}')">✅ ${t('Aktifkan')} ${renewalDurationLabelFor(r)}</button>`
           : `<button class="btn btn-accent btn-sm" style="width:auto;padding:6px 12px;" onclick="approvePaymentRequest('${r.id}')">✅ ${t('Setujui & Buat Kode')}</button>`}
         <button class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="rejectPaymentRequest('${r.id}')">${t('Tolak')}</button>
       </div>
@@ -227,7 +245,10 @@ async function approveRenewalRequest(id){
   if(e2){ showToast(t('Langganan aktif tapi gagal update status permintaan')); }
   await loadAdminData();
   const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
-  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Laundry Assistant sudah diverifikasi')} ✅\n\n${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}. ${t('Terima kasih!')}`);
+  const masaAktifTxt = planDays >= LIFETIME_DAYS_THRESHOLD
+    ? t('Langganan kamu aktif SEUMUR HIDUP, tidak pernah kedaluwarsa.')
+    : `${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}.`;
+  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Laundry Assistant sudah diverifikasi')} ✅\n\n${masaAktifTxt} ${t('Terima kasih!')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
 }
 async function rejectPaymentRequest(id){

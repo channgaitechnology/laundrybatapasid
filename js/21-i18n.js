@@ -901,6 +901,8 @@ const I18N_EN = {
   'Langganan aktif tapi gagal update status permintaan': 'Subscription activated, but failed to update the request status',
   'perpanjangan langganan Laundry Assistant sudah diverifikasi': 'your Laundry Assistant subscription renewal has been verified',
   'Langganan kamu aktif sampai': 'Your subscription is active until',
+  'Langganan kamu aktif SEUMUR HIDUP, tidak pernah kedaluwarsa.': 'Your subscription is active FOR LIFE, it never expires.',
+  'Seumur Hidup': 'Lifetime',
   'Terima kasih!': 'Thank you!',
   'Tolak permintaan ini?': 'Reject this request?',
   'Gagal menolak': 'Failed to reject',

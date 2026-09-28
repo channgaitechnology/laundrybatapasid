@@ -3051,7 +3051,7 @@ const result = await page.evaluate(async () => {
       shopOwnerId = 'owner-uji-bayar';
       settings = { shopName: 'Toko Uji Bayar' };
       showPaywallModal();
-      if (document.getElementById('paywallPlan').options.length !== 4) throw new Error('dropdown paywallPlan harus berisi 4 pilihan paket (1/3/6/12 bulan)');
+      if (document.getElementById('paywallPlan').options.length !== 5) throw new Error('dropdown paywallPlan harus berisi 5 pilihan paket (1/3/6/12 bulan + Seumur Hidup)');
       if (document.getElementById('paywallPlan').value !== '12bulan') throw new Error('paket 12 bulan harus tetap default (SENGAJA, lihat CLAUDE.md) -- jangan diubah tanpa diminta');
       document.getElementById('paywallPlan').value = '1bulan';
       updatePlanAmountDisplay('paywallPlan', 'paywallAmount');
@@ -3070,7 +3070,7 @@ const result = await page.evaluate(async () => {
       openedUrls.length = 0;
       capturedInsert = null;
       openPaymentInfo();
-      if (document.getElementById('preqPlan').options.length !== 4) throw new Error('BUG: dropdown preqPlan (form Daftar) belum punya 4 pilihan paket 1/3/6/12 bulan');
+      if (document.getElementById('preqPlan').options.length !== 5) throw new Error('BUG: dropdown preqPlan (form Daftar) belum punya 5 pilihan paket (1/3/6/12 bulan + Seumur Hidup)');
       document.getElementById('preqPlan').value = '6bulan';
       updatePlanAmountDisplay('preqPlan', 'preqAmount');
       if (!document.getElementById('preqAmount').textContent.includes('Rp240.000')) throw new Error('jumlah transfer form Daftar tidak update ke Rp240.000 saat pilih 6 Bulan: ' + document.getElementById('preqAmount').textContent);
@@ -3104,7 +3104,8 @@ const result = await page.evaluate(async () => {
     const originalFrom = sb.from;
     const originalOpen = window.open;
     const originalPaymentReqCache = paymentReqCache;
-    window.open = () => ({ closed: false });
+    const openedUrls = [];
+    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
     let subUpdatePayload = null, subInsertPayload = null, reqUpdatePayload = null;
     let fakeSub = null; // belum ada app_subscriptions untuk owner ini
     sb.from = (table) => {
@@ -3158,6 +3159,25 @@ const result = await page.evaluate(async () => {
       // Kasus 3: baris benar-benar tanpa plan_days DAN catatannya tidak menyebut paket
       // apa pun (tidak bisa ditebak) -- harus tetap fallback 30 hari, bukan error/NaN.
       if (renewalPlanDaysFor({ catatan: 'catatan bebas tanpa nama paket' }) !== 30) throw new Error('fallback terakhir harus tetap 30 hari kalau plan_days kosong dan catatan tidak bisa ditebak');
+
+      // Kasus 4: paket BARU "Seumur Hidup" (plan_days=36500) -- tombolnya harus
+      // menampilkan "Seumur Hidup", BUKAN angka mentah "36500 Hari" yang tidak
+      // enak dibaca admin, dan pesan WA konfirmasi harus bilang SEUMUR HIDUP,
+      // bukan tanggal ~100 tahun ke depan yang membingungkan.
+      paymentReqCache = [{ id:'preq-lifetime', nama:'Toko Abadi', wa:'0814', owner_id:'owner-lifetime', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket Seumur Hidup (Rp1.350.000)', plan_days:36500 }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 36500) throw new Error('renewalPlanDaysFor() harus baca plan_days=36500 untuk paket Seumur Hidup, got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      if (renewalDurationLabelFor(paymentReqCache[0]) !== 'Seumur Hidup') throw new Error('renewalDurationLabelFor() harus menampilkan "Seumur Hidup", bukan angka hari mentah: ' + renewalDurationLabelFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('Aktifkan Seumur Hidup')) throw new Error('BUG: tombol admin untuk paket Seumur Hidup harus berbunyi "Aktifkan Seumur Hidup", bukan "Aktifkan 36500 Hari": ' + html);
+      if (html.includes('36500')) throw new Error('BUG: tombol admin TIDAK BOLEH menampilkan angka mentah "36500" untuk paket Seumur Hidup: ' + html);
+
+      fakeSub = null; subInsertPayload = null; openedUrls.length = 0;
+      await approveRenewalRequest('preq-lifetime');
+      const daysGrantedLifetime = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGrantedLifetime < 36499 || daysGrantedLifetime > 36500) throw new Error('paket Seumur Hidup harus mengaktifkan ~36500 hari, got ' + daysGrantedLifetime);
+      const lifetimeWaMsg = decodeURIComponent(openedUrls[openedUrls.length - 1] || '');
+      if (!lifetimeWaMsg.includes('SEUMUR HIDUP')) throw new Error('BUG: pesan WA konfirmasi paket Seumur Hidup harus bilang SEUMUR HIDUP, bukan tanggal jauh di masa depan: ' + lifetimeWaMsg);
     } finally {
       sb.from = originalFrom;
       window.open = originalOpen;
@@ -3179,6 +3199,15 @@ const result = await page.evaluate(async () => {
     if (r.active || r.statusLabel !== 'Trial Berakhir') throw new Error('status trial yang sudah berakhir harus active=false ("Trial Berakhir"): ' + JSON.stringify(r));
     r = computeSubStatusFor(null);
     if (r.active) throw new Error('tidak ada data sama sekali harus active=false, bukan malah dianggap aktif');
+
+    // Paket Seumur Hidup (plan_days=36500 -> paid_until ~100 tahun ke depan) harus
+    // ke-flag isLifetime:true (dideteksi dari jaraknya ke sekarang, bukan dari kolom
+    // paket -- app_subscriptions tidak menyimpan paket mana yang dibeli).
+    const farFuture = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
+    r = computeSubStatusFor({ status:'aktif', paid_until: farFuture });
+    if (!r.active || !r.isLifetime) throw new Error('paid_until ~100 tahun ke depan harus ke-flag isLifetime:true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'aktif', paid_until: future });
+    if (r.isLifetime) throw new Error('langganan aktif biasa (10 hari lagi) TIDAK BOLEH ke-flag isLifetime:true: ' + JSON.stringify(r));
   });
 
   // Fitur baru diminta user: Admin Platform harus bisa lihat jumlah langganan aktif,
@@ -3189,12 +3218,14 @@ const result = await page.evaluate(async () => {
     const futurePaid = new Date(Date.now() + 200*24*60*60*1000).toISOString();
     const pastPaid = new Date(Date.now() - 3*24*60*60*1000).toISOString();
     const futureTrial = new Date(Date.now() + 10*24*60*60*1000).toISOString();
+    const lifetimePaid = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
     sb.from = (table) => {
       if (table === 'app_subscriptions') {
         return { select: () => Promise.resolve({ data: [
           { owner_id:'owner-A', status:'aktif', paid_until: futurePaid },
           { owner_id:'owner-B', status:'aktif', paid_until: pastPaid },
           { owner_id:'owner-C', status:'trial', trial_ends_at: futureTrial },
+          { owner_id:'owner-D', status:'aktif', paid_until: lifetimePaid },
         ], error: null }) };
       }
       if (table === 'settings') {
@@ -3202,14 +3233,15 @@ const result = await page.evaluate(async () => {
           { user_id:'owner-A', shop_name:'Toko Aktif Jaya' },
           { user_id:'owner-B', shop_name:'Toko Kadaluarsa' },
           // owner-C SENGAJA tidak dikasih baris settings -- harus tetap tampil dengan nama fallback, bukan hilang dari daftar.
+          { user_id:'owner-D', shop_name:'Toko Langganan Abadi' },
         ], error: null }) };
       }
       return originalFrom(table);
     };
     try {
       await loadAdminSubscriptionsOverview();
-      if (document.getElementById('adminSubsStatTotal').textContent !== '3') throw new Error('total toko harus 3, got ' + document.getElementById('adminSubsStatTotal').textContent);
-      if (document.getElementById('adminSubsStatAktif').textContent !== '2') throw new Error('jumlah aktif harus 2 (owner-A aktif + owner-C trial belum berakhir), got ' + document.getElementById('adminSubsStatAktif').textContent);
+      if (document.getElementById('adminSubsStatTotal').textContent !== '4') throw new Error('total toko harus 4, got ' + document.getElementById('adminSubsStatTotal').textContent);
+      if (document.getElementById('adminSubsStatAktif').textContent !== '3') throw new Error('jumlah aktif harus 3 (owner-A, owner-C trial, owner-D seumur hidup), got ' + document.getElementById('adminSubsStatAktif').textContent);
       if (document.getElementById('adminSubsStatTidakAktif').textContent !== '1') throw new Error('jumlah tidak aktif harus 1 (owner-B, paid_until sudah lewat), got ' + document.getElementById('adminSubsStatTidakAktif').textContent);
 
       const html = document.getElementById('adminSubsOverview').innerHTML;
@@ -3217,6 +3249,9 @@ const result = await page.evaluate(async () => {
       if (!html.includes('Toko Kadaluarsa')) throw new Error('toko yang TIDAK aktif juga harus tetap muncul di daftar (bukan cuma yang aktif): ' + html);
       if (!html.includes('Toko tanpa nama')) throw new Error('toko tanpa baris settings (owner-C) harus tetap tampil dengan nama fallback, bukan hilang dari daftar: ' + html);
       if (!html.includes('Tidak Aktif')) throw new Error('label "Tidak Aktif" harus tampil untuk Toko Kadaluarsa: ' + html);
+      if (!html.includes('Toko Langganan Abadi') || !html.includes('Seumur Hidup')) throw new Error('BUG: toko dengan paid_until ~100 tahun ke depan harus tampil dengan label "Seumur Hidup": ' + html);
+      const abadiRowMatch = html.match(/Toko Langganan Abadi[\s\S]*?<\/div>/);
+      if (abadiRowMatch && /\d{4}/.test(abadiRowMatch[0].split('Seumur Hidup')[1] || '')) throw new Error('BUG: baris Toko Langganan Abadi tidak boleh menampilkan tahun kalender (mis. 2126), harus "Seumur Hidup" saja: ' + abadiRowMatch[0]);
     } finally {
       sb.from = originalFrom;
     }
