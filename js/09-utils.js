@@ -17,6 +17,21 @@ function fmtDate(iso){
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+/* Ambang batas (10 tahun) untuk mendeteksi paket langganan 'seumurhidup' dari
+   TANGGAL paid_until saja (app_subscriptions tidak menyimpan paket mana yang
+   dibeli, cuma tanggal hasil akhirnya). Paket ini pakai hari:36500 (~100
+   tahun, lihat SUBSCRIPTION_PLANS di js/00-globals.js) supaya lewat jalur
+   perhitungan tanggal yang sama dengan paket lain -- paket lain paling lama
+   cuma 365 hari dari kapan pun basisnya dihitung, jadi paid_until di atas
+   ambang ini pasti berasal dari paket Seumur Hidup. Dipakai di badge/Pengaturan
+   langganan milik toko sendiri (js/03-langganan.js) MAUPUN ringkasan Admin
+   Platform (js/05-admin.js) supaya keduanya konsisten menampilkan "Seumur
+   Hidup", bukan tanggal ~100 tahun ke depan yang membingungkan. */
+const LIFETIME_DAYS_THRESHOLD = 3650;
+function isLifetimePaidUntil(paidUntil){
+  if(!paidUntil) return false;
+  return (new Date(paidUntil) - new Date()) / (24*60*60*1000) >= LIFETIME_DAYS_THRESHOLD;
+}
 /* Uang yang BENAR-BENAR sudah diterima kas dari satu transaksi, apapun
    statusnya. Field `dp` sendiri HANYA uang muka sungguhan yang diketik kasir
    -- tidak dipaksa/disamakan dengan total cuma karena status "Lunas" dipilih

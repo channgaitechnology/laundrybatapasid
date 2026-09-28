@@ -60,17 +60,9 @@ async function loadAdminData(){
   renderPaymentReqList();
   await loadAdminSubscriptionsOverview();
 }
-/* Ambang batas (10 tahun) untuk mendeteksi paket 'seumurhidup' dari
-   TANGGAL-nya saja (bukan dari data paket yang dibeli -- app_subscriptions
-   tidak menyimpan paket mana yang dipakai, cuma paid_until hasil akhirnya).
-   Paket ini pakai hari:36500 (~100 tahun, lihat SUBSCRIPTION_PLANS di
-   js/00-globals.js), jadi paid_until-nya pasti jauh di atas ambang ini --
-   paket lain paling lama cuma 365 hari dari kapan pun basisnya dihitung. */
-const LIFETIME_DAYS_THRESHOLD = 3650;
-function isLifetimePaidUntil(paidUntil){
-  if(!paidUntil) return false;
-  return (new Date(paidUntil) - new Date()) / (24*60*60*1000) >= LIFETIME_DAYS_THRESHOLD;
-}
+/* LIFETIME_DAYS_THRESHOLD/isLifetimePaidUntil() ada di js/09-utils.js --
+   dipakai bersama dengan js/03-langganan.js (badge/Pengaturan toko sendiri)
+   supaya definisi "seumur hidup" konsisten di semua tempat. */
 /* Status langganan 1 toko dari baris app_subscriptions mentah -- dipakai
    ringkasan admin (semua toko) DAN bisa dipakai ulang kalau nanti perlu di
    tempat lain. Logic aktif/trial-berakhir-nya SENGAJA disamakan persis

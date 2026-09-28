@@ -3186,6 +3186,33 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regresi bug nyata dilaporkan lewat screenshot: toko dengan paket Seumur Hidup
+  // (paid_until ~100 tahun ke depan) menampilkan "Aktif s.d. 08 Okt 2127" di baris
+  // "Langganan Aplikasi" (Pengaturan) -- tahun kadaluarsa yang aneh/membingungkan,
+  // seharusnya bilang "Seumur Hidup" saja.
+  await step('renderSubscriptionBadge(): baris "Langganan Aplikasi" di Pengaturan menampilkan "Seumur Hidup" untuk paket lifetime, bukan tanggal ~100 tahun ke depan', () => {
+    const originalAppSubscription = appSubscription;
+    try {
+      const farFuture = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
+      appSubscription = { status:'aktif', paid_until: farFuture };
+      renderSubscriptionBadge();
+      const txt = document.getElementById('settingsSubStatus').textContent;
+      if (!txt.includes('Seumur Hidup')) throw new Error('BUG: paket Seumur Hidup harus menampilkan teks "Seumur Hidup" di baris Langganan Aplikasi, got: ' + txt);
+      if (/\d{4}/.test(txt)) throw new Error('BUG: baris Langganan Aplikasi TIDAK BOLEH menampilkan tahun kalender (mis. 2127) untuk paket Seumur Hidup: ' + txt);
+
+      // Langganan aktif BIASA (bukan lifetime) harus tetap menampilkan tanggalnya seperti biasa.
+      const normalFuture = new Date(Date.now() + 90*24*60*60*1000).toISOString();
+      appSubscription = { status:'aktif', paid_until: normalFuture };
+      renderSubscriptionBadge();
+      const txtNormal = document.getElementById('settingsSubStatus').textContent;
+      if (txtNormal.includes('Seumur Hidup')) throw new Error('BUG: langganan aktif biasa (90 hari) tidak boleh ikut dianggap Seumur Hidup: ' + txtNormal);
+      if (!/\d{4}/.test(txtNormal)) throw new Error('langganan aktif biasa harus tetap menampilkan tanggal kalender: ' + txtNormal);
+    } finally {
+      appSubscription = originalAppSubscription;
+      renderSubscriptionBadge();
+    }
+  });
+
   await step('computeSubStatusFor(): status aktif/trial/tidak-aktif dihitung sama persis dengan isSubscriptionActive() (aktif=paid_until belum lewat, trial=trial_ends_at belum lewat, selain itu tidak aktif)', () => {
     const future = new Date(Date.now() + 10*24*60*60*1000).toISOString();
     const past = new Date(Date.now() - 5*24*60*60*1000).toISOString();
