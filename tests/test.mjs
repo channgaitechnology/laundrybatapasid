@@ -3164,7 +3164,7 @@ const result = await page.evaluate(async () => {
       // menampilkan "Seumur Hidup", BUKAN angka mentah "36500 Hari" yang tidak
       // enak dibaca admin, dan pesan WA konfirmasi harus bilang SEUMUR HIDUP,
       // bukan tanggal ~100 tahun ke depan yang membingungkan.
-      paymentReqCache = [{ id:'preq-lifetime', nama:'Toko Abadi', wa:'0814', owner_id:'owner-lifetime', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket Seumur Hidup (Rp1.350.000)', plan_days:36500 }];
+      paymentReqCache = [{ id:'preq-lifetime', nama:'Toko Abadi', wa:'0814', owner_id:'owner-lifetime', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket Seumur Hidup (Rp1.500.000)', plan_days:36500 }];
       if (renewalPlanDaysFor(paymentReqCache[0]) !== 36500) throw new Error('renewalPlanDaysFor() harus baca plan_days=36500 untuk paket Seumur Hidup, got ' + renewalPlanDaysFor(paymentReqCache[0]));
       if (renewalDurationLabelFor(paymentReqCache[0]) !== 'Seumur Hidup') throw new Error('renewalDurationLabelFor() harus menampilkan "Seumur Hidup", bukan angka hari mentah: ' + renewalDurationLabelFor(paymentReqCache[0]));
       renderPaymentReqList();

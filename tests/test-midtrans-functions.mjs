@@ -27,7 +27,7 @@ process.env.SUBSCRIPTION_PRICE_1M = '50000';
 process.env.SUBSCRIPTION_PRICE_3M = '135000';
 delete process.env.SUBSCRIPTION_PRICE_6M;
 delete process.env.SUBSCRIPTION_PRICE_12M;
-process.env.SUBSCRIPTION_PRICE_LIFETIME = '1350000';
+process.env.SUBSCRIPTION_PRICE_LIFETIME = '1500000';
 process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
 
@@ -56,7 +56,7 @@ await step('getPlanPrice() membaca harga dari env var, dan menolak paket yang ha
 
   const planLifetime = getPlanPrice('seumurhidup');
   assert.ok(planLifetime, 'plan seumurhidup seharusnya ditemukan');
-  assert.strictEqual(planLifetime.price, 1350000);
+  assert.strictEqual(planLifetime.price, 1500000);
   assert.strictEqual(planLifetime.days, 36500, 'paket Seumur Hidup harus 36500 hari (~100 tahun), lewat jalur perhitungan tanggal yang sama dengan paket lain');
 });
 

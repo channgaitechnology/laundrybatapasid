@@ -11,7 +11,7 @@
  *   SUBSCRIPTION_PRICE_3M         (mis. "135000")
  *   SUBSCRIPTION_PRICE_6M         (mis. "240000")
  *   SUBSCRIPTION_PRICE_12M        (mis. "420000")
- *   SUBSCRIPTION_PRICE_LIFETIME   (mis. "1350000")
+ *   SUBSCRIPTION_PRICE_LIFETIME   (mis. "1500000")
  */
 const PLANS = {
   '1bulan': { days: 30, envVar: 'SUBSCRIPTION_PRICE_1M', label: '1 Bulan' },

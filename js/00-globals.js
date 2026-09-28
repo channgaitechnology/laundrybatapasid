@@ -45,7 +45,7 @@ const SUBSCRIPTION_PLANS = {
   '3bulan': { label: '3 Bulan', harga: 135000, hemat: 10, hari: 90 },
   '6bulan': { label: '6 Bulan', harga: 240000, hemat: 20, hari: 180 },
   '12bulan': { label: '12 Bulan', harga: 420000, hemat: 30, hari: 365 },
-  'seumurhidup': { label: 'Seumur Hidup', harga: 1350000, hemat: 0, hari: 36500 },
+  'seumurhidup': { label: 'Seumur Hidup', harga: 1500000, hemat: 0, hari: 36500 },
 };
 
 /* ===================== STATE ===================== */
