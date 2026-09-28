@@ -240,7 +240,7 @@ async function approveRenewalRequest(id){
   const masaAktifTxt = planDays >= LIFETIME_DAYS_THRESHOLD
     ? t('Langganan kamu aktif SEUMUR HIDUP, tidak pernah kedaluwarsa.')
     : `${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}.`;
-  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Laundry Assistant sudah diverifikasi')} ✅\n\n${masaAktifTxt} ${t('Terima kasih!')}`);
+  const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('perpanjangan langganan Dokter Laundry sudah diverifikasi')} ✅\n\n${masaAktifTxt} ${t('Terima kasih!')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
 }
 async function rejectPaymentRequest(id){

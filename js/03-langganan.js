@@ -147,7 +147,7 @@ async function requestRenewal(){
   if(error){ showToast(t('Gagal mengirim permintaan, coba lagi')); return; }
   showToast(t('Permintaan perpanjangan terkirim, admin akan verifikasi'));
   const waNum = String(ADMIN_WA || '6285696487884').replace(/[^0-9]/g,'');
-  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Laundry Assistant untuk toko')} "${nama}", ${t('Paket')} ${planTxt}. ${t('Berikut bukti pembayarannya.')}`);
+  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Dokter Laundry untuk toko')} "${nama}", ${t('Paket')} ${planTxt}. ${t('Berikut bukti pembayarannya.')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
   closePaywallModal();
 }
