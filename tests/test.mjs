@@ -587,9 +587,42 @@ const result = await page.evaluate(async () => {
     if (!L[idx+2].t.includes('Setrika') || !L[idx+2].b) throw new Error('second batch line not bold: ' + JSON.stringify(L[idx+2]));
   });
 
-  await step('addExtraService() for Paket Bulanan still saves immediately (unchanged behavior), and also now accepts a manually-typed layanan name', async () => {
+  // Padanan non-Tempo dari test di atas -- sebelum ini, sendUsageNotaWA()/downloadUsageNotaImage()
+  // dkk. memanggil usageNotaTextWA(newItems[newItems.length-1], s) untuk batch Bulanan, yang
+  // cuma menampilkan item TERAKHIR (bukan semuanya) di "Timbangan Sekarang". usageBatchNotaTextWA()/
+  // buildUsageBatchNotaPDFLines() (baru) memperbaiki ini supaya SEMUA item di batch tampil,
+  // sama seperti versi Tempo, plus tetap menghitung kuota kg yang cuma berlaku utk Bulanan.
+  await step('usageBatchNotaTextWA()/buildUsageBatchNotaPDFLines() (Paket Bulanan) show EVERY newly-added item under "Timbangan Sekarang", not just the last one (regresi bug nyata)', () => {
+    const savedList = currentUsageList;
+    const newItems = [
+      { id:'bbatch1', tanggal:'2026-09-20', layananNama:'Handuk', qty:1, satuan:'pcs', harga:5000, subtotal:5000 },
+      { id:'bbatch2', tanggal:'2026-09-20', layananNama:'Sajadah', qty:1, satuan:'pcs', harga:10000, subtotal:10000 },
+    ];
+    currentUsageList = newItems;
+    const txt = usageBatchNotaTextWA(newItems, bulananSub);
+    if (txt.includes('TEMPO')) throw new Error('nota batch Paket Bulanan tidak boleh jatuh ke builder Tempo: ' + txt.slice(0,120));
+    if (!txt.includes('Handuk')) throw new Error('REGRESI: item pertama batch (Handuk) hilang dari "Timbangan Sekarang": ' + txt);
+    if (!txt.includes('Sajadah')) throw new Error('REGRESI: item kedua batch (Sajadah) hilang dari "Timbangan Sekarang" (dulu cuma item terakhir yang tampil): ' + txt);
+    if (!txt.includes('Total Terpakai')) throw new Error('nota batch Bulanan harus tetap menghitung kuota kg (fitur khas Bulanan): ' + txt);
+
+    const L = buildUsageBatchNotaPDFLines(newItems, bulananSub);
+    const idx = L.findIndex(l => l.t === 'TIMBANGAN SEKARANG');
+    if (idx === -1) throw new Error('TIMBANGAN SEKARANG header not found in PDF lines');
+    if (!L[idx+1].t.includes('Handuk')) throw new Error('REGRESI: baris PDF pertama batch (Handuk) hilang: ' + JSON.stringify(L[idx+1]));
+    if (!L[idx+2].t.includes('Sajadah')) throw new Error('REGRESI: baris PDF kedua batch (Sajadah) hilang: ' + JSON.stringify(L[idx+2]));
+    currentUsageList = savedList;
+  });
+
+  // Regression: addExtraService() used to insert Paket Bulanan rows straight to the
+  // DB one at a time, WITHOUT any batch_id -- so several layanan tambahan added in
+  // one visit for the same customer never shared an identifier and always rendered
+  // as separate Daftar Tugas cards, even though the cashier added them together as
+  // "one nota". Bulanan now stages drafts exactly like Tempo, so submitExtraServiceBatch()
+  // can tag them all with the same batch_id (see groupUsageRowsByBatch()).
+  await step('addExtraService() for Paket Bulanan (non-Tempo) now ALSO stages a draft (NOT saved immediately) -- same behavior as Tempo, and accepts a manually-typed layanan name', async () => {
     currentSubscriptionId = 'sub-bulanan-1';
     draftExtraItems = [];
+    renderExtraDraftList();
     const rowsBefore = fakeUsageRows.length;
     document.getElementById('extraTanggal').value = '2026-08-12';
     document.getElementById('extraLayanan').value = 'Layanan Manual Bulanan';
@@ -597,9 +630,52 @@ const result = await page.evaluate(async () => {
     document.getElementById('extraSatuan').value = 'pcs';
     document.getElementById('extraHarga').value = '10000';
     await addExtraService();
-    if (fakeUsageRows.length !== rowsBefore + 1) throw new Error('Bulanan should still insert immediately, one row, got ' + (fakeUsageRows.length - rowsBefore));
-    if (draftExtraItems.length !== 0) throw new Error('Bulanan should never use the draft queue');
+    if (fakeUsageRows.length !== rowsBefore) throw new Error('REGRESI: Bulanan tidak boleh lagi insert langsung ke DB, harus antre draft dulu seperti Tempo, got ' + (fakeUsageRows.length - rowsBefore) + ' baris baru');
+    if (draftExtraItems.length !== 1) throw new Error('expected 1 draft item for Bulanan, got ' + draftExtraItems.length);
+    if (draftExtraItems[0].nama !== 'Layanan Manual Bulanan') throw new Error('draft item mismatch: ' + JSON.stringify(draftExtraItems[0]));
+    if (document.getElementById('extraDraftListWrap').style.display === 'none') throw new Error('draft list wrap should become visible for Bulanan too, same as Tempo');
+
+    // submitExtraServiceBatch() harus tetap generik -- bisa dipakai Bulanan juga, bukan cuma Tempo.
+    const rowsBefore2 = fakeUsageRows.length;
+    await submitExtraServiceBatch();
+    if (fakeUsageRows.length !== rowsBefore2 + 1) throw new Error('submitExtraServiceBatch() harus benar-benar menyimpan draft Bulanan ke DB, got ' + (fakeUsageRows.length - rowsBefore2));
+    if (draftExtraItems.length !== 0) throw new Error('draft harus kosong lagi setelah submitExtraServiceBatch()');
+    closeUsageNotaOptions();
     currentSubscriptionId = 'sub-tempo-1';
+  });
+
+  // Regression, akar masalah nyata: loadAllWorkUsage() (pemuat data allWorkUsage
+  // dari DB saat login/reload) TIDAK PERNAH menyertakan batch_id dalam mapping-nya,
+  // padahal submitExtraServiceBatch() sudah menyimpannya dengan benar di kolom DB.
+  // Akibatnya: pengelompokan 1 nota berlayanan-banyak (baik Tempo maupun Bulanan)
+  // kelihatan berhasil SESAAT setelah disimpan (karena push manual ke allWorkUsage
+  // di submitExtraServiceBatch() sudah menyertakan batchId), tapi begitu halaman
+  // dimuat ulang (reload/login lagi), batchId-nya hilang dan kartunya pecah lagi
+  // jadi terpisah satu-satu -- inilah yang membuat perbaikan grouping sebelumnya
+  // (PR #23) kelihatan "belum berhasil" saat dilaporkan ulang oleh user.
+  await step('loadAllWorkUsage(): batch_id dari DB HARUS ikut ter-mapping ke batchId (regresi bug nyata -- dulu hilang lagi setiap kali halaman dimuat ulang)', async () => {
+    const originalFakeUsageRows = fakeUsageRows.slice();
+    const originalAllWorkUsage = allWorkUsage;
+    try {
+      fakeUsageRows = [
+        { id:'lwu-1', subscription_id:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layanan_nama:'Handuk', qty:1, satuan:'pcs', harga:5000, subtotal:5000, batch_id:'batch-reload-test' },
+        { id:'lwu-2', subscription_id:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layanan_nama:'Sajadah', qty:1, satuan:'pcs', harga:10000, subtotal:10000, batch_id:'batch-reload-test' },
+        { id:'lwu-3', subscription_id:'sub-bulanan-1', tanggal:'2026-09-18', type:'pemakaian', berat_kg:2, catatan:'' }, // baris lama tanpa batch_id sama sekali
+      ];
+      await loadAllWorkUsage();
+      if (allWorkUsage.length !== 3) throw new Error('expected 3 rows loaded, got ' + allWorkUsage.length);
+      const r1 = allWorkUsage.find(u=>u.id==='lwu-1'), r2 = allWorkUsage.find(u=>u.id==='lwu-2'), r3 = allWorkUsage.find(u=>u.id==='lwu-3');
+      if (!r1 || r1.batchId !== 'batch-reload-test') throw new Error('REGRESI: batch_id dari DB tidak ter-mapping ke batchId untuk baris 1: ' + JSON.stringify(r1));
+      if (!r2 || r2.batchId !== 'batch-reload-test') throw new Error('REGRESI: batch_id dari DB tidak ter-mapping ke batchId untuk baris 2: ' + JSON.stringify(r2));
+      if (!r3 || r3.batchId !== null) throw new Error('baris lama tanpa batch_id harus tetap batchId:null (bukan undefined), got: ' + JSON.stringify(r3));
+
+      // Buktikan dampaknya nyata: groupUsageRowsByBatch() harus menggabungkan r1+r2 jadi 1 grup.
+      const groups = groupUsageRowsByBatch(allWorkUsage.filter(u=>u.type==='layanan_tambahan'));
+      if (groups.length !== 1 || groups[0].length !== 2) throw new Error('setelah loadAllWorkUsage(), groupUsageRowsByBatch() harus tetap menyatukan 2 baris batch itu jadi 1 grup: ' + JSON.stringify(groups));
+    } finally {
+      fakeUsageRows = originalFakeUsageRows;
+      allWorkUsage = originalAllWorkUsage;
+    }
   });
 
   await step('usageNotaTextWA() for bulanan customer stays on original kg-based branch', () => {
@@ -1720,9 +1796,10 @@ const result = await page.evaluate(async () => {
     if (html.includes('Cuci Kilat')) throw new Error('usage-sourced card should disappear from the board after pickup: ' + html);
   });
 
-  await step('addExtraService() (Paket Bulanan, non-Tempo) saves estimasi and syncs the new row into allWorkUsage for the board', async () => {
+  await step('addExtraService()+submitExtraServiceBatch() (Paket Bulanan, non-Tempo) saves estimasi and syncs the new row into allWorkUsage for the board', async () => {
     currentSubscriptionId = 'sub-bulanan-1';
     allWorkUsage = [];
+    draftExtraItems = [];
     document.getElementById('extraTanggal').value = '2026-08-24';
     document.getElementById('extraEstimasi').value = '2026-08-26';
     document.getElementById('extraLayanan').value = 'Setrika Jas';
@@ -1730,9 +1807,12 @@ const result = await page.evaluate(async () => {
     document.getElementById('extraSatuan').value = 'pcs';
     document.getElementById('extraHarga').value = '20000';
     await addExtraService();
-    if (allWorkUsage.length !== 1) throw new Error('expected addExtraService (Bulanan) to push a row into allWorkUsage, got ' + allWorkUsage.length);
+    if (allWorkUsage.length !== 0) throw new Error('addExtraService() (Bulanan) hanya boleh mengantre draft, belum boleh mengisi allWorkUsage sebelum di-submit, got ' + allWorkUsage.length);
+    await submitExtraServiceBatch();
+    if (allWorkUsage.length !== 1) throw new Error('expected submitExtraServiceBatch() (Bulanan) to push a row into allWorkUsage, got ' + allWorkUsage.length);
     const row = allWorkUsage[0];
     if (row.layananNama !== 'Setrika Jas' || row.estimasi !== '2026-08-26' || row.subtotal !== 20000) throw new Error('allWorkUsage row mismatch: ' + JSON.stringify(row));
+    closeUsageNotaOptions();
     currentSubscriptionId = 'sub-tempo-1';
   });
 
@@ -1768,15 +1848,15 @@ const result = await page.evaluate(async () => {
     if (!allWorkUsage.some(u=>u.layananNama==='Setrika Jaket' && u.estimasi==='2026-08-27')) throw new Error('missing/mismatched Setrika Jaket row: ' + JSON.stringify(allWorkUsage));
   });
 
-  await step('deleteUsage() removes the row from allWorkUsage, and "Urungkan" restores it (preserving estimasi)', async () => {
+  await step('deleteUsage() removes the row from allWorkUsage, and "Urungkan" restores it (preserving estimasi AND batch_id -- regresi: dulu batch_id ikut hilang saat diurungkan, melepas item dari kartu gabungannya)', async () => {
     currentSubscriptionId = 'sub-tempo-1';
     fakeUsageRows = [
-      { id:'du-1', subscription_id:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layanan_nama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000 },
+      { id:'du-1', subscription_id:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layanan_nama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, batch_id:'batch-du-1' },
     ];
     allWorkUsage = [
-      { id:'du-1', subscriptionId:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layananNama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, workStatus:'belum' },
+      { id:'du-1', subscriptionId:'sub-tempo-1', tanggal:'2026-08-24', estimasi:'2026-08-25', type:'layanan_tambahan', layananNama:'Cuci Sepatu', qty:1, satuan:'pasang', harga:25000, subtotal:25000, workStatus:'belum', batchId:'batch-du-1' },
     ];
-    currentUsageList = allWorkUsage.map(u=>({ id:u.id, tanggal:u.tanggal, estimasi:u.estimasi, berat:0, catatan:'', type:u.type, layananNama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal }));
+    currentUsageList = allWorkUsage.map(u=>({ id:u.id, tanggal:u.tanggal, estimasi:u.estimasi, berat:0, catatan:'', type:u.type, layananNama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal, batchId:u.batchId }));
     const originalConfirm = window.confirm;
     window.confirm = () => true;
     await deleteUsage('du-1');
@@ -1791,6 +1871,7 @@ const result = await page.evaluate(async () => {
     const restored = allWorkUsage.find(u=>u.layananNama==='Cuci Sepatu');
     if (!restored) throw new Error('Urungkan should restore the row into allWorkUsage');
     if (restored.estimasi !== '2026-08-25') throw new Error('Urungkan should preserve the estimasi date: ' + JSON.stringify(restored));
+    if (restored.batchId !== 'batch-du-1') throw new Error('REGRESI: Urungkan harus tetap membubuhkan batch_id aslinya, supaya item tidak lepas dari kartu Daftar Tugas gabungannya: ' + JSON.stringify(restored));
   });
 
   await step('deleteUsage() on a plain kg intake ("pemakaian") also removes it from allWorkUsage, and "Urungkan" restores it (preserving berat/estimasi)', async () => {
@@ -1993,6 +2074,25 @@ const result = await page.evaluate(async () => {
     renderWorkBoard();
     html = document.getElementById('workBoardGrid').innerHTML;
     if (html.includes('Cuci Lipat Ekspress')) throw new Error('kartu gabungan yang sudah diambil seharusnya hilang seluruhnya dari papan: ' + html);
+  });
+
+  // Padanan non-Tempo dari test di atas -- ini persis skenario yang dilaporkan user lewat
+  // screenshot (pelanggan Paket Bulanan biasa dengan beberapa layanan tambahan tanggal
+  // sama tapi kartunya terpisah-pisah). Sebelum perbaikan addExtraService()/loadAllWorkUsage(),
+  // baris-baris ini tidak akan pernah punya batch_id yang sama untuk Bulanan.
+  await step('buildWorkItems()/renderWorkBoard(): 1 nota Paket Bulanan (non-Tempo) berisi beberapa layanan tambahan (batch_id sama) tampil sebagai SATU kartu, bukan pecah per layanan (regresi bug nyata dilaporkan lewat screenshot)', async () => {
+    transactions = [];
+    allWorkUsage = [
+      { id:'bwi-1', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Cuci Setrika Super Ekspress', qty:1, satuan:'kg', harga:75900, subtotal:75900, workStatus:'belum', batchId:'batch-fitri' },
+      { id:'bwi-2', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Selimut Kecil', qty:1, satuan:'pcs', harga:5000, subtotal:5000, workStatus:'belum', batchId:'batch-fitri' },
+      { id:'bwi-3', subscriptionId:'sub-bulanan-1', tanggal:'2026-09-20', estimasi:'2026-09-23', type:'layanan_tambahan', layananNama:'Selimut Perlak', qty:1, satuan:'pcs', harga:10000, subtotal:10000, workStatus:'belum', batchId:'batch-fitri' },
+    ];
+    renderWorkBoard();
+    const html = document.getElementById('workBoardGrid').innerHTML;
+    const cardCount = (html.match(/class="work-card"/g) || []).length;
+    if (cardCount !== 1) throw new Error(`1 nota Bulanan dengan 3 layanan tambahan (batch_id sama) seharusnya jadi 1 kartu, bukan ${cardCount}: ` + html);
+    if (!html.includes('Cuci Setrika Super Ekspress') || !html.includes('Selimut Kecil') || !html.includes('Selimut Perlak')) throw new Error('kartu gabungan harus tetap menyebutkan ketiga layanan: ' + html);
+    if (!html.includes('Rp90.900')) throw new Error('harga kartu gabungan harus dijumlahkan dari semua layanan (75900+5000+10000=90900): ' + html);
   });
 
   await step('expense catalog: add via addOrUpdateExpenseCatalogItem(), autocomplete fills harga/satuan, edit updates it', async () => {
@@ -2484,6 +2584,51 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Regression: user melaporkan (screenshot) transaksi tanggal 26 Sep muncul DI ANTARA
+  // dua transaksi tanggal 22 Sep di Riwayat -- sebabnya renderHistory() cuma pakai
+  // .reverse() (urutan input dibalik), bukan diurutkan berdasarkan field tanggal-nya
+  // sendiri. Backdated entry (tanggal lebih lama tapi diinput belakangan, mis. lewat
+  // "Rekap Transaksi Pelanggan" atau edit tanggal manual) akan salah urut kalau cuma
+  // dibalik urutan inputnya. Fix: urutkan berdasarkan tanggal descending (terbaru
+  // dulu), dan pencarian (searchInput) memakai list yang sama jadi ikut terurut juga.
+  await step('renderHistory(): urutan berdasarkan TANGGAL transaksi (terbaru dulu), bukan urutan input -- regresi bug nyata dilaporkan lewat screenshot', () => {
+    const savedTransactions = transactions;
+    const savedOutlets = outlets;
+    const savedOutletId = currentOutletId;
+    outlets = []; currentOutletId = null;
+    // Sengaja diinput TIDAK berurutan tanggalnya (mis3 "26 Sep" diinput di antara dua
+    // entri "22 Sep" -- lebih baru tanggalnya, tapi bukan yang paling baru diinput).
+    transactions = [
+      { id:'ord-1', kode:'LND-0144', nama:'Amat', hp:'', tanggal:'2026-09-22', estimasi:null, items:[], diskon:0, total:10600, dp:0, status:'belum', catatan:'' },
+      { id:'ord-2', kode:'LND-0145', nama:'Najwa', hp:'', tanggal:'2026-09-26', estimasi:null, items:[], diskon:0, total:500000, dp:500000, status:'lunas', catatan:'' },
+      { id:'ord-3', kode:'LND-0146', nama:'Pak Rudi', hp:'', tanggal:'2026-09-22', estimasi:null, items:[], diskon:0, total:38000, dp:38000, status:'lunas', catatan:'' },
+    ];
+    try {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('historyStatusFilter').value = '';
+      document.getElementById('historyDariFilter').value = '';
+      document.getElementById('historySampaiFilter').value = '';
+      renderHistory();
+      const html = document.getElementById('historyList').innerHTML;
+      const idxNajwa = html.indexOf('Najwa'), idxAmat = html.indexOf('Amat'), idxRudi = html.indexOf('Pak Rudi');
+      if (idxNajwa === -1 || idxAmat === -1 || idxRudi === -1) throw new Error('ketiga transaksi harus tetap tampil: ' + html);
+      if (idxNajwa > idxAmat || idxNajwa > idxRudi) throw new Error('REGRESI: Najwa (26 Sep, tanggal PALING BARU) harus tampil PALING ATAS, bukan di tengah/bawah: ' + html);
+
+      // Pencarian (searchInput) memakai list yang sama -- harus ikut terurut tanggal juga.
+      document.getElementById('searchInput').value = 'a'; // cocok ke "Amat", "Najwa", dan "Pak Rudi" (mengandung huruf 'a')
+      renderHistory();
+      const html2 = document.getElementById('historyList').innerHTML;
+      const idxNajwa2 = html2.indexOf('Najwa'), idxAmat2 = html2.indexOf('Amat'), idxRudi2 = html2.indexOf('Pak Rudi');
+      if (idxNajwa2 === -1 || idxAmat2 === -1 || idxRudi2 === -1) throw new Error('hasil pencarian "a" harus tetap menampilkan ketiganya: ' + html2);
+      if (idxNajwa2 > idxAmat2 || idxNajwa2 > idxRudi2) throw new Error('REGRESI: hasil pencarian juga harus terurut tanggal terbaru dulu (Najwa di atas): ' + html2);
+    } finally {
+      transactions = savedTransactions;
+      outlets = savedOutlets;
+      currentOutletId = savedOutletId;
+      document.getElementById('searchInput').value = '';
+    }
+  });
+
   await step('buildAllWorkItemsRaw()/Daftar Tugas only includes cucian belonging to the active outlet, for both direct transactions and Paket/Tempo customers linked via subscriptions', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     const subA = subscriptions.find(s=>s.nama==='Sub Outlet A');
@@ -2906,7 +3051,7 @@ const result = await page.evaluate(async () => {
       shopOwnerId = 'owner-uji-bayar';
       settings = { shopName: 'Toko Uji Bayar' };
       showPaywallModal();
-      if (document.getElementById('paywallPlan').options.length !== 4) throw new Error('dropdown paywallPlan harus berisi 4 pilihan paket (1/3/6/12 bulan)');
+      if (document.getElementById('paywallPlan').options.length !== 5) throw new Error('dropdown paywallPlan harus berisi 5 pilihan paket (1/3/6/12 bulan + Seumur Hidup)');
       if (document.getElementById('paywallPlan').value !== '12bulan') throw new Error('paket 12 bulan harus tetap default (SENGAJA, lihat CLAUDE.md) -- jangan diubah tanpa diminta');
       document.getElementById('paywallPlan').value = '1bulan';
       updatePlanAmountDisplay('paywallPlan', 'paywallAmount');
@@ -2917,6 +3062,7 @@ const result = await page.evaluate(async () => {
       if (!renewalUrl.startsWith('https://wa.me/6285696487884')) throw new Error('link WA konfirmasi perpanjangan harus ke nomor admin 6285696487884, got: ' + renewalUrl);
       if (!renewalUrl.includes('1 Bulan') || !renewalUrl.includes('Rp50.000')) throw new Error('BUG: pesan WA konfirmasi perpanjangan tidak menyebut paket & jumlah transfer sama sekali: ' + renewalUrl);
       if (!capturedInsert || !capturedInsert.catatan.includes('1 Bulan') || !capturedInsert.catatan.includes('Rp50.000')) throw new Error('BUG: catatan payment_requests (perpanjangan) yang dilihat admin tidak menyebut paket & jumlah: ' + JSON.stringify(capturedInsert));
+      if (capturedInsert.plan_days !== 30) throw new Error('REGRESI: requestRenewal() harus menyimpan plan_days sesuai paket dipilih (1 Bulan = 30 hari), supaya approveRenewalRequest() tidak salah aktifkan durasi: ' + JSON.stringify(capturedInsert));
 
       // 2. Pendaftaran baru (belum login): paymentInfoModal SEBELUMNYA tidak punya
       //    pilihan paket sama sekali (bug nyata) -- sekarang harus ada 4 opsi juga,
@@ -2924,7 +3070,7 @@ const result = await page.evaluate(async () => {
       openedUrls.length = 0;
       capturedInsert = null;
       openPaymentInfo();
-      if (document.getElementById('preqPlan').options.length !== 4) throw new Error('BUG: dropdown preqPlan (form Daftar) belum punya 4 pilihan paket 1/3/6/12 bulan');
+      if (document.getElementById('preqPlan').options.length !== 5) throw new Error('BUG: dropdown preqPlan (form Daftar) belum punya 5 pilihan paket (1/3/6/12 bulan + Seumur Hidup)');
       document.getElementById('preqPlan').value = '6bulan';
       updatePlanAmountDisplay('preqPlan', 'preqAmount');
       if (!document.getElementById('preqAmount').textContent.includes('Rp240.000')) throw new Error('jumlah transfer form Daftar tidak update ke Rp240.000 saat pilih 6 Bulan: ' + document.getElementById('preqAmount').textContent);
@@ -2945,6 +3091,196 @@ const result = await page.evaluate(async () => {
       settings = originalSettings;
       closePaywallModal();
       closePaymentInfo();
+    }
+  });
+
+  // Regression bug nyata dilaporkan user (screenshot Admin Platform): user mengajukan
+  // perpanjangan Paket 12 Bulan, tapi tombol admin selalu berbunyi "Aktifkan 30 Hari"
+  // dan approveRenewalRequest() SELALU memaksa 30 hari apa pun paketnya, karena dulu
+  // requestRenewal() tidak menyimpan plan_days sama sekali. Sekarang plan_days dibaca
+  // (renewalPlanDaysFor()), dengan fallback menebak dari teks catatan untuk baris LAMA
+  // yang sudah masuk sebelum perbaikan ini (tidak punya plan_days sama sekali).
+  await step('approveRenewalRequest()/renewalPlanDaysFor(): mengaktifkan sesuai plan_days paket yang diajukan (bukan selalu 30 hari), termasuk fallback tebak dari catatan untuk baris lama tanpa plan_days', async () => {
+    const originalFrom = sb.from;
+    const originalOpen = window.open;
+    const originalPaymentReqCache = paymentReqCache;
+    const openedUrls = [];
+    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    let subUpdatePayload = null, subInsertPayload = null, reqUpdatePayload = null;
+    let fakeSub = null; // belum ada app_subscriptions untuk owner ini
+    sb.from = (table) => {
+      if (table === 'app_subscriptions') {
+        const q = {
+          select: () => q, eq: () => q,
+          maybeSingle: () => Promise.resolve({ data: fakeSub, error: null }),
+          update: (payload) => { subUpdatePayload = payload; return q; },
+          insert: (payload) => { subInsertPayload = payload; return q; },
+          then: (resolve) => resolve({ data: null, error: null }),
+        };
+        return q;
+      }
+      if (table === 'payment_requests') {
+        const q = {
+          select: () => q, eq: () => q, order: () => q, limit: () => q, in: () => q,
+          update: (payload) => { reqUpdatePayload = payload; return q; },
+          then: (resolve) => resolve({ data: [], error: null }),
+        };
+        return q;
+      }
+      return originalFrom(table);
+    };
+    try {
+      // Kasus 1: baris BARU dengan plan_days tersimpan benar (12 Bulan = 365 hari).
+      paymentReqCache = [{ id:'preq-365', nama:'Toko Baru', wa:'0812', owner_id:'owner-365', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket 12 Bulan (Rp420.000)', plan_days:365 }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 365) throw new Error('renewalPlanDaysFor() harus baca plan_days=365 langsung, got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      let html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('Aktifkan 365 Hari') && !html.includes('365')) throw new Error('REGRESI: tombol admin harus menyebut 365 Hari (paket 12 Bulan), bukan selalu "30 Hari": ' + html);
+
+      fakeSub = null; subInsertPayload = null; subUpdatePayload = null; reqUpdatePayload = null;
+      await approveRenewalRequest('preq-365');
+      if (!subInsertPayload) throw new Error('belum ada app_subscriptions sebelumnya -- approveRenewalRequest() harus insert baris baru');
+      const daysGranted365 = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGranted365 < 364 || daysGranted365 > 365) throw new Error('REGRESI: paket 12 Bulan (plan_days=365) harus mengaktifkan ~365 hari, bukan 30 hari: got ' + daysGranted365 + ' hari, payload=' + JSON.stringify(subInsertPayload));
+
+      // Kasus 2: baris LAMA (sebelum perbaikan ini) tanpa plan_days sama sekali --
+      // tetap harus benar 365 hari lewat tebakan dari teks catatan "Paket 12 Bulan".
+      paymentReqCache = [{ id:'preq-legacy', nama:'Toko Lama', wa:'0813', owner_id:'owner-legacy', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket 12 Bulan (Rp420.000)' }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 365) throw new Error('REGRESI: baris lama tanpa plan_days harus tetap ditebak 365 hari dari teks catatan "Paket 12 Bulan", got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('365')) throw new Error('REGRESI: baris lama tanpa plan_days harus tetap menampilkan 365 Hari di tombolnya (bukan 30): ' + html);
+
+      fakeSub = null; subInsertPayload = null;
+      await approveRenewalRequest('preq-legacy');
+      const daysGrantedLegacy = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGrantedLegacy < 364 || daysGrantedLegacy > 365) throw new Error('REGRESI: baris lama (tebakan dari catatan) harus tetap mengaktifkan ~365 hari, got ' + daysGrantedLegacy);
+
+      // Kasus 3: baris benar-benar tanpa plan_days DAN catatannya tidak menyebut paket
+      // apa pun (tidak bisa ditebak) -- harus tetap fallback 30 hari, bukan error/NaN.
+      if (renewalPlanDaysFor({ catatan: 'catatan bebas tanpa nama paket' }) !== 30) throw new Error('fallback terakhir harus tetap 30 hari kalau plan_days kosong dan catatan tidak bisa ditebak');
+
+      // Kasus 4: paket BARU "Seumur Hidup" (plan_days=36500) -- tombolnya harus
+      // menampilkan "Seumur Hidup", BUKAN angka mentah "36500 Hari" yang tidak
+      // enak dibaca admin, dan pesan WA konfirmasi harus bilang SEUMUR HIDUP,
+      // bukan tanggal ~100 tahun ke depan yang membingungkan.
+      paymentReqCache = [{ id:'preq-lifetime', nama:'Toko Abadi', wa:'0814', owner_id:'owner-lifetime', type:'perpanjangan', catatan:'Perpanjangan langganan aplikasi — Paket Seumur Hidup (Rp1.500.000)', plan_days:36500 }];
+      if (renewalPlanDaysFor(paymentReqCache[0]) !== 36500) throw new Error('renewalPlanDaysFor() harus baca plan_days=36500 untuk paket Seumur Hidup, got ' + renewalPlanDaysFor(paymentReqCache[0]));
+      if (renewalDurationLabelFor(paymentReqCache[0]) !== 'Seumur Hidup') throw new Error('renewalDurationLabelFor() harus menampilkan "Seumur Hidup", bukan angka hari mentah: ' + renewalDurationLabelFor(paymentReqCache[0]));
+      renderPaymentReqList();
+      html = document.getElementById('paymentReqList').innerHTML;
+      if (!html.includes('Aktifkan Seumur Hidup')) throw new Error('BUG: tombol admin untuk paket Seumur Hidup harus berbunyi "Aktifkan Seumur Hidup", bukan "Aktifkan 36500 Hari": ' + html);
+      if (html.includes('36500')) throw new Error('BUG: tombol admin TIDAK BOLEH menampilkan angka mentah "36500" untuk paket Seumur Hidup: ' + html);
+
+      fakeSub = null; subInsertPayload = null; openedUrls.length = 0;
+      await approveRenewalRequest('preq-lifetime');
+      const daysGrantedLifetime = Math.round((new Date(subInsertPayload.paid_until) - new Date()) / (24*60*60*1000));
+      if (daysGrantedLifetime < 36499 || daysGrantedLifetime > 36500) throw new Error('paket Seumur Hidup harus mengaktifkan ~36500 hari, got ' + daysGrantedLifetime);
+      const lifetimeWaMsg = decodeURIComponent(openedUrls[openedUrls.length - 1] || '');
+      if (!lifetimeWaMsg.includes('SEUMUR HIDUP')) throw new Error('BUG: pesan WA konfirmasi paket Seumur Hidup harus bilang SEUMUR HIDUP, bukan tanggal jauh di masa depan: ' + lifetimeWaMsg);
+    } finally {
+      sb.from = originalFrom;
+      window.open = originalOpen;
+      paymentReqCache = originalPaymentReqCache;
+      renderPaymentReqList();
+    }
+  });
+
+  // Regresi bug nyata dilaporkan lewat screenshot: toko dengan paket Seumur Hidup
+  // (paid_until ~100 tahun ke depan) menampilkan "Aktif s.d. 08 Okt 2127" di baris
+  // "Langganan Aplikasi" (Pengaturan) -- tahun kadaluarsa yang aneh/membingungkan,
+  // seharusnya bilang "Seumur Hidup" saja.
+  await step('renderSubscriptionBadge(): baris "Langganan Aplikasi" di Pengaturan menampilkan "Seumur Hidup" untuk paket lifetime, bukan tanggal ~100 tahun ke depan', () => {
+    const originalAppSubscription = appSubscription;
+    try {
+      const farFuture = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
+      appSubscription = { status:'aktif', paid_until: farFuture };
+      renderSubscriptionBadge();
+      const txt = document.getElementById('settingsSubStatus').textContent;
+      if (!txt.includes('Seumur Hidup')) throw new Error('BUG: paket Seumur Hidup harus menampilkan teks "Seumur Hidup" di baris Langganan Aplikasi, got: ' + txt);
+      if (/\d{4}/.test(txt)) throw new Error('BUG: baris Langganan Aplikasi TIDAK BOLEH menampilkan tahun kalender (mis. 2127) untuk paket Seumur Hidup: ' + txt);
+
+      // Langganan aktif BIASA (bukan lifetime) harus tetap menampilkan tanggalnya seperti biasa.
+      const normalFuture = new Date(Date.now() + 90*24*60*60*1000).toISOString();
+      appSubscription = { status:'aktif', paid_until: normalFuture };
+      renderSubscriptionBadge();
+      const txtNormal = document.getElementById('settingsSubStatus').textContent;
+      if (txtNormal.includes('Seumur Hidup')) throw new Error('BUG: langganan aktif biasa (90 hari) tidak boleh ikut dianggap Seumur Hidup: ' + txtNormal);
+      if (!/\d{4}/.test(txtNormal)) throw new Error('langganan aktif biasa harus tetap menampilkan tanggal kalender: ' + txtNormal);
+    } finally {
+      appSubscription = originalAppSubscription;
+      renderSubscriptionBadge();
+    }
+  });
+
+  await step('computeSubStatusFor(): status aktif/trial/tidak-aktif dihitung sama persis dengan isSubscriptionActive() (aktif=paid_until belum lewat, trial=trial_ends_at belum lewat, selain itu tidak aktif)', () => {
+    const future = new Date(Date.now() + 10*24*60*60*1000).toISOString();
+    const past = new Date(Date.now() - 5*24*60*60*1000).toISOString();
+    let r = computeSubStatusFor({ status:'aktif', paid_until: future });
+    if (!r.active || r.statusLabel !== 'Aktif') throw new Error('status aktif dengan paid_until di masa depan harus active=true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'aktif', paid_until: past });
+    if (r.active || r.statusLabel !== 'Tidak Aktif') throw new Error('status aktif dengan paid_until sudah lewat harus active=false ("Tidak Aktif"): ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'trial', trial_ends_at: future });
+    if (!r.active || r.statusLabel !== 'Trial') throw new Error('status trial yang belum berakhir harus active=true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'trial', trial_ends_at: past });
+    if (r.active || r.statusLabel !== 'Trial Berakhir') throw new Error('status trial yang sudah berakhir harus active=false ("Trial Berakhir"): ' + JSON.stringify(r));
+    r = computeSubStatusFor(null);
+    if (r.active) throw new Error('tidak ada data sama sekali harus active=false, bukan malah dianggap aktif');
+
+    // Paket Seumur Hidup (plan_days=36500 -> paid_until ~100 tahun ke depan) harus
+    // ke-flag isLifetime:true (dideteksi dari jaraknya ke sekarang, bukan dari kolom
+    // paket -- app_subscriptions tidak menyimpan paket mana yang dibeli).
+    const farFuture = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
+    r = computeSubStatusFor({ status:'aktif', paid_until: farFuture });
+    if (!r.active || !r.isLifetime) throw new Error('paid_until ~100 tahun ke depan harus ke-flag isLifetime:true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'aktif', paid_until: future });
+    if (r.isLifetime) throw new Error('langganan aktif biasa (10 hari lagi) TIDAK BOLEH ke-flag isLifetime:true: ' + JSON.stringify(r));
+  });
+
+  // Fitur baru diminta user: Admin Platform harus bisa lihat jumlah langganan aktif,
+  // masa berlaku tiap toko, dan daftar toko aktif/tidak aktif -- bukan cuma antrean
+  // permintaan pembayaran yang menunggu persetujuan.
+  await step('loadAdminSubscriptionsOverview()/renderAdminSubscriptionsOverview(): menampilkan jumlah toko aktif/tidak-aktif/total, plus daftar nama toko + status + tanggal berlakunya masing-masing', async () => {
+    const originalFrom = sb.from;
+    const futurePaid = new Date(Date.now() + 200*24*60*60*1000).toISOString();
+    const pastPaid = new Date(Date.now() - 3*24*60*60*1000).toISOString();
+    const futureTrial = new Date(Date.now() + 10*24*60*60*1000).toISOString();
+    const lifetimePaid = new Date(Date.now() + 36500*24*60*60*1000).toISOString();
+    sb.from = (table) => {
+      if (table === 'app_subscriptions') {
+        return { select: () => Promise.resolve({ data: [
+          { owner_id:'owner-A', status:'aktif', paid_until: futurePaid },
+          { owner_id:'owner-B', status:'aktif', paid_until: pastPaid },
+          { owner_id:'owner-C', status:'trial', trial_ends_at: futureTrial },
+          { owner_id:'owner-D', status:'aktif', paid_until: lifetimePaid },
+        ], error: null }) };
+      }
+      if (table === 'settings') {
+        return { select: () => Promise.resolve({ data: [
+          { user_id:'owner-A', shop_name:'Toko Aktif Jaya' },
+          { user_id:'owner-B', shop_name:'Toko Kadaluarsa' },
+          // owner-C SENGAJA tidak dikasih baris settings -- harus tetap tampil dengan nama fallback, bukan hilang dari daftar.
+          { user_id:'owner-D', shop_name:'Toko Langganan Abadi' },
+        ], error: null }) };
+      }
+      return originalFrom(table);
+    };
+    try {
+      await loadAdminSubscriptionsOverview();
+      if (document.getElementById('adminSubsStatTotal').textContent !== '4') throw new Error('total toko harus 4, got ' + document.getElementById('adminSubsStatTotal').textContent);
+      if (document.getElementById('adminSubsStatAktif').textContent !== '3') throw new Error('jumlah aktif harus 3 (owner-A, owner-C trial, owner-D seumur hidup), got ' + document.getElementById('adminSubsStatAktif').textContent);
+      if (document.getElementById('adminSubsStatTidakAktif').textContent !== '1') throw new Error('jumlah tidak aktif harus 1 (owner-B, paid_until sudah lewat), got ' + document.getElementById('adminSubsStatTidakAktif').textContent);
+
+      const html = document.getElementById('adminSubsOverview').innerHTML;
+      if (!html.includes('Toko Aktif Jaya')) throw new Error('daftar harus menyebut nama toko dari tabel settings: ' + html);
+      if (!html.includes('Toko Kadaluarsa')) throw new Error('toko yang TIDAK aktif juga harus tetap muncul di daftar (bukan cuma yang aktif): ' + html);
+      if (!html.includes('Toko tanpa nama')) throw new Error('toko tanpa baris settings (owner-C) harus tetap tampil dengan nama fallback, bukan hilang dari daftar: ' + html);
+      if (!html.includes('Tidak Aktif')) throw new Error('label "Tidak Aktif" harus tampil untuk Toko Kadaluarsa: ' + html);
+      if (!html.includes('Toko Langganan Abadi') || !html.includes('Seumur Hidup')) throw new Error('BUG: toko dengan paid_until ~100 tahun ke depan harus tampil dengan label "Seumur Hidup": ' + html);
+      const abadiRowMatch = html.match(/Toko Langganan Abadi[\s\S]*?<\/div>/);
+      if (abadiRowMatch && /\d{4}/.test(abadiRowMatch[0].split('Seumur Hidup')[1] || '')) throw new Error('BUG: baris Toko Langganan Abadi tidak boleh menampilkan tahun kalender (mis. 2126), harus "Seumur Hidup" saja: ' + abadiRowMatch[0]);
+    } finally {
+      sb.from = originalFrom;
     }
   });
 

@@ -82,7 +82,7 @@ exports.handler = async (event) => {
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: 'Laundry Assistant <onboarding@resend.dev>',
+      from: 'Dokter Laundry <onboarding@resend.dev>',
       to: [ADMIN_NOTIFY_EMAIL],
       subject,
       html,

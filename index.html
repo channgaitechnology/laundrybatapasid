@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Laundry Assistant — Aplikasi Kasir Laundry</title>
+<title>Dokter Laundry — Diagnosa &amp; Obati Repotnya Admin Laundry</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0D4F68">
+<meta name="theme-color" content="#0F4C74">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Laundry Assistant">
+<meta name="apple-mobile-web-app-title" content="Dokter Laundry">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,9 +19,15 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root{
-    --suds:#146C8E;
-    --suds-deep:#0D4F68;
-    --bubble:#5FC9BE;
+    /* Palet "Dokter Laundry": diturunkan dari biru-teal lama, ditarik lebih
+       ke biru klinis/dokter (bukan ganti total -- supaya pengguna lama yang
+       sudah kenal warna sebelumnya tidak merasa app-nya "diganti orang lain",
+       cuma dipertegas identitasnya). --success/--warn/--danger SENGAJA tidak
+       diubah -- ketiganya kebetulan sudah pas dengan metafora diagnosa
+       (hijau=sehat/lunas, oranye=perlu perhatian, merah=bermasalah). */
+    --suds:#1768AC;
+    --suds-deep:#0F4C74;
+    --bubble:#4FD1C5;
     --sun:#F2A54A;
     --ink:#122430;
     --ink-soft:#5C7180;
@@ -1172,6 +1178,23 @@
         <div id="adminPlatformSection" style="display:none;">
           <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Panel ini cuma kelihatan untukmu, pemilik platform.</p>
 
+          <b style="font-size:13px;">Ringkasan Langganan Semua Toko</b>
+          <div style="display:flex;gap:8px;margin:6px 0 10px;">
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;color:var(--success);" id="adminSubsStatAktif">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Aktif</div>
+            </div>
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;color:var(--danger);" id="adminSubsStatTidakAktif">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Tidak Aktif</div>
+            </div>
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;" id="adminSubsStatTotal">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Total Toko</div>
+            </div>
+          </div>
+          <div id="adminSubsOverview" style="max-height:240px;overflow-y:auto;margin-bottom:16px;"></div>
+
           <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
           <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
 
@@ -1533,11 +1556,11 @@
   </div>
   <div class="auth-card">
     <div class="logo-wrap">
-<img src="icons/logo-auth.png" alt="Logo Laundry Assistant" style="width:120px;height:120px;object-fit:contain;border-radius:16px;">
+<img src="icons/logo-auth.png" alt="Logo Dokter Laundry" style="width:120px;height:120px;object-fit:contain;border-radius:16px;">
     </div>
-    <h1>Laundry Assistant</h1>
-    <p class="sub" style="margin-bottom:2px;font-weight:600;">Your Digital Assistant</p>
-    <p class="sub">Masuk untuk mengelola transaksi laundry kamu</p>
+    <h1>Dokter Laundry</h1>
+    <p class="sub" style="margin-bottom:2px;font-weight:600;">Diagnosa Masalah Admin, Kami Kasih Obatnya</p>
+    <p class="sub">Capek nota manual, hitung-hitung sendiri, dan laporan kacau gara-gara hitungan manual? Masuk dan mulai sembuhkan admin laundry kamu.</p>
     <div class="auth-toggle">
       <button id="tabMasuk" class="active" onclick="setAuthMode('masuk')">Masuk</button>
       <button id="tabDaftar" onclick="setAuthMode('daftar')">Daftar</button>

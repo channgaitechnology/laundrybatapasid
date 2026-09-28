@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "Laundry Assistant",
-  "short_name": "Laundry Assistant",
-  "description": "Aplikasi kasir & nota untuk usaha laundry",
+  "name": "Dokter Laundry",
+  "short_name": "Dokter Laundry",
+  "description": "Diagnosa & obati repotnya admin laundry -- aplikasi kasir & nota digital untuk usaha laundry",
   "lang": "id",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#EEF5F7",
-  "theme_color": "#0D4F68",
+  "theme_color": "#0F4C74",
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {

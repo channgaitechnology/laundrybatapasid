@@ -28,11 +28,24 @@ const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
    harga tampilan disimpan, dipakai dropdown paketPaywall & paketDaftar
    plus pesan WA requestRenewal()/submitPaymentRequest() -- supaya tidak
    ada 2 tempat yang bisa kebablasan tidak sinkron. */
+/* `hari` HARUS sama dengan pemetaan `days` di netlify/functions/_midtrans-plans.js
+   (30/90/180/365/36500) -- dipakai requestRenewal() (js/03-langganan.js) supaya
+   permintaan perpanjangan MANUAL (transfer, bukan Midtrans) ikut menyimpan
+   plan_days yang benar, bukan cuma teks bebas di catatan (regresi bug nyata:
+   approveRenewalRequest() dulu selalu memaksa 30 hari apa pun paket yang
+   diajukan user, mis. user minta 12 Bulan tapi cuma diaktifkan 30 hari).
+   Paket 'seumurhidup' SENGAJA pakai `hari: 36500` (~100 tahun), BUKAN nilai
+   spesial/null -- supaya tetap lewat jalur perhitungan tanggal yang sama
+   persis dengan paket lain (approveRenewalRequest()/midtrans-webhook.js
+   cuma menambahkan `hari` ke tanggal, tidak ada cabang kode terpisah untuk
+   "tidak pernah kedaluwarsa"). js/05-admin.js punya helper terpisah supaya
+   paket ini tetap TAMPIL sebagai "Seumur Hidup" di UI, bukan "36500 Hari". */
 const SUBSCRIPTION_PLANS = {
-  '1bulan': { label: '1 Bulan', harga: 50000, hemat: 0 },
-  '3bulan': { label: '3 Bulan', harga: 135000, hemat: 10 },
-  '6bulan': { label: '6 Bulan', harga: 240000, hemat: 20 },
-  '12bulan': { label: '12 Bulan', harga: 420000, hemat: 30 },
+  '1bulan': { label: '1 Bulan', harga: 50000, hemat: 0, hari: 30 },
+  '3bulan': { label: '3 Bulan', harga: 135000, hemat: 10, hari: 90 },
+  '6bulan': { label: '6 Bulan', harga: 240000, hemat: 20, hari: 180 },
+  '12bulan': { label: '12 Bulan', harga: 420000, hemat: 30, hari: 365 },
+  'seumurhidup': { label: 'Seumur Hidup', harga: 1500000, hemat: 0, hari: 36500 },
 };
 
 /* ===================== STATE ===================== */

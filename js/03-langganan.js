@@ -45,7 +45,8 @@ function renderSubscriptionBadge(){
     else {
       const d = subscriptionDaysLeft();
       if(appSubscription.status === 'trial') setEl.textContent = isSubscriptionActive() ? `${t('Trial')}, ${d} ${t('hari lagi')}` : t('Trial berakhir');
-      else setEl.textContent = isSubscriptionActive() ? `${t('Aktif s.d.')} ${(appSubscription.paid_until||'').slice(0,10)}` : t('Tidak aktif');
+      else if(isSubscriptionActive() && isLifetimePaidUntil(appSubscription.paid_until)) setEl.textContent = `${t('Aktif')} — ${t('Seumur Hidup')}`;
+      else setEl.textContent = isSubscriptionActive() ? `${t('Aktif s.d.')} ${fmtDate((appSubscription.paid_until||'').slice(0,10))}` : t('Tidak aktif');
     }
   }
   if(!el) return;
@@ -140,12 +141,13 @@ async function requestRenewal(){
   const planTxt = plan ? `${plan.label} (${rupiah(plan.harga)})` : '';
   const { error } = await sb.from('payment_requests').insert({
     nama, wa, catatan: `${t('Perpanjangan langganan aplikasi')} — ${t('Paket')} ${planTxt}`,
-    status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId
+    status: 'menunggu', type: 'perpanjangan', owner_id: shopOwnerId,
+    plan_days: plan ? plan.hari : 30
   });
   if(error){ showToast(t('Gagal mengirim permintaan, coba lagi')); return; }
   showToast(t('Permintaan perpanjangan terkirim, admin akan verifikasi'));
   const waNum = String(ADMIN_WA || '6285696487884').replace(/[^0-9]/g,'');
-  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Laundry Assistant untuk toko')} "${nama}", ${t('Paket')} ${planTxt}. ${t('Berikut bukti pembayarannya.')}`);
+  const text = encodeURIComponent(`${t('Halo admin, saya mau perpanjang langganan Dokter Laundry untuk toko')} "${nama}", ${t('Paket')} ${planTxt}. ${t('Berikut bukti pembayarannya.')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
   closePaywallModal();
 }
