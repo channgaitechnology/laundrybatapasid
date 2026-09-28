@@ -45,7 +45,7 @@ function renderSubscriptionBadge(){
     else {
       const d = subscriptionDaysLeft();
       if(appSubscription.status === 'trial') setEl.textContent = isSubscriptionActive() ? `${t('Trial')}, ${d} ${t('hari lagi')}` : t('Trial berakhir');
-      else setEl.textContent = isSubscriptionActive() ? `${t('Aktif s.d.')} ${(appSubscription.paid_until||'').slice(0,10)}` : t('Tidak aktif');
+      else setEl.textContent = isSubscriptionActive() ? `${t('Aktif s.d.')} ${fmtDate((appSubscription.paid_until||'').slice(0,10))}` : t('Tidak aktif');
     }
   }
   if(!el) return;

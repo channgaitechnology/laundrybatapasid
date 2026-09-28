@@ -58,6 +58,81 @@ async function loadAdminData(){
   const { data: reqs } = await sb.from('payment_requests').select('*').eq('status','menunggu').order('created_at', { ascending:false });
   paymentReqCache = reqs || [];
   renderPaymentReqList();
+  await loadAdminSubscriptionsOverview();
+}
+/* Status langganan 1 toko dari baris app_subscriptions mentah -- dipakai
+   ringkasan admin (semua toko) DAN bisa dipakai ulang kalau nanti perlu di
+   tempat lain. Logic aktif/trial-berakhir-nya SENGAJA disamakan persis
+   dengan isSubscriptionActive()/subscriptionDaysLeft() (js/03-langganan.js)
+   supaya status yang admin lihat di sini tidak pernah beda arti dengan
+   status yang dipakai untuk mengunci fitur toko itu sendiri. */
+function computeSubStatusFor(sub){
+  if(!sub) return { statusLabel: t('Belum Ada Data'), active:false, endDate:null };
+  if(sub.status==='aktif'){
+    const active = !sub.paid_until || new Date(sub.paid_until) >= new Date();
+    return { statusLabel: active ? t('Aktif') : t('Tidak Aktif'), active, endDate: sub.paid_until||null };
+  }
+  if(sub.status==='trial'){
+    const active = new Date(sub.trial_ends_at) >= new Date();
+    return { statusLabel: active ? t('Trial') : t('Trial Berakhir'), active, endDate: sub.trial_ends_at||null };
+  }
+  return { statusLabel: t('Tidak Aktif'), active:false, endDate:null };
+}
+var adminSubsOverviewCache = [];
+/* Ringkasan SEMUA toko (bukan cuma toko sendiri) -- khusus ADMIN_EMAIL.
+   PENTING: query di sini SENGAJA tanpa filter owner_id/user_id, beda dari
+   pemakaian app_subscriptions/settings di tempat lain yang selalu di-scope
+   ke satu toko -- supaya admin bisa lihat status SEMUA toko sekaligus.
+   Ini cuma bisa berhasil kalau RLS tabel app_subscriptions & settings di
+   Supabase mengizinkan SELECT lintas-user, sama seperti model kepercayaan
+   permisif yang SUDAH dipakai registration_codes/payment_requests/app_branding
+   di app ini (lihat README, bagian "Footer Nota" soal RLS permisif +
+   gerbang di sisi tampilan lewat ADMIN_EMAIL). Kalau daftar ini kelihatan
+   kosong padahal ada banyak toko terdaftar, itu tandanya RLS tabel ini
+   masih membatasi ketat per-user -- perlu policy SELECT tambahan di
+   Supabase (bukan bug di kode ini), lihat README. */
+async function loadAdminSubscriptionsOverview(){
+  const el = document.getElementById('adminSubsOverview');
+  if(!el) return;
+  const [{ data: subs, error: e1 }, { data: sets, error: e2 }] = await Promise.all([
+    sb.from('app_subscriptions').select('*'),
+    sb.from('settings').select('user_id, shop_name'),
+  ]);
+  if(e1 || e2){
+    adminSubsOverviewCache = [];
+    el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);">${t('Gagal memuat ringkasan langganan (cek kebijakan RLS Supabase untuk app_subscriptions/settings).')}</div>`;
+    renderAdminSubsStats();
+    return;
+  }
+  const nameByOwner = {};
+  (sets||[]).forEach(s=>{ if(s.shop_name) nameByOwner[s.user_id] = s.shop_name; });
+  adminSubsOverviewCache = (subs||[]).map(sub=>{
+    const status = computeSubStatusFor(sub);
+    const nama = nameByOwner[sub.owner_id] || `${t('Toko tanpa nama')} (${String(sub.owner_id).slice(0,8)})`;
+    return { ownerId: sub.owner_id, nama, ...status };
+  }).sort((a,b)=> a.nama.localeCompare(b.nama));
+  renderAdminSubscriptionsOverview();
+}
+function renderAdminSubsStats(){
+  const total = adminSubsOverviewCache.length;
+  const aktifCount = adminSubsOverviewCache.filter(s=>s.active).length;
+  document.getElementById('adminSubsStatAktif').textContent = aktifCount;
+  document.getElementById('adminSubsStatTidakAktif').textContent = total - aktifCount;
+  document.getElementById('adminSubsStatTotal').textContent = total;
+}
+function renderAdminSubscriptionsOverview(){
+  const el = document.getElementById('adminSubsOverview');
+  if(!el) return;
+  renderAdminSubsStats();
+  if(adminSubsOverviewCache.length===0){
+    el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada toko terdaftar.')}</div>`;
+    return;
+  }
+  el.innerHTML = adminSubsOverviewCache.map(s=>`
+    <div class="item-line" style="align-items:center;">
+      <span style="font-size:12.5px;">${escapeHTML(s.nama)}</span>
+      <span class="badge ${s.active ? 'badge-lunas' : 'badge-belum'}" style="font-size:11px;">${s.statusLabel}${s.endDate ? ' · '+fmtDate(String(s.endDate).slice(0,10)) : ''}</span>
+    </div>`).join('');
 }
 function renderRegCodeList(){
   const el = document.getElementById('regCodeList');

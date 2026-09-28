@@ -3166,6 +3166,62 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('computeSubStatusFor(): status aktif/trial/tidak-aktif dihitung sama persis dengan isSubscriptionActive() (aktif=paid_until belum lewat, trial=trial_ends_at belum lewat, selain itu tidak aktif)', () => {
+    const future = new Date(Date.now() + 10*24*60*60*1000).toISOString();
+    const past = new Date(Date.now() - 5*24*60*60*1000).toISOString();
+    let r = computeSubStatusFor({ status:'aktif', paid_until: future });
+    if (!r.active || r.statusLabel !== 'Aktif') throw new Error('status aktif dengan paid_until di masa depan harus active=true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'aktif', paid_until: past });
+    if (r.active || r.statusLabel !== 'Tidak Aktif') throw new Error('status aktif dengan paid_until sudah lewat harus active=false ("Tidak Aktif"): ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'trial', trial_ends_at: future });
+    if (!r.active || r.statusLabel !== 'Trial') throw new Error('status trial yang belum berakhir harus active=true: ' + JSON.stringify(r));
+    r = computeSubStatusFor({ status:'trial', trial_ends_at: past });
+    if (r.active || r.statusLabel !== 'Trial Berakhir') throw new Error('status trial yang sudah berakhir harus active=false ("Trial Berakhir"): ' + JSON.stringify(r));
+    r = computeSubStatusFor(null);
+    if (r.active) throw new Error('tidak ada data sama sekali harus active=false, bukan malah dianggap aktif');
+  });
+
+  // Fitur baru diminta user: Admin Platform harus bisa lihat jumlah langganan aktif,
+  // masa berlaku tiap toko, dan daftar toko aktif/tidak aktif -- bukan cuma antrean
+  // permintaan pembayaran yang menunggu persetujuan.
+  await step('loadAdminSubscriptionsOverview()/renderAdminSubscriptionsOverview(): menampilkan jumlah toko aktif/tidak-aktif/total, plus daftar nama toko + status + tanggal berlakunya masing-masing', async () => {
+    const originalFrom = sb.from;
+    const futurePaid = new Date(Date.now() + 200*24*60*60*1000).toISOString();
+    const pastPaid = new Date(Date.now() - 3*24*60*60*1000).toISOString();
+    const futureTrial = new Date(Date.now() + 10*24*60*60*1000).toISOString();
+    sb.from = (table) => {
+      if (table === 'app_subscriptions') {
+        return { select: () => Promise.resolve({ data: [
+          { owner_id:'owner-A', status:'aktif', paid_until: futurePaid },
+          { owner_id:'owner-B', status:'aktif', paid_until: pastPaid },
+          { owner_id:'owner-C', status:'trial', trial_ends_at: futureTrial },
+        ], error: null }) };
+      }
+      if (table === 'settings') {
+        return { select: () => Promise.resolve({ data: [
+          { user_id:'owner-A', shop_name:'Toko Aktif Jaya' },
+          { user_id:'owner-B', shop_name:'Toko Kadaluarsa' },
+          // owner-C SENGAJA tidak dikasih baris settings -- harus tetap tampil dengan nama fallback, bukan hilang dari daftar.
+        ], error: null }) };
+      }
+      return originalFrom(table);
+    };
+    try {
+      await loadAdminSubscriptionsOverview();
+      if (document.getElementById('adminSubsStatTotal').textContent !== '3') throw new Error('total toko harus 3, got ' + document.getElementById('adminSubsStatTotal').textContent);
+      if (document.getElementById('adminSubsStatAktif').textContent !== '2') throw new Error('jumlah aktif harus 2 (owner-A aktif + owner-C trial belum berakhir), got ' + document.getElementById('adminSubsStatAktif').textContent);
+      if (document.getElementById('adminSubsStatTidakAktif').textContent !== '1') throw new Error('jumlah tidak aktif harus 1 (owner-B, paid_until sudah lewat), got ' + document.getElementById('adminSubsStatTidakAktif').textContent);
+
+      const html = document.getElementById('adminSubsOverview').innerHTML;
+      if (!html.includes('Toko Aktif Jaya')) throw new Error('daftar harus menyebut nama toko dari tabel settings: ' + html);
+      if (!html.includes('Toko Kadaluarsa')) throw new Error('toko yang TIDAK aktif juga harus tetap muncul di daftar (bukan cuma yang aktif): ' + html);
+      if (!html.includes('Toko tanpa nama')) throw new Error('toko tanpa baris settings (owner-C) harus tetap tampil dengan nama fallback, bukan hilang dari daftar: ' + html);
+      if (!html.includes('Tidak Aktif')) throw new Error('label "Tidak Aktif" harus tampil untuk Toko Kadaluarsa: ' + html);
+    } finally {
+      sb.from = originalFrom;
+    }
+  });
+
   await step('Papan Hapus (bulk): mode "mulai X ke belakang"/"semua" menandai tugas yang cocok jadi "diambil" sekaligus, tanpa mengubah data transaksinya sama sekali', async () => {
     const savedTransactions = transactions;
     const savedOutlets = outlets;

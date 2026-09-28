@@ -1172,6 +1172,23 @@
         <div id="adminPlatformSection" style="display:none;">
           <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Panel ini cuma kelihatan untukmu, pemilik platform.</p>
 
+          <b style="font-size:13px;">Ringkasan Langganan Semua Toko</b>
+          <div style="display:flex;gap:8px;margin:6px 0 10px;">
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;color:var(--success);" id="adminSubsStatAktif">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Aktif</div>
+            </div>
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;color:var(--danger);" id="adminSubsStatTidakAktif">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Tidak Aktif</div>
+            </div>
+            <div style="flex:1;text-align:center;background:var(--mist);border-radius:10px;padding:8px 4px;">
+              <div style="font-size:18px;font-weight:800;" id="adminSubsStatTotal">-</div>
+              <div style="font-size:10px;color:var(--ink-soft);">Total Toko</div>
+            </div>
+          </div>
+          <div id="adminSubsOverview" style="max-height:240px;overflow-y:auto;margin-bottom:16px;"></div>
+
           <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
           <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
 
