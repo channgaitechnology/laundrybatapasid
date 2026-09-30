@@ -92,6 +92,14 @@
   .search-result .sr-link{ font-size:11px; color:var(--suds); word-break:break-all; display:block; margin:2px 0 6px; }
   .search-result .sr-snippet{ font-size:12px; color:var(--ink-soft); line-height:1.5; margin-bottom:8px; }
   .search-result .btn{ margin:0; width:auto; padding:8px 14px; font-size:12.5px; }
+  .sr-detected{ display:inline-block; background:var(--success-bg); color:var(--success); font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; margin:0 6px 8px 0; }
+
+  .mkt-tab-content{ display:none; }
+  .mkt-tab-content.active{ display:block; }
+  .lead-links{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .lead-links a{ background:var(--suds); color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:8px; }
+  .lead-links a.email-link{ background:var(--bubble); }
+  .lead-contacted{ display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--ink-soft); }
 
   .modal-bg{ display:none; position:fixed; inset:0; background:rgba(10,30,40,0.45); align-items:flex-start; justify-content:center; padding:24px 16px; overflow-y:auto; z-index:50; }
   .modal-bg.show{ display:flex; }
@@ -138,12 +146,13 @@
   <div class="wrap">
     <div class="tabs">
       <button class="tab-btn active" data-tab="komunitas" onclick="switchMktTab('komunitas')">🌐 Riset Komunitas</button>
+      <button class="tab-btn" data-tab="kontak" onclick="switchMktTab('kontak')">📇 Kontak Laundry</button>
       <button class="tab-btn upcoming">📝 Konten Promosi <span class="badge-segera">Segera</span></button>
       <button class="tab-btn upcoming">📄 Landing Page <span class="badge-segera">Segera</span></button>
       <button class="tab-btn upcoming">🎁 Program Referral <span class="badge-segera">Segera</span></button>
     </div>
 
-    <div id="tab-komunitas">
+    <div id="tab-komunitas" class="mkt-tab-content active">
       <div class="note-box">
         ⚠️ <b>Cara pakai yang aman:</b> daftar ini untuk Anda <b>bergabung &amp; ikut aktif</b> di komunitas yang sudah ada (join grup, kenalan, tawarkan bantuan/diskusi) — <b>bukan</b> untuk mengirim pesan promosi massal ke anggota tanpa diminta. Itu melanggar aturan kebanyakan grup/komunitas dan bisa membuat Anda ditendang/diblokir.
       </div>
@@ -184,6 +193,61 @@
       <div class="filter-count" id="filterCount"></div>
 
       <div id="commList"></div>
+    </div>
+
+    <div id="tab-kontak" class="mkt-tab-content">
+      <div class="note-box">
+        ⚠️ <b>Cara pakai yang aman:</b> ini kontak bisnis publik (WA/email usaha laundry) untuk dihubungi <b>satu per satu secara personal</b> soal Dokter Laundry — <b>bukan</b> alat kirim pesan massal otomatis. Selalu personalisasi pesan, dan hormati kalau mereka minta tidak dihubungi lagi.
+      </div>
+      <div class="card">
+        <h2>🔎 Cari Kontak Laundry Online</h2>
+        <p>Ketik kata kunci (mis. "laundry Semarang nomor whatsapp"), nomor WA/email yang ketemu di judul/cuplikan otomatis ditandai — tinjau dulu sebelum ditambahkan.</p>
+        <div class="search-box">
+          <input type="text" id="leadSearchQuery" placeholder="cth. laundry Semarang kontak" onkeydown="if(event.key==='Enter') searchLeadsOnline()">
+          <button class="btn btn-primary" id="leadSearchBtn" onclick="searchLeadsOnline()">Cari</button>
+        </div>
+        <div class="search-status" id="leadSearchStatus"></div>
+        <div id="leadSearchResults"></div>
+      </div>
+
+      <button class="btn-add" onclick="openLeadModal()">+ Tambah Kontak</button>
+
+      <div class="filter-bar">
+        <input type="search" id="leadFilterText" placeholder="🔎 Cari nama/daerah/catatan..." oninput="renderLeads()">
+        <select id="filterDihubungi" onchange="renderLeads()">
+          <option value="">Semua Status</option>
+          <option value="belum">Belum Dihubungi</option>
+          <option value="sudah">Sudah Dihubungi</option>
+        </select>
+        <button class="filter-clear" onclick="clearLeadFilters()">✕ Reset</button>
+      </div>
+      <div class="filter-count" id="leadFilterCount"></div>
+
+      <div id="leadList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="leadModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeLeadModal()">✕</button>
+    <h3 id="leadModalTitle">Tambah Kontak</h3>
+    <input type="hidden" id="leadId">
+    <label for="leadNama">Nama Usaha</label>
+    <input id="leadNama" placeholder="cth. Laundry Kilat Bersih">
+    <label for="leadTelepon">Nomor WhatsApp</label>
+    <input id="leadTelepon" placeholder="cth. 0812-3456-7890">
+    <label for="leadEmail">Email</label>
+    <input id="leadEmail" type="email" placeholder="cth. info@laundrykilat.com">
+    <label for="leadDaerah">Daerah</label>
+    <input id="leadDaerah" placeholder="cth. Bandung">
+    <label for="leadSumber">Link Sumber (opsional)</label>
+    <input id="leadSumber" placeholder="https://...">
+    <label for="leadCatatan">Catatan</label>
+    <textarea id="leadCatatan" placeholder="cth. hasil cari online, sudah ditelepon tanggal, dst"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" style="flex:1;" onclick="closeLeadModal()">Batal</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveLead()">Simpan</button>
     </div>
   </div>
 </div>
@@ -271,10 +335,22 @@ function enterDashboard(){
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('dashScreen').classList.add('show');
   loadCommunities();
+  loadLeads();
 }
 function switchMktTab(name){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
   document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
+  document.querySelectorAll('.mkt-tab-content').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+/* marketing.html file terpisah total dari index.html (lihat arsitektur di
+   CLAUDE.md), jadi tidak bisa import normalizePhone() dari js/09-utils.js --
+   dipakai bersama oleh resolveCommLink() (Riset Komunitas) dan daftar
+   Kontak Laundry supaya format link wa.me konsisten di semua tempat. */
+function normalizePhoneLocal(raw){
+  let p = String(raw||'').replace(/[^0-9]/g,'');
+  if(!p) return '';
+  return p.startsWith('0') ? '62'+p.slice(1) : (p.startsWith('62') ? p : '62'+p);
 }
 
 /* ===================== RISET KOMUNITAS ===================== */
@@ -353,11 +429,7 @@ function renderCommunities(){
     </div>`;
   }).join('');
 }
-/* marketing.html file terpisah total dari index.html (lihat arsitektur di
-   CLAUDE.md), jadi tidak bisa import normalizePhone() dari js/09-utils.js --
-   logikanya disalin persis di sini supaya format nomor WA tetap konsisten
-   (0812... jadi 62812..., dst).
-   resolveCommLink(): field `link` yang diisi manual/dari hasil pencarian
+/* resolveCommLink(): field `link` yang diisi manual/dari hasil pencarian
    SELALU dipakai duluan kalau ada (paling akurat) -- kalau kosong, dicoba
    tebak dari kontak_admin/catatan: nomor HP untuk platform WhatsApp jadi
    link wa.me, handle "@nama" untuk Instagram jadi link instagram.com/nama.
@@ -369,11 +441,7 @@ function resolveCommLink(c){
   const text = [c.kontak_admin, c.catatan].filter(Boolean).join(' ');
   if(c.platform === 'whatsapp'){
     const m = text.match(/(?:\+?62|0)8[0-9][0-9\-\s]{6,12}[0-9]/);
-    if(m){
-      let phone = m[0].replace(/[^0-9]/g,'');
-      phone = phone.startsWith('0') ? '62'+phone.slice(1) : (phone.startsWith('62') ? phone : '62'+phone);
-      return { url: `https://wa.me/${phone}`, label: 'Buka WhatsApp' };
-    }
+    if(m) return { url: `https://wa.me/${normalizePhoneLocal(m[0])}`, label: 'Buka WhatsApp' };
   }
   if(c.platform === 'instagram'){
     const m = text.match(/@([a-zA-Z0-9._]{2,30})/);
@@ -470,6 +538,192 @@ function addSearchResultToDb(idx){
   const r = lastSearchResults[idx];
   if(!r) return;
   openCommModal(null, { nama: r.title, link: r.link, catatan: r.snippet });
+}
+
+/* ===================== KONTAK LAUNDRY (nomor WA & email usaha) ===================== */
+var leadCache = [];
+async function loadLeads(){
+  const { data, error } = await sb.from('marketing_leads').select('*').order('created_at', { ascending:true });
+  if(error){
+    document.getElementById('leadList').innerHTML = `<div class="empty-state">Gagal memuat data (cek RLS tabel marketing_leads di Supabase).</div>`;
+    return;
+  }
+  leadCache = data || [];
+  renderLeads();
+}
+function clearLeadFilters(){
+  document.getElementById('leadFilterText').value = '';
+  document.getElementById('filterDihubungi').value = '';
+  renderLeads();
+}
+function filteredLeads(){
+  const q = document.getElementById('leadFilterText').value.trim().toLowerCase();
+  const dihubungi = document.getElementById('filterDihubungi').value;
+  return leadCache.filter(l=>{
+    if(dihubungi === 'belum' && l.sudah_dihubungi) return false;
+    if(dihubungi === 'sudah' && !l.sudah_dihubungi) return false;
+    if(q){
+      const haystack = [l.nama, l.daerah, l.catatan].filter(Boolean).join(' ').toLowerCase();
+      if(!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function renderLeads(){
+  const el = document.getElementById('leadList');
+  const countEl = document.getElementById('leadFilterCount');
+  if(leadCache.length===0){
+    countEl.textContent = '';
+    el.innerHTML = `<div class="empty-state">Belum ada kontak tersimpan. Cari online di atas atau tekan "+ Tambah Kontak".</div>`;
+    return;
+  }
+  const list = filteredLeads();
+  countEl.textContent = `Menampilkan ${list.length} dari ${leadCache.length} kontak`;
+  if(list.length===0){
+    el.innerHTML = `<div class="empty-state">Tidak ada kontak yang cocok dengan filter/pencarian ini.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(l=>{
+    const phone = normalizePhoneLocal(l.telepon);
+    return `
+    <div class="comm-item">
+      <div class="comm-plat">📇</div>
+      <div class="comm-body">
+        <b>${escapeHTML(l.nama)}</b>
+        <div class="comm-meta">
+          ${l.daerah ? escapeHTML(l.daerah) : ''}${l.sumber_link ? ' · <a href="'+escapeHTML(l.sumber_link)+'" target="_blank" rel="noopener">Sumber ↗</a>' : ''}
+        </div>
+        ${l.catatan ? `<div class="comm-note">${escapeHTML(l.catatan)}</div>` : ''}
+        <div class="lead-links">
+          ${phone ? `<a href="https://wa.me/${phone}" target="_blank" rel="noopener">💬 WA ↗</a>` : ''}
+          ${l.email ? `<a class="email-link" href="mailto:${escapeHTML(l.email)}">✉️ Email ↗</a>` : ''}
+        </div>
+        <label class="lead-contacted">
+          <input type="checkbox" ${l.sudah_dihubungi ? 'checked' : ''} onchange="toggleLeadContacted('${l.id}', this.checked)"> Sudah dihubungi
+        </label>
+      </div>
+      <div class="comm-actions">
+        <button class="icon-btn-sm" onclick="openLeadModal('${l.id}')">✏️</button>
+        <button class="icon-btn-sm" onclick="deleteLead('${l.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openLeadModal(id, prefill){
+  const l = id ? leadCache.find(x=>String(x.id)===String(id)) : null;
+  document.getElementById('leadModalTitle').textContent = l ? 'Edit Kontak' : 'Tambah Kontak';
+  document.getElementById('leadId').value = l ? l.id : '';
+  document.getElementById('leadNama').value = l ? l.nama : (prefill && prefill.nama) || '';
+  document.getElementById('leadTelepon').value = l ? (l.telepon||'') : (prefill && prefill.telepon) || '';
+  document.getElementById('leadEmail').value = l ? (l.email||'') : (prefill && prefill.email) || '';
+  document.getElementById('leadDaerah').value = l ? (l.daerah||'') : '';
+  document.getElementById('leadSumber').value = l ? (l.sumber_link||'') : (prefill && prefill.sumber_link) || '';
+  document.getElementById('leadCatatan').value = l ? (l.catatan||'') : (prefill && prefill.catatan) || '';
+  document.getElementById('leadModal').classList.add('show');
+}
+function closeLeadModal(){ document.getElementById('leadModal').classList.remove('show'); }
+async function saveLead(){
+  const id = document.getElementById('leadId').value;
+  const nama = document.getElementById('leadNama').value.trim();
+  if(!nama){ showToast('Nama usaha wajib diisi'); return; }
+  const payload = {
+    nama,
+    telepon: document.getElementById('leadTelepon').value.trim(),
+    email: document.getElementById('leadEmail').value.trim(),
+    daerah: document.getElementById('leadDaerah').value.trim(),
+    sumber_link: document.getElementById('leadSumber').value.trim(),
+    catatan: document.getElementById('leadCatatan').value.trim(),
+  };
+  const { error } = id
+    ? await sb.from('marketing_leads').update(payload).eq('id', id)
+    : await sb.from('marketing_leads').insert(payload);
+  if(error){ showToast('Gagal menyimpan: ' + error.message); return; }
+  closeLeadModal();
+  showToast('Tersimpan');
+  loadLeads();
+}
+async function deleteLead(id){
+  if(!confirm('Hapus kontak ini dari daftar?')) return;
+  const { error } = await sb.from('marketing_leads').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus'); return; }
+  loadLeads();
+}
+async function toggleLeadContacted(id, checked){
+  const { error } = await sb.from('marketing_leads').update({ sudah_dihubungi: checked }).eq('id', id);
+  if(error){ showToast('Gagal menyimpan status'); renderLeads(); return; }
+  const l = leadCache.find(x=>String(x.id)===String(id));
+  if(l) l.sudah_dihubungi = checked;
+}
+
+/* ===================== CARI KONTAK LAUNDRY ONLINE ===================== */
+/* Nomor WA/email hasil pencarian cuma DITEBAK dari teks judul+cuplikan
+   (regex) -- bukan data yang dijamin akurat, makanya selalu ditandai
+   "Terdeteksi" dan tetap harus ditinjau lewat form Tambah Kontak (bisa
+   diedit dulu) sebelum benar-benar tersimpan, sama seperti alur
+   addSearchResultToDb() di Riset Komunitas. */
+var lastLeadResults = [];
+function extractPhoneFromText(text){
+  const m = String(text||'').match(/(?:\+?62|0)8[0-9][0-9\-\s]{6,12}[0-9]/);
+  return m ? m[0] : '';
+}
+function extractEmailFromText(text){
+  const m = String(text||'').match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  return m ? m[0] : '';
+}
+async function searchLeadsOnline(){
+  const q = document.getElementById('leadSearchQuery').value.trim();
+  const statusEl = document.getElementById('leadSearchStatus');
+  const resultsEl = document.getElementById('leadSearchResults');
+  const btn = document.getElementById('leadSearchBtn');
+  if(!q){ statusEl.textContent = 'Isi dulu kata kuncinya.'; return; }
+  btn.disabled = true; btn.textContent = 'Mencari...';
+  statusEl.textContent = 'Sedang mencari...';
+  resultsEl.innerHTML = '';
+  try{
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    const res = await fetch('/.netlify/functions/search-communities', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token||''}` },
+      body: JSON.stringify({ q }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      statusEl.textContent = 'Gagal mencari: ' + (data.error || res.status);
+      return;
+    }
+    lastLeadResults = (Array.isArray(data.results) ? data.results : []).map(r=>({
+      ...r,
+      phone: extractPhoneFromText(r.title + ' ' + r.snippet),
+      email: extractEmailFromText(r.title + ' ' + r.snippet),
+    }));
+    if(lastLeadResults.length===0){
+      statusEl.textContent = 'Tidak ada hasil untuk kata kunci ini.';
+      return;
+    }
+    const found = lastLeadResults.filter(r=>r.phone||r.email).length;
+    statusEl.textContent = `Ditemukan ${lastLeadResults.length} hasil (${found} ada nomor WA/email yang terdeteksi) -- tinjau dulu sebelum menambahkan:`;
+    resultsEl.innerHTML = lastLeadResults.map((r,idx)=>`
+      <div class="search-result">
+        <b>${escapeHTML(r.title)}</b>
+        <a class="sr-link" href="${escapeHTML(r.link)}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
+        <div class="sr-snippet">${escapeHTML(r.snippet)}</div>
+        <div>
+          ${r.phone ? `<span class="sr-detected">📱 ${escapeHTML(r.phone)}</span>` : ''}
+          ${r.email ? `<span class="sr-detected">✉️ ${escapeHTML(r.email)}</span>` : ''}
+        </div>
+        <button class="btn btn-primary" onclick="addLeadResultToDb(${idx})">+ Tambah ke Kontak Laundry</button>
+      </div>`).join('');
+  }catch(e){
+    statusEl.textContent = 'Gagal mencari: koneksi bermasalah.';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Cari';
+  }
+}
+function addLeadResultToDb(idx){
+  const r = lastLeadResults[idx];
+  if(!r) return;
+  openLeadModal(null, { nama: r.title, telepon: r.phone, email: r.email, sumber_link: r.link });
 }
 
 /* ===================== INIT ===================== */
