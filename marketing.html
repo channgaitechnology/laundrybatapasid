@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marketing — Dokter Laundry</title>
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4"></script>
+<style>
+  :root{
+    --suds:#1768AC; --suds-deep:#0F4C74; --bubble:#4FD1C5; --sun:#F2A54A;
+    --ink:#122430; --ink-soft:#5C7180; --mist:#EEF5F7; --paper:#FBF8EF;
+    --line:#DCE6EA; --success:#2E9E63; --success-bg:#E4F5EC;
+    --warn:#D9822B; --warn-bg:#FBEBD8; --danger:#D6483F; --radius:16px;
+    --shadow:0 6px 20px rgba(13,79,104,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:'Inter',sans-serif; min-height:100vh; }
+  h1,h2,h3{ font-family:'Sora',sans-serif; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,select,textarea{ font-family:inherit; }
+
+  /* ---- Layar login (dipakai ulang persis pola app utama) ---- */
+  #authScreen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+    background:linear-gradient(135deg,var(--suds) 0%, var(--suds-deep) 100%); }
+  #authScreen.hidden{ display:none; }
+  .auth-card{ width:100%; max-width:380px; background:#fff; border-radius:22px; padding:32px 26px;
+    box-shadow:0 20px 50px rgba(13,79,104,0.28); text-align:center; }
+  .auth-card h1{ font-size:22px; margin:10px 0 2px; color:var(--suds-deep); }
+  .auth-card .sub{ font-size:12.5px; color:var(--ink-soft); margin:0 0 16px; }
+  .auth-card label{ display:block; text-align:left; font-size:12.5px; font-weight:600; margin:12px 0 4px; }
+  .auth-card input{ width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; font-size:14px; }
+  .auth-msg{ font-size:12.5px; margin-top:10px; min-height:16px; }
+  .auth-msg.error{ color:var(--danger); }
+  .btn{ display:block; width:100%; padding:12px; border-radius:12px; border:none; font-weight:700; font-size:14px; margin-top:14px; }
+  .btn-primary{ background:var(--suds); color:#fff; }
+  .btn-primary:disabled{ opacity:0.6; }
+  .capsule-badge{ width:52px;height:52px;margin:0 auto 10px;border-radius:999px;overflow:hidden;
+    background:linear-gradient(135deg,var(--suds) 0%, var(--suds-deep) 100%); display:flex;align-items:center;justify-content:center; }
+  .capsule-badge span{ font-size:24px; }
+
+  /* ---- Dashboard ---- */
+  #dashScreen{ display:none; }
+  #dashScreen.show{ display:block; }
+  .topbar{ background:linear-gradient(135deg,var(--suds) 0%, var(--suds-deep) 100%); color:#fff;
+    padding:16px 20px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow); }
+  .topbar h1{ font-size:17px; margin:0; }
+  .topbar .sub{ font-size:11.5px; opacity:0.85; }
+  .topbar button{ background:rgba(255,255,255,0.16); border:none; color:#fff; padding:8px 14px; border-radius:10px; font-size:12.5px; font-weight:600; }
+  .wrap{ max-width:920px; margin:0 auto; padding:18px 16px 60px; }
+  .tabs{ display:flex; gap:8px; overflow-x:auto; margin-bottom:18px; padding-bottom:2px; }
+  .tab-btn{ flex:none; padding:10px 16px; border-radius:12px; border:1px solid var(--line); background:#fff;
+    font-size:13px; font-weight:600; color:var(--ink-soft); white-space:nowrap; }
+  .tab-btn.active{ background:var(--suds); color:#fff; border-color:var(--suds); }
+  .tab-btn.upcoming{ opacity:0.55; cursor:default; display:flex; align-items:center; gap:6px; }
+  .badge-segera{ background:var(--warn-bg); color:var(--warn); font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:6px; }
+
+  .card{ background:#fff; border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .card h2{ font-size:15px; margin:0 0 8px; }
+  .card p{ font-size:12.5px; color:var(--ink-soft); margin:0; line-height:1.55; }
+  .note-box{ background:var(--warn-bg); color:#8a5a1f; border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.55; margin-bottom:16px; }
+
+  .btn-add{ background:var(--suds); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; margin-bottom:14px; }
+
+  .filter-bar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .filter-bar input[type="search"]{ flex:1 1 180px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; background:#fff; }
+  .filter-bar select{ flex:1 1 130px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; background:#fff; color:var(--ink); }
+  .filter-count{ font-size:11.5px; color:var(--ink-soft); margin:-6px 0 12px; }
+  .filter-clear{ flex:none; background:var(--mist); border:none; border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
+
+  .comm-item{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start; }
+  .comm-plat{ flex:none; width:34px;height:34px;border-radius:10px;background:var(--mist);display:flex;align-items:center;justify-content:center;font-size:16px; }
+  .comm-body{ flex:1; min-width:0; }
+  .comm-body b{ font-size:13.5px; }
+  .comm-meta{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .comm-meta a{ color:var(--suds); text-decoration:none; font-weight:600; }
+  .comm-note{ font-size:12px; color:var(--ink-soft); margin-top:6px; line-height:1.5; }
+  .comm-actions{ flex:none; display:flex; gap:6px; }
+  .icon-btn-sm{ background:var(--mist); border:none; border-radius:8px; padding:6px 9px; font-size:12px; }
+
+  .search-box{ display:flex; gap:8px; margin-top:12px; }
+  .search-box input{ flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13.5px; }
+  .search-box button{ flex:none; margin:0; width:auto; padding:10px 18px; }
+  .search-status{ font-size:12px; color:var(--ink-soft); margin-top:10px; }
+  .search-result{ border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
+  .search-result b{ font-size:13px; }
+  .search-result .sr-link{ font-size:11px; color:var(--suds); word-break:break-all; display:block; margin:2px 0 6px; }
+  .search-result .sr-snippet{ font-size:12px; color:var(--ink-soft); line-height:1.5; margin-bottom:8px; }
+  .search-result .btn{ margin:0; width:auto; padding:8px 14px; font-size:12.5px; }
+
+  .modal-bg{ display:none; position:fixed; inset:0; background:rgba(10,30,40,0.45); align-items:flex-start; justify-content:center; padding:24px 16px; overflow-y:auto; z-index:50; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:#fff; border-radius:18px; padding:22px; width:100%; max-width:420px; position:relative; }
+  .modal h3{ font-size:16px; margin:0 0 14px; }
+  .modal label{ display:block; font-size:12.5px; font-weight:600; margin:10px 0 4px; }
+  .modal input, .modal select, .modal textarea{ width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:10px; font-size:13.5px; }
+  .modal textarea{ resize:vertical; min-height:60px; }
+  .modal-close{ position:absolute; top:14px; right:14px; background:none; border:none; font-size:16px; color:var(--ink-soft); }
+  .modal-actions{ display:flex; gap:8px; margin-top:16px; }
+  .modal-actions .btn{ margin-top:0; }
+  .btn-ghost{ background:var(--mist); color:var(--ink); }
+
+  .empty-state{ text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px; }
+  .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
+    padding:10px 18px; border-radius:10px; font-size:12.5px; opacity:0; transition:opacity 0.25s; z-index:99; }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="capsule-badge"><span>🚀</span></div>
+    <h1>Marketing — Dokter Laundry</h1>
+    <p class="sub">Khusus akun admin. Masuk dengan akun yang sama seperti aplikasi utama.</p>
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" placeholder="nama@email.com">
+    <label for="authPassword">Password</label>
+    <input id="authPassword" type="password" placeholder="Password">
+    <div class="auth-msg" id="authMsg"></div>
+    <button class="btn btn-primary" id="authBtn" onclick="handleLogin()">Masuk</button>
+  </div>
+</div>
+
+<div id="dashScreen">
+  <div class="topbar">
+    <div>
+      <h1>🚀 Marketing Dokter Laundry</h1>
+      <div class="sub">Alat internal untuk memasarkan Dokter Laundry — bukan bagian aplikasi kasir</div>
+    </div>
+    <button onclick="handleLogout()">Keluar</button>
+  </div>
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="komunitas" onclick="switchMktTab('komunitas')">🌐 Riset Komunitas</button>
+      <button class="tab-btn upcoming">📝 Konten Promosi <span class="badge-segera">Segera</span></button>
+      <button class="tab-btn upcoming">📄 Landing Page <span class="badge-segera">Segera</span></button>
+      <button class="tab-btn upcoming">🎁 Program Referral <span class="badge-segera">Segera</span></button>
+    </div>
+
+    <div id="tab-komunitas">
+      <div class="note-box">
+        ⚠️ <b>Cara pakai yang aman:</b> daftar ini untuk Anda <b>bergabung &amp; ikut aktif</b> di komunitas yang sudah ada (join grup, kenalan, tawarkan bantuan/diskusi) — <b>bukan</b> untuk mengirim pesan promosi massal ke anggota tanpa diminta. Itu melanggar aturan kebanyakan grup/komunitas dan bisa membuat Anda ditendang/diblokir.
+      </div>
+      <div class="card">
+        <h2>Komunitas Pemilik Laundry di Indonesia</h2>
+        <p>Kumpulan komunitas nyata (asosiasi, grup Facebook/WhatsApp, forum) tempat pemilik usaha laundry berkumpul. Tambahkan terus daftarnya seiring ketemu komunitas baru.</p>
+      </div>
+      <div class="card">
+        <h2>🔎 Cari Komunitas Baru secara Online</h2>
+        <p>Ketik kata kunci (mis. "komunitas laundry Bandung" atau "grup facebook pengusaha laundry"), hasilnya dari pencarian internet langsung — tinjau dulu tiap hasil sebelum menekan "+ Tambah ke Database".</p>
+        <div class="search-box">
+          <input type="text" id="onlineSearchQuery" placeholder="cth. komunitas laundry Surabaya" onkeydown="if(event.key==='Enter') searchCommunitiesOnline()">
+          <button class="btn btn-primary" id="onlineSearchBtn" onclick="searchCommunitiesOnline()">Cari</button>
+        </div>
+        <div class="search-status" id="onlineSearchStatus"></div>
+        <div id="onlineSearchResults"></div>
+      </div>
+
+      <button class="btn-add" onclick="openCommModal()">+ Tambah Komunitas</button>
+
+      <div class="filter-bar">
+        <input type="search" id="commSearch" placeholder="🔎 Cari nama/catatan komunitas..." oninput="renderCommunities()">
+        <select id="filterPlatform" onchange="renderCommunities()">
+          <option value="">Semua Platform</option>
+          <option value="asosiasi">Asosiasi Resmi</option>
+          <option value="facebook">Facebook</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="forum">Forum</option>
+          <option value="lainnya">Lainnya</option>
+        </select>
+        <select id="filterDaerah" onchange="renderCommunities()">
+          <option value="">Semua Daerah</option>
+        </select>
+        <button class="filter-clear" onclick="clearFilters()">✕ Reset</button>
+      </div>
+      <div class="filter-count" id="filterCount"></div>
+
+      <div id="commList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="commModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeCommModal()">✕</button>
+    <h3 id="commModalTitle">Tambah Komunitas</h3>
+    <input type="hidden" id="commId">
+    <label for="commPlatform">Platform</label>
+    <select id="commPlatform">
+      <option value="asosiasi">Asosiasi Resmi</option>
+      <option value="facebook">Grup Facebook</option>
+      <option value="whatsapp">Grup WhatsApp</option>
+      <option value="instagram">Instagram</option>
+      <option value="tiktok">TikTok</option>
+      <option value="forum">Forum</option>
+      <option value="lainnya">Lainnya</option>
+    </select>
+    <label for="commNama">Nama Komunitas</label>
+    <input id="commNama" placeholder="cth. Asosiasi Laundry Indonesia (ASLI)">
+    <label for="commDaerah">Daerah</label>
+    <input id="commDaerah" placeholder="cth. Jawa Timur, atau Seluruh Indonesia">
+    <label for="commLink">Link</label>
+    <input id="commLink" placeholder="https://...">
+    <label for="commAnggota">Perkiraan Jumlah Anggota</label>
+    <input id="commAnggota" placeholder="cth. 30.000+ (opsional)">
+    <label for="commKontak">Kontak Admin (opsional)</label>
+    <input id="commKontak" placeholder="cth. WA 0856-xxxx atau nama admin">
+    <label for="commCatatan">Catatan</label>
+    <textarea id="commCatatan" placeholder="cth. Cara gabung, aturan grup, kesan pertama, dll"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" style="flex:1;" onclick="closeCommModal()">Batal</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveComm()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
+const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const PLATFORM_ICON = { asosiasi:'🏢', facebook:'📘', whatsapp:'💬', instagram:'📸', tiktok:'🎵', forum:'💭', lainnya:'🔗' };
+const PLATFORM_LABEL = { asosiasi:'Asosiasi Resmi', facebook:'Grup Facebook', whatsapp:'Grup WhatsApp', instagram:'Instagram', tiktok:'TikTok', forum:'Forum', lainnya:'Lainnya' };
+
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2200);
+}
+function escapeHTML(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function handleLogin(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const msgEl = document.getElementById('authMsg');
+  const btn = document.getElementById('authBtn');
+  msgEl.className = 'auth-msg'; msgEl.textContent = '';
+  if(!email || !password){ msgEl.className='auth-msg error'; msgEl.textContent='Isi email dan password'; return; }
+  btn.disabled = true; btn.textContent = 'Memproses...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Masuk';
+  if(error){ msgEl.className='auth-msg error'; msgEl.textContent='Email/password salah'; return; }
+  if((data.user.email||'').toLowerCase() !== ADMIN_EMAIL){
+    msgEl.className='auth-msg error';
+    msgEl.textContent = 'Alat ini khusus akun admin, bukan akun toko biasa.';
+    await sb.auth.signOut();
+    return;
+  }
+  enterDashboard();
+}
+async function handleLogout(){
+  await sb.auth.signOut();
+  document.getElementById('dashScreen').classList.remove('show');
+  document.getElementById('authScreen').classList.remove('hidden');
+}
+function enterDashboard(){
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('dashScreen').classList.add('show');
+  loadCommunities();
+}
+function switchMktTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
+}
+
+/* ===================== RISET KOMUNITAS ===================== */
+var communityCache = [];
+async function loadCommunities(){
+  const { data, error } = await sb.from('marketing_communities').select('*').order('created_at', { ascending:true });
+  if(error){
+    document.getElementById('commList').innerHTML = `<div class="empty-state">Gagal memuat data (cek RLS tabel marketing_communities di Supabase).</div>`;
+    return;
+  }
+  communityCache = data || [];
+  renderCommunities();
+}
+function populateDaerahFilter(){
+  const sel = document.getElementById('filterDaerah');
+  const current = sel.value;
+  const daerahList = Array.from(new Set(communityCache.map(c=>c.daerah).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = `<option value="">Semua Daerah</option>` + daerahList.map(d=>`<option value="${escapeHTML(d)}">${escapeHTML(d)}</option>`).join('');
+  if(daerahList.includes(current)) sel.value = current;
+}
+function clearFilters(){
+  document.getElementById('commSearch').value = '';
+  document.getElementById('filterPlatform').value = '';
+  document.getElementById('filterDaerah').value = '';
+  renderCommunities();
+}
+function filteredCommunities(){
+  const q = document.getElementById('commSearch').value.trim().toLowerCase();
+  const platform = document.getElementById('filterPlatform').value;
+  const daerah = document.getElementById('filterDaerah').value;
+  return communityCache.filter(c=>{
+    if(platform && c.platform !== platform) return false;
+    if(daerah && c.daerah !== daerah) return false;
+    if(q){
+      const haystack = [c.nama, c.catatan, c.daerah, c.kontak_admin].filter(Boolean).join(' ').toLowerCase();
+      if(!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function renderCommunities(){
+  populateDaerahFilter();
+  const el = document.getElementById('commList');
+  const countEl = document.getElementById('filterCount');
+  if(communityCache.length===0){
+    countEl.textContent = '';
+    el.innerHTML = `<div class="empty-state">Belum ada komunitas tercatat. Tekan "+ Tambah Komunitas" untuk mulai.</div>`;
+    return;
+  }
+  const list = filteredCommunities();
+  countEl.textContent = `Menampilkan ${list.length} dari ${communityCache.length} komunitas`;
+  if(list.length===0){
+    el.innerHTML = `<div class="empty-state">Tidak ada komunitas yang cocok dengan filter/pencarian ini.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(c=>`
+    <div class="comm-item">
+      <div class="comm-plat">${PLATFORM_ICON[c.platform]||'🔗'}</div>
+      <div class="comm-body">
+        <b>${escapeHTML(c.nama)}</b>
+        <div class="comm-meta">
+          ${PLATFORM_LABEL[c.platform]||'Lainnya'}${c.daerah ? ' · '+escapeHTML(c.daerah) : ''}${c.jumlah_anggota ? ' · '+escapeHTML(c.jumlah_anggota)+' anggota' : ''}
+          ${c.link ? ' · <a href="'+escapeHTML(c.link)+'" target="_blank" rel="noopener">Buka link ↗</a>' : ''}
+        </div>
+        ${c.kontak_admin ? `<div class="comm-meta">Kontak: ${escapeHTML(c.kontak_admin)}</div>` : ''}
+        ${c.catatan ? `<div class="comm-note">${escapeHTML(c.catatan)}</div>` : ''}
+      </div>
+      <div class="comm-actions">
+        <button class="icon-btn-sm" onclick="openCommModal('${c.id}')">✏️</button>
+        <button class="icon-btn-sm" onclick="deleteComm('${c.id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+function openCommModal(id, prefill){
+  const c = id ? communityCache.find(x=>String(x.id)===String(id)) : null;
+  document.getElementById('commModalTitle').textContent = c ? 'Edit Komunitas' : 'Tambah Komunitas';
+  document.getElementById('commId').value = c ? c.id : '';
+  document.getElementById('commPlatform').value = c ? c.platform : 'facebook';
+  document.getElementById('commNama').value = c ? c.nama : (prefill && prefill.nama) || '';
+  document.getElementById('commDaerah').value = c ? (c.daerah||'') : '';
+  document.getElementById('commLink').value = c ? (c.link||'') : (prefill && prefill.link) || '';
+  document.getElementById('commAnggota').value = c ? (c.jumlah_anggota||'') : '';
+  document.getElementById('commKontak').value = c ? (c.kontak_admin||'') : '';
+  document.getElementById('commCatatan').value = c ? (c.catatan||'') : (prefill && prefill.catatan) || '';
+  document.getElementById('commModal').classList.add('show');
+}
+function closeCommModal(){ document.getElementById('commModal').classList.remove('show'); }
+async function saveComm(){
+  const id = document.getElementById('commId').value;
+  const nama = document.getElementById('commNama').value.trim();
+  if(!nama){ showToast('Nama komunitas wajib diisi'); return; }
+  const payload = {
+    platform: document.getElementById('commPlatform').value,
+    nama,
+    daerah: document.getElementById('commDaerah').value.trim(),
+    link: document.getElementById('commLink').value.trim(),
+    jumlah_anggota: document.getElementById('commAnggota').value.trim(),
+    kontak_admin: document.getElementById('commKontak').value.trim(),
+    catatan: document.getElementById('commCatatan').value.trim(),
+  };
+  const { error } = id
+    ? await sb.from('marketing_communities').update(payload).eq('id', id)
+    : await sb.from('marketing_communities').insert(payload);
+  if(error){ showToast('Gagal menyimpan: ' + error.message); return; }
+  closeCommModal();
+  showToast('Tersimpan');
+  loadCommunities();
+}
+async function deleteComm(id){
+  if(!confirm('Hapus komunitas ini dari daftar?')) return;
+  const { error } = await sb.from('marketing_communities').delete().eq('id', id);
+  if(error){ showToast('Gagal menghapus'); return; }
+  loadCommunities();
+}
+
+/* ===================== CARI KOMUNITAS ONLINE ===================== */
+var lastSearchResults = [];
+async function searchCommunitiesOnline(){
+  const q = document.getElementById('onlineSearchQuery').value.trim();
+  const statusEl = document.getElementById('onlineSearchStatus');
+  const resultsEl = document.getElementById('onlineSearchResults');
+  const btn = document.getElementById('onlineSearchBtn');
+  if(!q){ statusEl.textContent = 'Isi dulu kata kuncinya.'; return; }
+  btn.disabled = true; btn.textContent = 'Mencari...';
+  statusEl.textContent = 'Sedang mencari...';
+  resultsEl.innerHTML = '';
+  try{
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    const res = await fetch('/.netlify/functions/search-communities', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token||''}` },
+      body: JSON.stringify({ q }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      statusEl.textContent = 'Gagal mencari: ' + (data.error || res.status);
+      return;
+    }
+    lastSearchResults = Array.isArray(data.results) ? data.results : [];
+    if(lastSearchResults.length===0){
+      statusEl.textContent = 'Tidak ada hasil untuk kata kunci ini.';
+      return;
+    }
+    statusEl.textContent = `Ditemukan ${lastSearchResults.length} hasil dari pencarian online -- tinjau dulu sebelum menambahkan:`;
+    resultsEl.innerHTML = lastSearchResults.map((r,idx)=>`
+      <div class="search-result">
+        <b>${escapeHTML(r.title)}</b>
+        <a class="sr-link" href="${escapeHTML(r.link)}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
+        <div class="sr-snippet">${escapeHTML(r.snippet)}</div>
+        <button class="btn btn-primary" onclick="addSearchResultToDb(${idx})">+ Tambah ke Database</button>
+      </div>`).join('');
+  }catch(e){
+    statusEl.textContent = 'Gagal mencari: koneksi bermasalah.';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Cari';
+  }
+}
+function addSearchResultToDb(idx){
+  const r = lastSearchResults[idx];
+  if(!r) return;
+  openCommModal(null, { nama: r.title, link: r.link, catatan: r.snippet });
+}
+
+/* ===================== INIT ===================== */
+sb.auth.getSession().then(({ data })=>{
+  const email = data && data.session && data.session.user && data.session.user.email;
+  if(email && email.toLowerCase() === ADMIN_EMAIL) enterDashboard();
+});
+</script>
+</body>
+</html>

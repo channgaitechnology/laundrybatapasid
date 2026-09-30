@@ -3974,6 +3974,53 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // Fitur baru diminta user: tombol "Unduh Tutorial sebagai PDF" di modal Tutorial.
+  // Isinya SENGAJA diambil langsung dari DOM #tutorialModal .tut-item (bukan ditulis
+  // ulang di JS) supaya cuma ada 1 sumber teks -- test ini verifikasi jumlah bagian,
+  // penomoran otomatis, dan bahwa bagian owner-only ikut disembunyikan untuk kasir.
+  await step('downloadTutorialPDF(): isi PDF diambil dari #tutorialModal .tut-item apa adanya, emoji di judul dibersihkan, dan bagian owner-only ikut disembunyikan untuk akun kasir', async () => {
+    const originalJspdf = window.jspdf;
+    const originalSave = document.body.classList.contains('role-kasir');
+    const calls = { texts: [], saved: [] };
+    class FakeJsPDF {
+      constructor(){ }
+      setFont(){ } setFontSize(){ } setTextColor(){ }
+      text(str){ calls.texts.push(str); }
+      splitTextToSize(str){ return [str]; }
+      addPage(){ }
+      output(){ return new Blob(['%PDF-fake'], { type:'application/pdf' }); }
+      save(filename){ calls.saved.push(filename); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    document.body.classList.remove('role-kasir');
+    try {
+      const totalItemsNormal = document.querySelectorAll('#tutorialModal .tut-item').length;
+      const ownerOnlyCount = document.querySelectorAll('#tutorialModal .tut-item.owner-only').length;
+      if (ownerOnlyCount === 0) throw new Error('test ini butuh minimal 1 bagian tutorial owner-only untuk diverifikasi -- markup tutorialModal mungkin berubah');
+
+      downloadTutorialPDF();
+      if (calls.saved.length !== 1) throw new Error('doc.save() harus dipanggil tepat sekali, got ' + calls.saved.length);
+      if (!calls.saved[0].includes('Tutorial')) throw new Error('nama file PDF harus menyebut Tutorial: ' + calls.saved[0]);
+      const joined = calls.texts.join(' | ');
+      if (/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u.test(joined)) throw new Error('BUG: judul di PDF tidak boleh mengandung emoji mentah (jsPDF helvetica tidak punya glyph-nya): ' + joined);
+      const firstHeading = calls.texts.find(s => /^1\. /.test(s));
+      if (!firstHeading) throw new Error('bagian tutorial pertama harus diberi nomor urut "1. " dari index loop, bukan dari emoji di teks aslinya: ' + JSON.stringify(calls.texts));
+      const normalCallCount = calls.texts.length;
+
+      // Ulang sebagai akun kasir -- bagian owner-only harus ikut dilewati.
+      calls.texts.length = 0; calls.saved.length = 0;
+      document.body.classList.add('role-kasir');
+      downloadTutorialPDF();
+      if (calls.saved.length !== 1) throw new Error('doc.save() untuk akun kasir harus tetap dipanggil tepat sekali');
+      if (calls.texts.length >= normalCallCount) throw new Error('BUG: PDF untuk akun kasir harus lebih sedikit isinya (bagian owner-only dilewati), got ' + calls.texts.length + ' vs ' + normalCallCount + ' (owner)');
+      const totalItemsKasir = totalItemsNormal - ownerOnlyCount;
+      if (totalItemsKasir <= 0) throw new Error('skenario test tidak valid -- semua bagian tutorial kebetulan owner-only');
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+      document.body.classList.toggle('role-kasir', originalSave);
+    }
+  });
+
   return out;
 });
 

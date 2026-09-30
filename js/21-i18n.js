@@ -720,6 +720,12 @@ const I18N_EN = {
   '📖 Tutorial Penggunaan': '📖 How to Use the App',
   'Panduan singkat memakai aplikasi ini. Ketuk tiap judul untuk buka langkahnya.': 'A quick guide to using this app. Tap each heading to see the steps.',
   '🎯 Mulai Latihan Praktik Langsung': '🎯 Start Hands-On Practice',
+  '📄 Unduh Tutorial sebagai PDF': '📄 Download Tutorial as PDF',
+  /* Dipakai langsung lewat t() di downloadTutorialPDF() (js/04-tutorial.js),
+     BUKAN key hasil pecahan text node DOM seperti key-key lain di blok ini --
+     makanya tanpa emoji, beda dari key tombolnya di atas. */
+  'Tutorial Penggunaan': 'How to Use the App',
+  'Diunduh': 'Downloaded',
   '1️⃣ Membuat Transaksi Baru': '1️⃣ Creating a New Transaction',
   'Buka tab': 'Open the',
   '(ikon ➕ paling kiri di menu bawah)': 'tab (the leftmost ➕ icon in the bottom menu)',

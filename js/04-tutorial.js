@@ -7,6 +7,67 @@ function toggleTut(btn){
   document.querySelectorAll('.tut-body.open').forEach(b=>b.classList.remove('open'));
   if(!wasOpen) body.classList.add('open');
 }
+/* jsPDF (font helvetica bawaan) tidak punya glyph emoji -- kalau dibiarkan,
+   simbol seperti "1️⃣"/"🔟" di judul tut-head tampil kotak kosong di PDF.
+   Nomor urut bagian di PDF dibuat dari index loop-nya sendiri (bukan
+   dibaca dari emoji), jadi 🔟 (yang tidak punya digit terpisah seperti
+   1️⃣-9️⃣) tidak masalah. */
+function stripEmojiForPDF(s){
+  return String(s||'')
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{20E3}]/gu, '')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+/* Isi PDF diambil langsung dari DOM #tutorialModal .tut-item (bukan
+   ditulis ulang di JS) supaya cuma ada SATU sumber teks tutorial -- kalau
+   isinya diedit di index.html, PDF-nya otomatis ikut berubah, tidak perlu
+   disunting dua tempat. Item yang sedang disembunyikan (mis. bagian
+   owner-only untuk akun kasir, lihat aturan CSS "body.role-kasir
+   .owner-only") ikut dilewati, supaya PDF-nya sama dengan apa yang
+   pengguna itu benar-benar lihat di aplikasi. */
+function downloadTutorialPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const marginX = 14, maxX = 196, pageBottom = 280;
+  let y = 18;
+  const ensureRoom = (need)=>{ if(y + (need||0) > pageBottom){ doc.addPage(); y = 18; } };
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text(t('Tutorial Penggunaan') + ' — Dokter Laundry', marginX, y);
+  y += 7;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+  doc.setTextColor(120);
+  doc.text(`${t('Diunduh')} ${fmtDate(todayISO())}`, marginX, y);
+  doc.setTextColor(0);
+  y += 9;
+
+  const items = document.querySelectorAll('#tutorialModal .tut-item');
+  let sectionNo = 0;
+  items.forEach(item=>{
+    if(window.getComputedStyle(item).display === 'none') return;
+    sectionNo++;
+    const headEl = item.querySelector('.tut-head');
+    const heading = `${sectionNo}. ${stripEmojiForPDF(headEl ? headEl.textContent : '')}`;
+    const bodyItems = Array.from(item.querySelectorAll('.tut-body li')).map(li=>stripEmojiForPDF(li.textContent));
+
+    ensureRoom(14);
+    doc.setFont('helvetica','bold'); doc.setFontSize(12);
+    doc.splitTextToSize(heading, maxX-marginX).forEach(line=>{ ensureRoom(6); doc.text(line, marginX, y); y += 6; });
+    y += 1;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    bodyItems.forEach((text, idx)=>{
+      const lines = doc.splitTextToSize(`${idx+1}. ${text}`, maxX-marginX-4);
+      lines.forEach(line=>{ ensureRoom(5); doc.text(line, marginX+4, y); y += 5; });
+      y += 1.5;
+    });
+    y += 5;
+  });
+
+  const filename = `Tutorial-Dokter-Laundry.pdf`;
+  saveToDownloadsGallery(doc.output('blob'), filename);
+  doc.save(filename);
+}
 
 /* ===================== LATIHAN PRAKTIK LANGSUNG (tur spotlight) ===================== */
 /* Catatan: teks di sini TIDAK dibungkus t() langsung di sini karena TOUR_STEPS
