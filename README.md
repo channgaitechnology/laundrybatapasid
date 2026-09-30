@@ -791,35 +791,34 @@ Sebelum tabel ini ada, tab "Riset Komunitas" akan gagal memuat data
 (file terpisah total).
 
 **Update lanjutan** (kalau tabel di atas sudah pernah dibuat sebelum kolom
-`daerah` ditambahkan, dan untuk menambah 2 komunitas hasil riset lanjutan)
-— jalankan sekali:
+`daerah` ditambahkan, dan/atau untuk menambah 2 komunitas hasil riset
+lanjutan) — jalankan sekali. **Aman dijalankan berapa kali pun** (tiap
+langkah dijaga `is null`/`not exists` supaya tidak pernah menduplikasi
+baris yang sudah ada, termasuk kalau baris ILI/ASLI Jatim-nya sudah
+sempat di-insert lewat SQL terpisah sebelumnya):
 
 ```sql
 alter table marketing_communities add column if not exists daerah text;
 
 update marketing_communities set daerah = 'Seluruh Indonesia'
 where nama = 'Asosiasi Laundry Indonesia (ASLI)' and daerah is null;
+update marketing_communities set daerah = 'Seluruh Indonesia'
+where nama = 'Induk Laundry Indonesia (ILI)' and daerah is null;
+update marketing_communities set daerah = 'Jawa Timur'
+where nama = 'ASLI Jawa Timur (DPD Regional)' and daerah is null;
 
 insert into marketing_communities (platform, nama, daerah, link, jumlah_anggota, kontak_admin, catatan)
-values
-(
-  'asosiasi',
-  'Induk Laundry Indonesia (ILI)',
-  'Seluruh Indonesia',
-  'https://induklaundryindonesia.com/',
-  '76.500+ (basis Facebook, tersebar di 34 kota)',
+select 'asosiasi', 'Induk Laundry Indonesia (ILI)', 'Seluruh Indonesia',
+  'https://induklaundryindonesia.com/', '76.500+ (basis Facebook, tersebar di 34 kota)',
   'Admin 1: 0811-8988-171 · Admin 2: 0852-1810-4676 · Email: induklaundryindonesia@gmail.com',
   'Komunitas laundry terbesar di Indonesia, basis Facebook. Fokus pelatihan, sharing best practice, dan standardisasi SDM bisnis laundry. Berbasis di Jakarta Barat.'
-),
-(
-  'asosiasi',
-  'ASLI Jawa Timur (DPD Regional)',
-  'Jawa Timur',
-  'https://aslijatim.org/',
-  null,
-  null,
+where not exists (select 1 from marketing_communities where nama = 'Induk Laundry Indonesia (ILI)');
+
+insert into marketing_communities (platform, nama, daerah, link, jumlah_anggota, kontak_admin, catatan)
+select 'asosiasi', 'ASLI Jawa Timur (DPD Regional)', 'Jawa Timur',
+  'https://aslijatim.org/', null, null,
   'Dewan Pengurus Daerah (DPD) resmi ASLI untuk wilayah Jawa Timur -- 1 dari 21 DPD ASLI se-Indonesia. Kontak spesifik DPD ini belum terverifikasi -- kalau perlu terhubung, hubungi dulu DPP ASLI pusat (WA 0856-5666-5777).'
-);
+where not exists (select 1 from marketing_communities where nama = 'ASLI Jawa Timur (DPD Regional)');
 ```
 
 Tab lain di halaman ini (Konten Promosi, Landing Page, Program Referral)
