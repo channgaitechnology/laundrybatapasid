@@ -65,6 +65,12 @@
 
   .btn-add{ background:var(--suds); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; margin-bottom:14px; }
 
+  .filter-bar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .filter-bar input[type="search"]{ flex:1 1 180px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; background:#fff; }
+  .filter-bar select{ flex:1 1 130px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; background:#fff; color:var(--ink); }
+  .filter-count{ font-size:11.5px; color:var(--ink-soft); margin:-6px 0 12px; }
+  .filter-clear{ flex:none; background:var(--mist); border:none; border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
+
   .comm-item{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start; }
   .comm-plat{ flex:none; width:34px;height:34px;border-radius:10px;background:var(--mist);display:flex;align-items:center;justify-content:center;font-size:16px; }
   .comm-body{ flex:1; min-width:0; }
@@ -134,6 +140,26 @@
         <p>Kumpulan komunitas nyata (asosiasi, grup Facebook/WhatsApp, forum) tempat pemilik usaha laundry berkumpul. Tambahkan terus daftarnya seiring ketemu komunitas baru.</p>
       </div>
       <button class="btn-add" onclick="openCommModal()">+ Tambah Komunitas</button>
+
+      <div class="filter-bar">
+        <input type="search" id="commSearch" placeholder="🔎 Cari nama/catatan komunitas..." oninput="renderCommunities()">
+        <select id="filterPlatform" onchange="renderCommunities()">
+          <option value="">Semua Platform</option>
+          <option value="asosiasi">Asosiasi Resmi</option>
+          <option value="facebook">Facebook</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="tiktok">TikTok</option>
+          <option value="forum">Forum</option>
+          <option value="lainnya">Lainnya</option>
+        </select>
+        <select id="filterDaerah" onchange="renderCommunities()">
+          <option value="">Semua Daerah</option>
+        </select>
+        <button class="filter-clear" onclick="clearFilters()">✕ Reset</button>
+      </div>
+      <div class="filter-count" id="filterCount"></div>
+
       <div id="commList"></div>
     </div>
   </div>
@@ -150,11 +176,14 @@
       <option value="facebook">Grup Facebook</option>
       <option value="whatsapp">Grup WhatsApp</option>
       <option value="instagram">Instagram</option>
+      <option value="tiktok">TikTok</option>
       <option value="forum">Forum</option>
       <option value="lainnya">Lainnya</option>
     </select>
     <label for="commNama">Nama Komunitas</label>
     <input id="commNama" placeholder="cth. Asosiasi Laundry Indonesia (ASLI)">
+    <label for="commDaerah">Daerah</label>
+    <input id="commDaerah" placeholder="cth. Jawa Timur, atau Seluruh Indonesia">
     <label for="commLink">Link</label>
     <input id="commLink" placeholder="https://...">
     <label for="commAnggota">Perkiraan Jumlah Anggota</label>
@@ -178,8 +207,8 @@ const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
 const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const PLATFORM_ICON = { asosiasi:'🏢', facebook:'📘', whatsapp:'💬', instagram:'📸', forum:'💭', lainnya:'🔗' };
-const PLATFORM_LABEL = { asosiasi:'Asosiasi Resmi', facebook:'Grup Facebook', whatsapp:'Grup WhatsApp', instagram:'Instagram', forum:'Forum', lainnya:'Lainnya' };
+const PLATFORM_ICON = { asosiasi:'🏢', facebook:'📘', whatsapp:'💬', instagram:'📸', tiktok:'🎵', forum:'💭', lainnya:'🔗' };
+const PLATFORM_LABEL = { asosiasi:'Asosiasi Resmi', facebook:'Grup Facebook', whatsapp:'Grup WhatsApp', instagram:'Instagram', tiktok:'TikTok', forum:'Forum', lainnya:'Lainnya' };
 
 function showToast(msg){
   const el = document.getElementById('toast');
@@ -236,19 +265,55 @@ async function loadCommunities(){
   communityCache = data || [];
   renderCommunities();
 }
+function populateDaerahFilter(){
+  const sel = document.getElementById('filterDaerah');
+  const current = sel.value;
+  const daerahList = Array.from(new Set(communityCache.map(c=>c.daerah).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  sel.innerHTML = `<option value="">Semua Daerah</option>` + daerahList.map(d=>`<option value="${escapeHTML(d)}">${escapeHTML(d)}</option>`).join('');
+  if(daerahList.includes(current)) sel.value = current;
+}
+function clearFilters(){
+  document.getElementById('commSearch').value = '';
+  document.getElementById('filterPlatform').value = '';
+  document.getElementById('filterDaerah').value = '';
+  renderCommunities();
+}
+function filteredCommunities(){
+  const q = document.getElementById('commSearch').value.trim().toLowerCase();
+  const platform = document.getElementById('filterPlatform').value;
+  const daerah = document.getElementById('filterDaerah').value;
+  return communityCache.filter(c=>{
+    if(platform && c.platform !== platform) return false;
+    if(daerah && c.daerah !== daerah) return false;
+    if(q){
+      const haystack = [c.nama, c.catatan, c.daerah, c.kontak_admin].filter(Boolean).join(' ').toLowerCase();
+      if(!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
 function renderCommunities(){
+  populateDaerahFilter();
   const el = document.getElementById('commList');
+  const countEl = document.getElementById('filterCount');
   if(communityCache.length===0){
+    countEl.textContent = '';
     el.innerHTML = `<div class="empty-state">Belum ada komunitas tercatat. Tekan "+ Tambah Komunitas" untuk mulai.</div>`;
     return;
   }
-  el.innerHTML = communityCache.map(c=>`
+  const list = filteredCommunities();
+  countEl.textContent = `Menampilkan ${list.length} dari ${communityCache.length} komunitas`;
+  if(list.length===0){
+    el.innerHTML = `<div class="empty-state">Tidak ada komunitas yang cocok dengan filter/pencarian ini.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(c=>`
     <div class="comm-item">
       <div class="comm-plat">${PLATFORM_ICON[c.platform]||'🔗'}</div>
       <div class="comm-body">
         <b>${escapeHTML(c.nama)}</b>
         <div class="comm-meta">
-          ${PLATFORM_LABEL[c.platform]||'Lainnya'}${c.jumlah_anggota ? ' · '+escapeHTML(c.jumlah_anggota)+' anggota' : ''}
+          ${PLATFORM_LABEL[c.platform]||'Lainnya'}${c.daerah ? ' · '+escapeHTML(c.daerah) : ''}${c.jumlah_anggota ? ' · '+escapeHTML(c.jumlah_anggota)+' anggota' : ''}
           ${c.link ? ' · <a href="'+escapeHTML(c.link)+'" target="_blank" rel="noopener">Buka link ↗</a>' : ''}
         </div>
         ${c.kontak_admin ? `<div class="comm-meta">Kontak: ${escapeHTML(c.kontak_admin)}</div>` : ''}
@@ -266,6 +331,7 @@ function openCommModal(id){
   document.getElementById('commId').value = c ? c.id : '';
   document.getElementById('commPlatform').value = c ? c.platform : 'facebook';
   document.getElementById('commNama').value = c ? c.nama : '';
+  document.getElementById('commDaerah').value = c ? (c.daerah||'') : '';
   document.getElementById('commLink').value = c ? (c.link||'') : '';
   document.getElementById('commAnggota').value = c ? (c.jumlah_anggota||'') : '';
   document.getElementById('commKontak').value = c ? (c.kontak_admin||'') : '';
@@ -280,6 +346,7 @@ async function saveComm(){
   const payload = {
     platform: document.getElementById('commPlatform').value,
     nama,
+    daerah: document.getElementById('commDaerah').value.trim(),
     link: document.getElementById('commLink').value.trim(),
     jumlah_anggota: document.getElementById('commAnggota').value.trim(),
     kontak_admin: document.getElementById('commKontak').value.trim(),
