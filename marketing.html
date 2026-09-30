@@ -81,6 +81,16 @@
   .comm-actions{ flex:none; display:flex; gap:6px; }
   .icon-btn-sm{ background:var(--mist); border:none; border-radius:8px; padding:6px 9px; font-size:12px; }
 
+  .search-box{ display:flex; gap:8px; margin-top:12px; }
+  .search-box input{ flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13.5px; }
+  .search-box button{ flex:none; margin:0; width:auto; padding:10px 18px; }
+  .search-status{ font-size:12px; color:var(--ink-soft); margin-top:10px; }
+  .search-result{ border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
+  .search-result b{ font-size:13px; }
+  .search-result .sr-link{ font-size:11px; color:var(--suds); word-break:break-all; display:block; margin:2px 0 6px; }
+  .search-result .sr-snippet{ font-size:12px; color:var(--ink-soft); line-height:1.5; margin-bottom:8px; }
+  .search-result .btn{ margin:0; width:auto; padding:8px 14px; font-size:12.5px; }
+
   .modal-bg{ display:none; position:fixed; inset:0; background:rgba(10,30,40,0.45); align-items:flex-start; justify-content:center; padding:24px 16px; overflow-y:auto; z-index:50; }
   .modal-bg.show{ display:flex; }
   .modal{ background:#fff; border-radius:18px; padding:22px; width:100%; max-width:420px; position:relative; }
@@ -139,6 +149,17 @@
         <h2>Komunitas Pemilik Laundry di Indonesia</h2>
         <p>Kumpulan komunitas nyata (asosiasi, grup Facebook/WhatsApp, forum) tempat pemilik usaha laundry berkumpul. Tambahkan terus daftarnya seiring ketemu komunitas baru.</p>
       </div>
+      <div class="card">
+        <h2>🔎 Cari Komunitas Baru secara Online</h2>
+        <p>Ketik kata kunci (mis. "komunitas laundry Bandung" atau "grup facebook pengusaha laundry"), hasilnya dari pencarian internet langsung — tinjau dulu tiap hasil sebelum menekan "+ Tambah ke Database".</p>
+        <div class="search-box">
+          <input type="text" id="onlineSearchQuery" placeholder="cth. komunitas laundry Surabaya" onkeydown="if(event.key==='Enter') searchCommunitiesOnline()">
+          <button class="btn btn-primary" id="onlineSearchBtn" onclick="searchCommunitiesOnline()">Cari</button>
+        </div>
+        <div class="search-status" id="onlineSearchStatus"></div>
+        <div id="onlineSearchResults"></div>
+      </div>
+
       <button class="btn-add" onclick="openCommModal()">+ Tambah Komunitas</button>
 
       <div class="filter-bar">
@@ -325,17 +346,17 @@ function renderCommunities(){
       </div>
     </div>`).join('');
 }
-function openCommModal(id){
+function openCommModal(id, prefill){
   const c = id ? communityCache.find(x=>String(x.id)===String(id)) : null;
   document.getElementById('commModalTitle').textContent = c ? 'Edit Komunitas' : 'Tambah Komunitas';
   document.getElementById('commId').value = c ? c.id : '';
   document.getElementById('commPlatform').value = c ? c.platform : 'facebook';
-  document.getElementById('commNama').value = c ? c.nama : '';
+  document.getElementById('commNama').value = c ? c.nama : (prefill && prefill.nama) || '';
   document.getElementById('commDaerah').value = c ? (c.daerah||'') : '';
-  document.getElementById('commLink').value = c ? (c.link||'') : '';
+  document.getElementById('commLink').value = c ? (c.link||'') : (prefill && prefill.link) || '';
   document.getElementById('commAnggota').value = c ? (c.jumlah_anggota||'') : '';
   document.getElementById('commKontak').value = c ? (c.kontak_admin||'') : '';
-  document.getElementById('commCatatan').value = c ? (c.catatan||'') : '';
+  document.getElementById('commCatatan').value = c ? (c.catatan||'') : (prefill && prefill.catatan) || '';
   document.getElementById('commModal').classList.add('show');
 }
 function closeCommModal(){ document.getElementById('commModal').classList.remove('show'); }
@@ -365,6 +386,55 @@ async function deleteComm(id){
   const { error } = await sb.from('marketing_communities').delete().eq('id', id);
   if(error){ showToast('Gagal menghapus'); return; }
   loadCommunities();
+}
+
+/* ===================== CARI KOMUNITAS ONLINE ===================== */
+var lastSearchResults = [];
+async function searchCommunitiesOnline(){
+  const q = document.getElementById('onlineSearchQuery').value.trim();
+  const statusEl = document.getElementById('onlineSearchStatus');
+  const resultsEl = document.getElementById('onlineSearchResults');
+  const btn = document.getElementById('onlineSearchBtn');
+  if(!q){ statusEl.textContent = 'Isi dulu kata kuncinya.'; return; }
+  btn.disabled = true; btn.textContent = 'Mencari...';
+  statusEl.textContent = 'Sedang mencari...';
+  resultsEl.innerHTML = '';
+  try{
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    const res = await fetch('/.netlify/functions/search-communities', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${token||''}` },
+      body: JSON.stringify({ q }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      statusEl.textContent = 'Gagal mencari: ' + (data.error || res.status);
+      return;
+    }
+    lastSearchResults = Array.isArray(data.results) ? data.results : [];
+    if(lastSearchResults.length===0){
+      statusEl.textContent = 'Tidak ada hasil untuk kata kunci ini.';
+      return;
+    }
+    statusEl.textContent = `Ditemukan ${lastSearchResults.length} hasil dari pencarian online -- tinjau dulu sebelum menambahkan:`;
+    resultsEl.innerHTML = lastSearchResults.map((r,idx)=>`
+      <div class="search-result">
+        <b>${escapeHTML(r.title)}</b>
+        <a class="sr-link" href="${escapeHTML(r.link)}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
+        <div class="sr-snippet">${escapeHTML(r.snippet)}</div>
+        <button class="btn btn-primary" onclick="addSearchResultToDb(${idx})">+ Tambah ke Database</button>
+      </div>`).join('');
+  }catch(e){
+    statusEl.textContent = 'Gagal mencari: koneksi bermasalah.';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Cari';
+  }
+}
+function addSearchResultToDb(idx){
+  const r = lastSearchResults[idx];
+  if(!r) return;
+  openCommModal(null, { nama: r.title, link: r.link, catatan: r.snippet });
 }
 
 /* ===================== INIT ===================== */

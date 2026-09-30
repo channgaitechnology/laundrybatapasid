@@ -821,6 +821,41 @@ select 'asosiasi', 'ASLI Jawa Timur (DPD Regional)', 'Jawa Timur',
 where not exists (select 1 from marketing_communities where nama = 'ASLI Jawa Timur (DPD Regional)');
 ```
 
+### Cari Komunitas Online
+
+Di atas daftar komunitas ada kartu "🔎 Cari Komunitas Baru secara Online" —
+ketik kata kunci (mis. "komunitas laundry Bandung"), tekan Cari, hasilnya
+pencarian internet **sungguhan** (bukan data yang ditulis Claude manual),
+lalu tinjau tiap hasil dan tekan "+ Tambah ke Database" untuk membuka form
+Tambah Komunitas dengan Nama/Link/Catatan sudah terisi otomatis dari hasil
+pencarian (Platform & Daerah tetap harus diisi manual, dan semua field
+masih bisa diedit sebelum disimpan — tidak ada yang masuk database tanpa
+ditinjau dulu).
+
+Pencariannya lewat [Serper.dev](https://serper.dev) (search API pihak
+ketiga berbasis hasil Google Search — Google Custom Search API sendiri
+sudah **tutup untuk pendaftar baru** per 2026 dan akan dimatikan total 1
+Januari 2027, jadi tidak dipakai). Dipanggil lewat
+`netlify/functions/search-communities.js`, BUKAN langsung dari browser ke
+Serper — supaya `SERPER_API_KEY` tidak pernah ada di kode browser (kalau
+ditaruh di sana, siapa saja bisa mencurinya dari DevTools dan menghabiskan
+kuota berbayar kita). Function ini juga memverifikasi token Supabase Auth
+pengirim request benar-benar `ADMIN_EMAIL`, jadi orang lain yang
+menemukan URL function-nya langsung dari luar tetap tidak bisa memakainya.
+
+**Environment variables di Netlify** (Site settings → Environment
+variables, bukan di kode/git):
+
+| Nama | Contoh nilai | Keterangan |
+|---|---|---|
+| `SERPER_API_KEY` | `a1b2c3...` | Daftar gratis di [serper.dev](https://serper.dev) (2.500 pencarian/bulan gratis, lalu berbayar), buka **API Key** di dashboard lalu salin nilainya. |
+
+`SUPABASE_URL` yang sama dengan fitur Midtrans di atas juga dipakai
+function ini (kalau belum diisi, isi dulu). Sebelum `SERPER_API_KEY`
+diisi, tombol Cari akan gagal dengan pesan error yang jelas — fitur lain
+di halaman ini (daftar komunitas, filter, tambah/edit/hapus manual) tidak
+terpengaruh sama sekali.
+
 Tab lain di halaman ini (Konten Promosi, Landing Page, Program Referral)
 baru placeholder ("Segera") — akan dikerjakan satu-satu sesuai permintaan.
 
