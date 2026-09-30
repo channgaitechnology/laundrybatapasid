@@ -72,12 +72,14 @@
   .filter-clear{ flex:none; background:var(--mist); border:none; border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; color:var(--ink-soft); }
 
   .comm-item{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; display:flex; gap:12px; align-items:flex-start; }
-  .comm-plat{ flex:none; width:34px;height:34px;border-radius:10px;background:var(--mist);display:flex;align-items:center;justify-content:center;font-size:16px; }
+  .comm-plat{ flex:none; width:34px;height:34px;border-radius:10px;background:var(--mist);display:flex;align-items:center;justify-content:center;font-size:16px; text-decoration:none; }
+  a.comm-plat:hover{ background:var(--suds); }
   .comm-body{ flex:1; min-width:0; }
   .comm-body b{ font-size:13.5px; }
   .comm-meta{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
   .comm-meta a{ color:var(--suds); text-decoration:none; font-weight:600; }
   .comm-note{ font-size:12px; color:var(--ink-soft); margin-top:6px; line-height:1.5; }
+  .comm-open-btn{ display:inline-block; margin-top:8px; background:var(--suds); color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:8px; }
   .comm-actions{ flex:none; display:flex; gap:6px; }
   .icon-btn-sm{ background:var(--mist); border:none; border-radius:8px; padding:6px 9px; font-size:12px; }
 
@@ -328,23 +330,56 @@ function renderCommunities(){
     el.innerHTML = `<div class="empty-state">Tidak ada komunitas yang cocok dengan filter/pencarian ini.</div>`;
     return;
   }
-  el.innerHTML = list.map(c=>`
+  el.innerHTML = list.map(c=>{
+    const resolved = resolveCommLink(c);
+    return `
     <div class="comm-item">
-      <div class="comm-plat">${PLATFORM_ICON[c.platform]||'🔗'}</div>
+      ${resolved
+        ? `<a class="comm-plat" href="${escapeHTML(resolved.url)}" target="_blank" rel="noopener" title="${escapeHTML(resolved.label)}">${PLATFORM_ICON[c.platform]||'🔗'}</a>`
+        : `<div class="comm-plat">${PLATFORM_ICON[c.platform]||'🔗'}</div>`}
       <div class="comm-body">
         <b>${escapeHTML(c.nama)}</b>
         <div class="comm-meta">
           ${PLATFORM_LABEL[c.platform]||'Lainnya'}${c.daerah ? ' · '+escapeHTML(c.daerah) : ''}${c.jumlah_anggota ? ' · '+escapeHTML(c.jumlah_anggota)+' anggota' : ''}
-          ${c.link ? ' · <a href="'+escapeHTML(c.link)+'" target="_blank" rel="noopener">Buka link ↗</a>' : ''}
         </div>
         ${c.kontak_admin ? `<div class="comm-meta">Kontak: ${escapeHTML(c.kontak_admin)}</div>` : ''}
         ${c.catatan ? `<div class="comm-note">${escapeHTML(c.catatan)}</div>` : ''}
+        ${resolved ? `<a class="comm-open-btn" href="${escapeHTML(resolved.url)}" target="_blank" rel="noopener">${escapeHTML(resolved.label)} ↗</a>` : ''}
       </div>
       <div class="comm-actions">
         <button class="icon-btn-sm" onclick="openCommModal('${c.id}')">✏️</button>
         <button class="icon-btn-sm" onclick="deleteComm('${c.id}')">🗑️</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+/* marketing.html file terpisah total dari index.html (lihat arsitektur di
+   CLAUDE.md), jadi tidak bisa import normalizePhone() dari js/09-utils.js --
+   logikanya disalin persis di sini supaya format nomor WA tetap konsisten
+   (0812... jadi 62812..., dst).
+   resolveCommLink(): field `link` yang diisi manual/dari hasil pencarian
+   SELALU dipakai duluan kalau ada (paling akurat) -- kalau kosong, dicoba
+   tebak dari kontak_admin/catatan: nomor HP untuk platform WhatsApp jadi
+   link wa.me, handle "@nama" untuk Instagram jadi link instagram.com/nama.
+   Tujuannya supaya sebisa mungkin tiap komunitas punya SATU tombol "Buka"
+   yang langsung ke platform aslinya, bukan cuma teks kontak yang harus
+   disalin manual. */
+function resolveCommLink(c){
+  if(c.link) return { url: c.link, label: 'Buka ' + (PLATFORM_LABEL[c.platform] || 'Link') };
+  const text = [c.kontak_admin, c.catatan].filter(Boolean).join(' ');
+  if(c.platform === 'whatsapp'){
+    const m = text.match(/(?:\+?62|0)8[0-9][0-9\-\s]{6,12}[0-9]/);
+    if(m){
+      let phone = m[0].replace(/[^0-9]/g,'');
+      phone = phone.startsWith('0') ? '62'+phone.slice(1) : (phone.startsWith('62') ? phone : '62'+phone);
+      return { url: `https://wa.me/${phone}`, label: 'Buka WhatsApp' };
+    }
+  }
+  if(c.platform === 'instagram'){
+    const m = text.match(/@([a-zA-Z0-9._]{2,30})/);
+    if(m) return { url: `https://instagram.com/${m[1]}`, label: 'Buka Instagram' };
+  }
+  return null;
 }
 function openCommModal(id, prefill){
   const c = id ? communityCache.find(x=>String(x.id)===String(id)) : null;
