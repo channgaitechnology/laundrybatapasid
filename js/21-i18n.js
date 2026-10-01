@@ -629,6 +629,12 @@ const I18N_EN = {
   '➕ Undang Kasir Baru': '➕ Invite New Cashier',
   'Panel ini cuma kelihatan untukmu, pemilik platform.': 'This panel is only visible to you, the platform owner.',
   'Permintaan Pembayaran Masuk': 'Incoming Payment Requests',
+  'Pembayaran Otomatis (Midtrans)': 'Automatic Payment (Midtrans)',
+  'Tombol "Bayar Otomatis" di layar perpanjangan langganan cuma muncul kalau dinyalakan di sini. Nyalakan HANYA setelah akun Midtrans Anda benar-benar aktif/terverifikasi — kalau belum, transaksi akan ditolak Midtrans (error "akun belum aktif") walau env var sudah diisi. Sebelum itu, jalur transfer manual tetap berfungsi seperti biasa.':
+    'The "Pay Automatically" button on the renewal screen only appears once turned on here. Turn it ON ONLY after your Midtrans account is actually active/verified — otherwise Midtrans will reject transactions ("account not active" error) even with the env vars filled in. Until then, manual transfer keeps working as usual.',
+  'Aktifkan tombol Bayar Otomatis': 'Enable the Pay Automatically button',
+  'Tombol Bayar Otomatis diaktifkan': 'Pay Automatically button enabled',
+  'Tombol Bayar Otomatis disembunyikan': 'Pay Automatically button hidden',
   'Kode Pendaftaran': 'Registration Codes',
   '➕ Buat Kode Manual': '➕ Create Manual Code',
   'Footer Nota (kredit pengembang)': 'Receipt Footer (developer credit)',

@@ -70,6 +70,7 @@ function renderSubscriptionBadge(){
 function showPaywallModal(){
   renderPlanSelectOptions('paywallPlan');
   updatePlanAmountDisplay('paywallPlan', 'paywallAmount');
+  updateMidtransButtonVisibility();
   const modal = document.getElementById('paywallModal');
   if(modal) modal.classList.add('show');
 }

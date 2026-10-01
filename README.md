@@ -670,6 +670,31 @@ otomatisasi untuk itu butuh cara pengiriman kode pendaftaran ke orang yang
 belum login sama sekali (lewat email? halaman sukses setelah bayar?),
 belum diputuskan.
 
+### 5. Nyalakan tombol "Bayar Otomatis" (cuma SETELAH akun Midtrans aktif)
+
+Midtrans **menolak transaksi production** (error 402, "merchant doesn't
+have access") selama akun belum selesai diverifikasi/diaktifkan oleh tim
+Midtrans — mengisi env var di atas saja tidak cukup. Supaya pengguna
+tidak mencoba tombol yang pasti gagal, tombol "💳 Bayar Otomatis" di
+layar perpanjangan langganan **disembunyikan secara default** dan cuma
+muncul setelah dinyalakan manual.
+
+Pakai tabel `app_branding` yang sama dengan Footer Nota (lihat migrasinya
+di bagian "Footer Nota" di atas — jalankan itu dulu kalau belum pernah).
+Tambahan kolomnya, jalankan sekali di Supabase SQL Editor (aman dijalankan
+berkali-kali):
+
+```sql
+alter table app_branding add column if not exists midtrans_enabled boolean not null default false;
+```
+
+Setelah akun Midtrans Anda benar-benar aktif (dapat konfirmasi dari
+Midtrans, atau sudah berhasil tes transaksi kecil), nyalakan di app:
+**Pengaturan → Admin Platform → "Pembayaran Otomatis (Midtrans)"** →
+centang "Aktifkan tombol Bayar Otomatis". Bisa dimatikan lagi kapan saja
+dengan cara yang sama (mis. kalau akun Midtrans kena suspend) — jalur
+transfer manual tidak pernah terpengaruh oleh toggle ini.
+
 ## Notifikasi Email untuk Permintaan Baru (pendaftaran/perpanjangan manual)
 
 Setiap kali ada baris baru masuk ke tabel `payment_requests` (pendaftar
