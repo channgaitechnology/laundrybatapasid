@@ -163,6 +163,17 @@ const result = await page.evaluate(async () => {
     };
     return q;
   }
+  let fakeReferralCode = null; // satu baris registration_codes bertipe referral (referrer_owner_id = shopOwnerId)
+  function fakeRegistrationCodesQuery() {
+    const q = {
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q, delete: () => q,
+      insert: (row) => { fakeReferralCode = { id: 'fake-regcode-1', ...row }; return q; },
+      single: () => Promise.resolve({ data: fakeReferralCode, error: null }),
+      maybeSingle: () => Promise.resolve({ data: fakeReferralCode, error: null }),
+      then: (resolve) => resolve({ data: fakeReferralCode ? [fakeReferralCode] : [], error: null }),
+    };
+    return q;
+  }
   let lastAppBrandingUpsert = null;
   function fakeAppBrandingQuery() {
     const q = {
@@ -379,6 +390,7 @@ const result = await page.evaluate(async () => {
     if (table === 'subscription_usage') return fakeUsageQuery();
     if (table === 'settings') return fakeSettingsQuery();
     if (table === 'app_branding') return fakeAppBrandingQuery();
+    if (table === 'registration_codes') return fakeRegistrationCodesQuery();
     if (table === 'expenses') return fakeExpensesQuery();
     if (table === 'expense_catalog') return fakeExpenseCatalogQuery();
     if (table === 'outlets') return fakeOutletsQuery();
@@ -2884,6 +2896,85 @@ const result = await page.evaluate(async () => {
       updateMidtransButtonVisibility();
       fillAppBrandingForm();
       btn.style.display = savedBtnDisplay;
+    }
+  });
+
+  await step('getOrCreateReferralCode(): dibuat sekali (format REF-XXXXXX, referrer_owner_id = shopOwnerId, status "aktif" supaya bisa dipakai ulang), lalu dipakai ulang (bukan insert baru lagi) pada panggilan berikutnya', async () => {
+    fakeReferralCode = null;
+    try {
+      const code1 = await getOrCreateReferralCode();
+      if (!/^REF-[A-Z0-9]{6}$/.test(code1)) throw new Error('expected a code in the REF-XXXXXX format, got: ' + code1);
+      if (!fakeReferralCode || fakeReferralCode.referrer_owner_id !== shopOwnerId) throw new Error('getOrCreateReferralCode() should insert a row with referrer_owner_id = shopOwnerId: ' + JSON.stringify(fakeReferralCode));
+      if (fakeReferralCode.status !== 'aktif') throw new Error('a referral code should be inserted with status "aktif" (reusable by many people), not a single-use status: ' + JSON.stringify(fakeReferralCode));
+
+      const insertedRowBefore = fakeReferralCode;
+      const code2 = await getOrCreateReferralCode();
+      if (code2 !== code1) throw new Error('a second call should reuse the existing code, not generate a new one: ' + code1 + ' vs ' + code2);
+      if (fakeReferralCode !== insertedRowBefore) throw new Error('a second call should NOT insert another row');
+    } finally {
+      fakeReferralCode = null;
+    }
+  });
+
+  await step('shareReferral(): memakai navigator.share() berisi kode referral kalau didukung, dan fallback ke link share WhatsApp (wa.me/?text=...) kalau tidak', async () => {
+    fakeReferralCode = null;
+    const originalShare = navigator.share;
+    const originalOpen = window.open;
+    const displayEl = document.getElementById('referralCodeDisplay');
+    const savedDisplay = displayEl.textContent;
+    try {
+      let capturedShare = null;
+      navigator.share = async (opts) => { capturedShare = opts; };
+      await shareReferral();
+      if (!fakeReferralCode) throw new Error('shareReferral() should create a referral code when none exists yet');
+      if (!capturedShare || !capturedShare.text.includes(fakeReferralCode.code)) throw new Error('navigator.share() should be called with text containing the referral code: ' + JSON.stringify(capturedShare));
+      if (!capturedShare.text.includes('15')) throw new Error('the shared text should mention the 15-day bonus: ' + capturedShare.text);
+
+      navigator.share = undefined;
+      let openedUrl = null;
+      window.open = (url) => { openedUrl = url; };
+      await shareReferral();
+      if (!openedUrl || !openedUrl.startsWith('https://wa.me/?text=')) throw new Error('expected a fallback to the no-phone wa.me share link when navigator.share is unsupported, got: ' + openedUrl);
+      if (!decodeURIComponent(openedUrl).includes(fakeReferralCode.code)) throw new Error('the WA fallback text should include the referral code too');
+    } finally {
+      navigator.share = originalShare;
+      window.open = originalOpen;
+      displayEl.textContent = savedDisplay;
+      fakeReferralCode = null;
+    }
+  });
+
+  await step('handleAuthSubmit(): signup dengan kode pendaftaran memanggil RPC redeem_registration_code(p_code, p_new_user_id) -- bukan lagi update() langsung -- supaya kredit bonus ke pemilik kode referral bisa ditangani server-side', async () => {
+    const originalAuth = { signInWithPassword: sb.auth.signInWithPassword, signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    try {
+      let capturedRpcCall = null;
+      sb.rpc = async (name, params) => {
+        if (name === 'check_registration_code') return { data: true, error: null }; // kode valid, lolos pengecekan sebelum signUp()
+        capturedRpcCall = { name, params };
+        return { data: null, error: null };
+      };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-1' }, session: { access_token: 'fake' } }, error: null });
+
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'referred@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'REF-ABC123';
+      document.getElementById('authTosCheck').checked = true;
+      await handleAuthSubmit();
+
+      if (!capturedRpcCall || capturedRpcCall.name !== 'redeem_registration_code') throw new Error('expected handleAuthSubmit() to call the redeem_registration_code RPC, got: ' + JSON.stringify(capturedRpcCall));
+      if (capturedRpcCall.params.p_code !== 'REF-ABC123' || capturedRpcCall.params.p_new_user_id !== 'new-user-1') throw new Error('RPC should be called with the entered code and the new signup user id: ' + JSON.stringify(capturedRpcCall.params));
+    } finally {
+      sb.auth.signInWithPassword = originalAuth.signInWithPassword;
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
     }
   });
 

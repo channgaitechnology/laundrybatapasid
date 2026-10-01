@@ -153,3 +153,46 @@ async function requestRenewal(){
   closePaywallModal();
 }
 
+/* ===================== PROGRAM REFERRAL ===================== */
+/* Kode referral numpang di tabel registration_codes yang sudah ada
+   (kolom baru referrer_owner_id, lihat README) -- BEDA dari kode admin
+   biasa: statusnya tetap 'aktif' selamanya (sengaja bisa dipakai ulang
+   oleh banyak orang, bukan sekali pakai), supaya 1 toko bisa membagikan
+   kode yang sama ke banyak calon pelanggan. Tiap kali ada yang daftar
+   pakai kode ini, redeem_registration_code() (RPC, dipanggil dari
+   js/01-auth.js/02-init-data.js saat signup) otomatis menambah 15 hari
+   ke langganan pemilik kode -- bukan di sini, supaya kreditnya tetap
+   berjalan walau pemilik kode sedang offline saat kode itu dipakai. */
+async function getOrCreateReferralCode(){
+  if(!shopOwnerId) return null;
+  const { data: existing } = await sb.from('registration_codes').select('code').eq('referrer_owner_id', shopOwnerId).limit(1).maybeSingle();
+  if(existing && existing.code) return existing.code;
+  const code = 'REF-' + genRegCode();
+  const { data, error } = await sb.from('registration_codes').insert({ code, status:'aktif', referrer_owner_id: shopOwnerId, note:'Kode referral' }).select().single();
+  return error ? null : data.code;
+}
+async function loadReferralCode(){
+  const el = document.getElementById('referralCodeDisplay');
+  if(!el) return;
+  el.textContent = t('Memuat...');
+  const code = await getOrCreateReferralCode();
+  el.textContent = code || t('Gagal memuat kode');
+}
+async function shareReferral(){
+  const el = document.getElementById('referralCodeDisplay');
+  const stale = !el || el.textContent === t('Memuat...') || el.textContent === t('Gagal memuat kode');
+  const code = stale ? await getOrCreateReferralCode() : el.textContent;
+  if(!code){ showToast(t('Gagal membuat kode referral, coba lagi')); return; }
+  if(el) el.textContent = code;
+  const text = `${t('Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!')} ${t('Coba juga -- pas Daftar, isi Kode Pendaftaran ini biar saya dapat bonus perpanjangan 15 hari:')} ${code}\n\nhttps://laundryassist.netlify.app`;
+  try{
+    if(navigator.share){
+      await navigator.share({ title:'Dokter Laundry', text });
+      return;
+    }
+  }catch(e){
+    if(e && e.name==='AbortError') return; // user sengaja batal, jangan fallback ke WA
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+

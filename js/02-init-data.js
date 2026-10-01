@@ -38,7 +38,10 @@ async function resolveRoleAndInit(){
   try{
     const pending = localStorage.getItem('nk_pendingRegCode');
     if(pending){
-      await sb.from('registration_codes').update({ status:'terpakai', used_by: currentUser.id }).eq('code', pending).eq('status','aktif');
+      // Lihat komentar di js/01-auth.js soal redeem_registration_code (RPC) --
+      // jalur ini dipakai kalau signup butuh konfirmasi email dulu (kode
+      // disimpan sementara di localStorage, baru "ditukar" setelah login).
+      await sb.rpc('redeem_registration_code', { p_code: pending, p_new_user_id: currentUser.id });
       localStorage.removeItem('nk_pendingRegCode');
       localStorage.setItem('nk_paidSignup', '1');
     }

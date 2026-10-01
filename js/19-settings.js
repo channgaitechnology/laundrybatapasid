@@ -36,6 +36,7 @@ function openSettingsSub(id){
     admin:'🔐 Admin Platform'
   };
   document.getElementById('settingsSubTitle').textContent = t(titles[id] || 'Pengaturan');
+  if(id==='langganan') loadReferralCode();
   if(id==='bahasa'){
     const btnId = document.getElementById('langBtnId');
     const btnEn = document.getElementById('langBtnEn');

@@ -67,7 +67,11 @@ async function handleAuthSubmit(){
       }
       if(data.session && regCode){
         try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
-        await sb.from('registration_codes').update({ status:'terpakai', used_by: data.user.id }).eq('code', regCode).eq('status','aktif');
+        /* redeem_registration_code (RPC, lihat README) menangani 2 jenis kode:
+           kode admin biasa (sekali pakai, ditandai 'terpakai') dan kode
+           referral (tetap 'aktif'/bisa dipakai ulang, tapi otomatis
+           mengkreditkan +15 hari ke langganan pemilik kode). */
+        try{ await sb.rpc('redeem_registration_code', { p_code: regCode, p_new_user_id: data.user.id }); }catch(e){}
       }
     }
   }catch(e){

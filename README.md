@@ -748,6 +748,71 @@ Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
 klik "Sudah Transfer Manual" di app — email harus masuk ke
 `ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
 
+## Program Referral (bagikan & dapat 15 hari)
+
+Tombol "📤 Bagikan & Dapat 15 Hari" di Pengaturan → Langganan: setiap
+pemilik toko punya **kode referral pribadi** (dibuat otomatis sekali,
+format `REF-XXXXXX`) yang bisa dibagikan ke calon pelanggan lain lewat
+Web Share API (atau fallback ke link share WhatsApp kalau browser-nya
+tidak dukung Web Share). Begitu ada orang baru yang **Daftar** pakai
+kode itu di kolom "Kode Pendaftaran", pemilik kode otomatis mendapat
+**+15 hari** masa langganan — tidak perlu klaim manual, dan kodenya
+bisa dipakai berkali-kali oleh banyak orang (beda dari kode admin biasa
+yang sekali pakai).
+
+Numpang di tabel `registration_codes` yang sudah ada (bukan tabel
+baru) — cuma tambah 1 kolom, plus 1 function Postgres yang menangani
+kedua jenis kode (admin & referral) dalam satu RPC supaya logikanya
+tidak terduplikasi di banyak tempat di kode browser. Jalankan sekali
+di Supabase SQL Editor:
+
+```sql
+alter table registration_codes add column if not exists referrer_owner_id uuid references auth.users(id);
+
+create or replace function redeem_registration_code(p_code text, p_new_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_referrer_id uuid;
+begin
+  select referrer_owner_id into v_referrer_id
+  from registration_codes
+  where code = p_code and status = 'aktif'
+  for update;
+
+  if v_referrer_id is not null then
+    -- Kode referral: TIDAK ditandai 'terpakai' (sengaja boleh dipakai
+    -- ulang oleh banyak orang berbeda) -- cuma kreditkan +15 hari ke
+    -- langganan pemilik kode (referrer).
+    update app_subscriptions
+      set paid_until = greatest(paid_until, now()) + interval '15 days'
+      where owner_id = v_referrer_id;
+  else
+    -- Kode admin biasa: perilaku sekali-pakai seperti sebelumnya, tidak berubah.
+    update registration_codes set status = 'terpakai', used_by = p_new_user_id
+      where code = p_code and status = 'aktif';
+  end if;
+end;
+$$;
+
+grant execute on function redeem_registration_code(text, uuid) to authenticated;
+```
+
+Kenapa lewat function `security definer` (bukan langsung `update` dari
+browser seperti kode admin): kreditnya mengubah baris `app_subscriptions`
+milik **orang lain** (si pemilik kode referral, bukan yang sedang
+login mendaftar) — menaruh logika ini di satu function server-side
+jauh lebih aman & tidak bergantung pada RLS tabel `app_subscriptions`
+yang permisif lintas-user atau tidak.
+
+Sebelum migrasi ini dijalankan, tombol "Bagikan & Dapat 15 Hari" akan
+gagal membuat kode (toast error "Gagal membuat kode referral") karena
+kolom `referrer_owner_id` belum ada — fitur daftar/kode admin biasa
+tidak terpengaruh sama sekali.
+
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 
 Halaman **terpisah** dari `index.html` (bukan bagian aplikasi kasir yang
