@@ -27,10 +27,12 @@ async function loadAppBranding(){
         nama: data.dev_nama || appBranding.nama,
         tagline: data.dev_tagline || appBranding.tagline,
         wa: data.dev_wa || appBranding.wa,
-        email: data.dev_email || appBranding.email
+        email: data.dev_email || appBranding.email,
+        midtransEnabled: data.midtrans_enabled === true
       };
     }
   }catch(e){ /* diamkan — lihat komentar di atas */ }
+  updateMidtransButtonVisibility();
 }
 function fillAppBrandingForm(){
   const nama = document.getElementById('brandNama');
@@ -39,6 +41,8 @@ function fillAppBrandingForm(){
   document.getElementById('brandTagline').value = appBranding.tagline;
   document.getElementById('brandWA').value = appBranding.wa;
   document.getElementById('brandEmail').value = appBranding.email;
+  const midtransCb = document.getElementById('brandMidtransEnabled');
+  if(midtransCb) midtransCb.checked = !!appBranding.midtransEnabled;
 }
 async function saveAppBranding(){
   const nama = document.getElementById('brandNama').value.trim();
@@ -48,8 +52,27 @@ async function saveAppBranding(){
   if(!nama){ showToast(t('Nama pengembang wajib diisi')); return; }
   const { error } = await sb.from('app_branding').upsert({ id:1, dev_nama:nama, dev_tagline:tagline, dev_wa:wa, dev_email:email });
   if(error){ showToast(t('Gagal menyimpan — pastikan tabel app_branding sudah dimigrasi (lihat README)')); return; }
-  appBranding = { nama, tagline, wa, email };
+  appBranding.nama = nama; appBranding.tagline = tagline; appBranding.wa = wa; appBranding.email = email;
   showToast(t('Footer nota diperbarui untuk semua toko'));
+}
+/* Disimpan langsung begitu dicentang/dilepas (bukan nunggu tombol "Simpan
+   Footer Nota" yang terpisah) -- toggle on/off itu aksi tersendiri, tidak
+   perlu digabung ke form footer nota yang beda urusan sama sekali. */
+async function toggleMidtransPayment(checked){
+  const { error } = await sb.from('app_branding').upsert({ id:1, midtrans_enabled: checked });
+  if(error){
+    showToast(t('Gagal menyimpan — pastikan tabel app_branding sudah dimigrasi (lihat README)'));
+    const cb = document.getElementById('brandMidtransEnabled');
+    if(cb) cb.checked = !checked;
+    return;
+  }
+  appBranding.midtransEnabled = checked;
+  updateMidtransButtonVisibility();
+  showToast(checked ? t('Tombol Bayar Otomatis diaktifkan') : t('Tombol Bayar Otomatis disembunyikan'));
+}
+function updateMidtransButtonVisibility(){
+  const btn = document.getElementById('btnPayMidtrans');
+  if(btn) btn.style.display = appBranding.midtransEnabled ? '' : 'none';
 }
 async function loadAdminData(){
   const { data: codes } = await sb.from('registration_codes').select('*').order('created_at', { ascending:false });

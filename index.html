@@ -1200,6 +1200,12 @@
           <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
           <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
 
+          <b style="font-size:13px;">Pembayaran Otomatis (Midtrans)</b>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Tombol "Bayar Otomatis" di layar perpanjangan langganan cuma muncul kalau dinyalakan di sini. <b>Nyalakan HANYA setelah</b> akun Midtrans Anda benar-benar aktif/terverifikasi — kalau belum, transaksi akan ditolak Midtrans (error "akun belum aktif") walau env var sudah diisi. Sebelum itu, jalur transfer manual tetap berfungsi seperti biasa.</p>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;margin:0 0 14px;">
+            <input type="checkbox" id="brandMidtransEnabled" style="width:auto;" onchange="toggleMidtransPayment(this.checked)"> Aktifkan tombol Bayar Otomatis
+          </label>
+
           <b style="font-size:13px;">Kode Pendaftaran</b>
           <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin:6px 0 10px;" onclick="createManualCode()">➕ Buat Kode Manual</button>
           <div id="regCodeList" style="max-height:220px;overflow-y:auto;"></div>
@@ -1635,7 +1641,7 @@
          bayar otomatis lewat Midtrans diatur lewat env var
          SUBSCRIPTION_PRICE_1M/3M/6M/12M di Netlify (lihat README). -->
     <select id="paywallPlan" onchange="updatePlanAmountDisplay('paywallPlan','paywallAmount')"></select>
-    <button class="btn btn-primary" id="btnPayMidtrans" style="margin-top:10px;" onclick="payViaMidtrans()">💳 Bayar Otomatis (QRIS / VA / E-wallet)</button>
+    <button class="btn btn-primary" id="btnPayMidtrans" style="margin-top:10px;display:none;" onclick="payViaMidtrans()">💳 Bayar Otomatis (QRIS / VA / E-wallet)</button>
     <p style="font-size:11px;color:var(--ink-soft);text-align:center;margin:6px 0 14px;">Langganan aktif otomatis begitu pembayaran diterima</p>
     <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:14px;margin:10px 0;">
       <p style="font-size:12px;margin:0 0 8px;color:var(--ink-soft);">Atau transfer manual:</p>

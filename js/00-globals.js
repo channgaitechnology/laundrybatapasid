@@ -61,7 +61,13 @@ var settings = { shopName:'Toko Laundry Saya', address:'', phone:'', note:'Terim
    lewat Pengaturan → Admin Platform (khusus ADMIN_EMAIL), supaya kalau app
    ini dipakai/dijual ulang oleh pihak lain, footernya bisa diganti tanpa
    mengubah kode. Default persis sama seperti nilai hardcode sebelumnya. */
-var appBranding = { nama:'Tinggiran Tech Studio', tagline:'Bikin Apps & Website Kilat', wa:'081293228520', email:'tinggirantech@gmail.com' };
+/* midtransEnabled: default false (fail-safe) -- tombol "Bayar Otomatis"
+   cuma muncul setelah admin menyalakannya manual di Admin Platform,
+   SETELAH akun Midtrans benar-benar terverifikasi (lihat README, bagian
+   Midtrans). Transaksi produksi akan ditolak Midtrans dengan error 402
+   kalau akun belum aktif, jadi tombolnya sengaja disembunyikan dulu
+   daripada pengguna coba bayar lewat jalur yang pasti gagal. */
+var appBranding = { nama:'Tinggiran Tech Studio', tagline:'Bikin Apps & Website Kilat', wa:'081293228520', email:'tinggirantech@gmail.com', midtransEnabled:false };
 function shopLogoSrc(){ return settings.logoUrl || SHOP_LOGO_B64; }
 var transactions = [];
 var draftItems = [];

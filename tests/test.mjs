@@ -2765,6 +2765,58 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('toggleMidtransPayment()/updateMidtransButtonVisibility(): tombol "Bayar Otomatis" default tersembunyi, cuma muncul setelah diaktifkan manual di Admin Platform, dan gagal-aman kalau upsert error', async () => {
+    const savedBranding = { ...appBranding };
+    const btn = document.getElementById('btnPayMidtrans');
+    const savedBtnDisplay = btn.style.display;
+    try {
+      appBranding.midtransEnabled = false;
+      updateMidtransButtonVisibility();
+      if (btn.style.display !== 'none') throw new Error('button should be hidden when appBranding.midtransEnabled is false');
+
+      await toggleMidtransPayment(true);
+      if (!lastAppBrandingUpsert || lastAppBrandingUpsert.midtrans_enabled !== true) throw new Error('toggleMidtransPayment(true) should upsert midtrans_enabled:true: ' + JSON.stringify(lastAppBrandingUpsert));
+      if (appBranding.midtransEnabled !== true) throw new Error('toggleMidtransPayment(true) should update in-memory appBranding.midtransEnabled');
+      if (btn.style.display === 'none') throw new Error('button should become visible once midtransEnabled is true');
+
+      // showPaywallModal() juga memanggil updateMidtransButtonVisibility() sendiri (jaga-jaga) -- buktikan itu tidak menyembunyikan tombol yang seharusnya tampil
+      showPaywallModal();
+      if (btn.style.display === 'none') throw new Error('showPaywallModal() should not hide the button when midtransEnabled is true');
+      closePaywallModal();
+
+      await toggleMidtransPayment(false);
+      if (lastAppBrandingUpsert.midtrans_enabled !== false) throw new Error('toggleMidtransPayment(false) should upsert midtrans_enabled:false');
+      if (btn.style.display !== 'none') throw new Error('button should hide again once midtransEnabled is false');
+
+      // Round-trip: loadAppBranding() dari "DB" (row upsert yang barusan) harus merefleksikan midtransEnabled & checkbox-nya
+      await toggleMidtransPayment(true);
+      appBranding.midtransEnabled = false;
+      await loadAppBranding();
+      if (appBranding.midtransEnabled !== true) throw new Error('loadAppBranding() should reload midtrans_enabled from the persisted row: ' + JSON.stringify(appBranding));
+      fillAppBrandingForm();
+      const cb = document.getElementById('brandMidtransEnabled');
+      if (!cb.checked) throw new Error('fillAppBrandingForm() should check brandMidtransEnabled when appBranding.midtransEnabled is true');
+
+      // Jalur gagal: upsert error -> checkbox & state TIDAK boleh ikut berubah (gagal-aman, bukan diam-diam dianggap berhasil)
+      const originalFrom = sb.from;
+      sb.from = (table) => {
+        if (table !== 'app_branding') return originalFrom(table);
+        return { upsert: () => Promise.resolve({ error: { message: 'simulasi gagal' } }) };
+      };
+      cb.checked = true;
+      appBranding.midtransEnabled = true;
+      await toggleMidtransPayment(false);
+      sb.from = originalFrom;
+      if (cb.checked !== true) throw new Error('on upsert error, the checkbox should revert to its previous (unchanged) state');
+      if (appBranding.midtransEnabled !== true) throw new Error('on upsert error, appBranding.midtransEnabled should NOT change');
+    } finally {
+      appBranding = savedBranding;
+      updateMidtransButtonVisibility();
+      fillAppBrandingForm();
+      btn.style.display = savedBtnDisplay;
+    }
+  });
+
   await step('diffTransactionFields() only reports fields that actually changed (scalars, items array, and derived total), leaving unchanged fields out entirely', async () => {
     const before = { nama:'Budi', hp:'0812', tanggal:'2026-08-01', estimasi:'2026-08-02', diskon:0, dp:0, status:'belum', catatan:'', items:[{nama:'Cuci',qty:1,satuan:'kg',harga:7000,subtotal:7000}], total:7000 };
     const after = { ...before, nama:'Budi Santoso', diskon:1000, total:6000, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:7000,subtotal:7000}] };
