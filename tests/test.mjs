@@ -2731,6 +2731,26 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('isAdminEmail(): ADMIN_EMAILS mendukung lebih dari 1 admin platform (case-insensitive, trim whitespace via lowercase), dan openSettings() mengenali admin kedua sama seperti admin pertama', async () => {
+    if (!Array.isArray(ADMIN_EMAILS) || ADMIN_EMAILS.length < 2) throw new Error('ADMIN_EMAILS should be a list with at least 2 admin emails (the task that added isAdminEmail() was specifically to support more than 1): ' + JSON.stringify(ADMIN_EMAILS));
+    if (!isAdminEmail(ADMIN_EMAILS[0])) throw new Error('isAdminEmail() should recognize the first admin email');
+    if (!isAdminEmail(ADMIN_EMAILS[1])) throw new Error('isAdminEmail() should recognize the second admin email, not just the first');
+    if (!isAdminEmail(ADMIN_EMAILS[1].toUpperCase())) throw new Error('isAdminEmail() should be case-insensitive for the second admin too');
+    if (isAdminEmail('bukan-admin@example.com')) throw new Error('isAdminEmail() should reject an email that is not in ADMIN_EMAILS');
+    if (isAdminEmail('')) throw new Error('isAdminEmail() should reject an empty/falsy email, not throw or false-positive');
+
+    const savedUser = currentUser;
+    try {
+      currentUser = { email: ADMIN_EMAILS[1] };
+      openSettings();
+      if (document.getElementById('settingsTileAdmin').style.display === 'none') throw new Error('openSettings() should show the Admin Platform tile for the SECOND admin email too, not just ADMIN_EMAILS[0]');
+      if (document.getElementById('adminPlatformSection').style.display === 'none') throw new Error('openSettings() should show adminPlatformSection for the second admin email too');
+    } finally {
+      currentUser = savedUser;
+      closeSettings();
+    }
+  });
+
   await step('appBranding: saveAppBranding()/loadAppBranding() persist & reload the developer-credit footer, and every nota builder (WA text, PDF lines, HTML) reflects it instead of the old hardcoded Tinggiran Tech Studio values', async () => {
     const savedBranding = { ...appBranding };
     try {

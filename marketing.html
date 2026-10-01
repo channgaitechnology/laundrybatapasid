@@ -291,7 +291,13 @@
 <script>
 const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
-const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
+/* Daftar email admin platform -- salinan persis dari ADMIN_EMAILS di
+   js/00-globals.js (file ini terpisah total dari index.html, lihat
+   arsitektur di CLAUDE.md, jadi tidak bisa import). Kalau nambah admin
+   lagi, perbarui di SINI, di js/00-globals.js,
+   netlify/functions/search-communities.js, DAN RLS policy tabel
+   marketing_communities/marketing_leads di Supabase (lihat README). */
+const ADMIN_EMAILS = ['mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'];
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const PLATFORM_ICON = { asosiasi:'🏢', facebook:'📘', whatsapp:'💬', instagram:'📸', tiktok:'🎵', forum:'💭', lainnya:'🔗' };
@@ -318,7 +324,7 @@ async function handleLogin(){
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   btn.disabled = false; btn.textContent = 'Masuk';
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent='Email/password salah'; return; }
-  if((data.user.email||'').toLowerCase() !== ADMIN_EMAIL){
+  if(!ADMIN_EMAILS.includes((data.user.email||'').toLowerCase())){
     msgEl.className='auth-msg error';
     msgEl.textContent = 'Alat ini khusus akun admin, bukan akun toko biasa.';
     await sb.auth.signOut();
@@ -729,7 +735,7 @@ function addLeadResultToDb(idx){
 /* ===================== INIT ===================== */
 sb.auth.getSession().then(({ data })=>{
   const email = data && data.session && data.session.user && data.session.user.email;
-  if(email && email.toLowerCase() === ADMIN_EMAIL) enterDashboard();
+  if(email && ADMIN_EMAILS.includes(email.toLowerCase())) enterDashboard();
 });
 </script>
 </body>

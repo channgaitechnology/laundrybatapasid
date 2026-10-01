@@ -9,10 +9,11 @@
  * dan menghabiskan kuota/biaya pencarian berbayar atas nama kita.
  *
  * Function ini juga memverifikasi token Supabase Auth pengirim request
- * (header Authorization: Bearer <access_token>) benar-benar akun admin
- * (ADMIN_EMAIL) -- bukan cuma mengandalkan marketing.html menyembunyikan
- * tombolnya di browser -- supaya orang lain yang menemukan URL function ini
- * langsung dari luar tidak bisa menghabiskan kuota Serper berbayar kita.
+ * (header Authorization: Bearer <access_token>) benar-benar salah satu
+ * akun admin (ADMIN_EMAILS) -- bukan cuma mengandalkan marketing.html
+ * menyembunyikan tombolnya di browser -- supaya orang lain yang menemukan
+ * URL function ini langsung dari luar tidak bisa menghabiskan kuota
+ * Serper berbayar kita.
  *
  * Env var yang wajib diisi di Netlify (Site settings -> Environment variables):
  *   SERPER_API_KEY - API key dari dashboard serper.dev (serper.dev/api-key)
@@ -26,7 +27,10 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 // BUKAN buat baca/tulis data (beda total dari SUPABASE_SERVICE_ROLE_KEY yang
 // dipakai function Midtrans, yang harus tetap rahasia).
 const SUPABASE_ANON_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
-const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
+// Salinan persis ADMIN_EMAILS di js/00-globals.js/marketing.html -- kalau
+// nambah admin lagi, perbarui di ketiga tempat itu SEKALIAN, plus RLS
+// policy tabel marketing_communities/marketing_leads di Supabase (README).
+const ADMIN_EMAILS = ['mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'];
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -48,7 +52,7 @@ exports.handler = async (event) => {
     return { statusCode: 401, body: JSON.stringify({ error: 'Sesi tidak valid, silakan login ulang' }) };
   }
   const user = await userRes.json().catch(() => ({}));
-  if (String(user.email || '').toLowerCase() !== ADMIN_EMAIL) {
+  if (!ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
     return { statusCode: 403, body: JSON.stringify({ error: 'Fitur ini khusus akun admin' }) };
   }
 

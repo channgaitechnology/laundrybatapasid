@@ -752,9 +752,11 @@ klik "Sudah Transfer Manual" di app — email harus masuk ke
 
 Halaman **terpisah** dari `index.html` (bukan bagian aplikasi kasir yang
 dipakai pemilik toko laundry) — ini alat internal khusus untuk pemilik
-platform (`ADMIN_EMAIL`) memasarkan produk **Dokter Laundry** sendiri.
-Login pakai akun Supabase yang sama dengan aplikasi utama; kalau email-nya
-bukan `ADMIN_EMAIL`, langsung ditolak & di-sign-out.
+platform (email-nya ada di `ADMIN_EMAILS`, bisa lebih dari satu — lihat
+bagian "Lebih dari 1 akun Admin Platform" di bawah) memasarkan produk
+**Dokter Laundry** sendiri. Login pakai akun Supabase yang sama dengan
+aplikasi utama; kalau email-nya tidak ada di `ADMIN_EMAILS`, langsung
+ditolak & di-sign-out.
 
 Dibangun bertahap — fitur pertama yang sudah ada:
 
@@ -789,14 +791,15 @@ create table if not exists marketing_communities (
 
 alter table marketing_communities enable row level security;
 
--- SENGAJA dibatasi cuma ADMIN_EMAIL (beda dari model permisif
+-- SENGAJA dibatasi cuma email di ADMIN_EMAILS (beda dari model permisif
 -- registration_codes/payment_requests/app_branding) -- tabel ini murni data
 -- operasional marketing pemilik platform, tidak ada alasan akun toko biasa
--- perlu baca/tulis ke sini sama sekali.
+-- perlu baca/tulis ke sini sama sekali. Daftar email-nya HARUS sama persis
+-- dengan ADMIN_EMAILS di js/00-globals.js/marketing.html/search-communities.js.
 create policy "Cuma admin platform yang bisa akses data marketing"
 on marketing_communities
 for all
-using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
 
 -- Data awal (hasil riset nyata, bukan contoh mengada-ada) -- cukup sekali.
 insert into marketing_communities (platform, nama, daerah, link, jumlah_anggota, kontak_admin, catatan)
@@ -865,8 +868,9 @@ Januari 2027, jadi tidak dipakai). Dipanggil lewat
 Serper — supaya `SERPER_API_KEY` tidak pernah ada di kode browser (kalau
 ditaruh di sana, siapa saja bisa mencurinya dari DevTools dan menghabiskan
 kuota berbayar kita). Function ini juga memverifikasi token Supabase Auth
-pengirim request benar-benar `ADMIN_EMAIL`, jadi orang lain yang
-menemukan URL function-nya langsung dari luar tetap tidak bisa memakainya.
+pengirim request benar-benar salah satu email di `ADMIN_EMAILS`, jadi
+orang lain yang menemukan URL function-nya langsung dari luar tetap
+tidak bisa memakainya.
 
 **Environment variables di Netlify** (Site settings → Environment
 variables, bukan di kode/git):
@@ -920,12 +924,12 @@ create table if not exists marketing_leads (
 
 alter table marketing_leads enable row level security;
 
--- Sama seperti marketing_communities: sengaja dibatasi cuma ADMIN_EMAIL,
--- bukan model permisif seperti registration_codes/payment_requests.
+-- Sama seperti marketing_communities: sengaja dibatasi cuma email di
+-- ADMIN_EMAILS, bukan model permisif seperti registration_codes/payment_requests.
 create policy "Cuma admin platform yang bisa akses data marketing"
 on marketing_leads
 for all
-using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
 ```
 
 Sebelum tabel ini ada, tab "Kontak Laundry" akan gagal memuat data (toast
@@ -933,6 +937,36 @@ error) — tab/fitur lain tidak terpengaruh.
 
 Tab lain di halaman ini (Konten Promosi, Landing Page, Program Referral)
 baru placeholder ("Segera") — akan dikerjakan satu-satu sesuai permintaan.
+
+### Lebih dari 1 akun Admin Platform
+
+Akses Admin Platform (panel di Pengaturan, alat Marketing di atas, dan
+fitur Cari Komunitas/Kontak Laundri Online) **bisa dipakai lebih dari 1
+email** — diatur lewat daftar `ADMIN_EMAILS`, BUKAN 1 email tunggal lagi.
+
+Untuk nambah/ganti admin, daftar emailnya harus diperbarui **persis sama**
+di 4 tempat ini sekaligus (kalau cuma sebagian, perilakunya jadi
+tidak konsisten antar fitur):
+
+1. `ADMIN_EMAILS` di `js/00-globals.js` (aplikasi utama, `index.html`)
+2. `ADMIN_EMAILS` di `marketing.html` (login alat Marketing)
+3. `ADMIN_EMAILS` di `netlify/functions/search-communities.js` (gerbang function Cari Online)
+4. RLS policy tabel `marketing_communities` & `marketing_leads` di Supabase — jalankan sekali di SQL Editor (aman dijalankan berapa kali pun, cukup ganti daftar email di dalam `in (...)` sesuai kebutuhan):
+
+```sql
+alter policy "Cuma admin platform yang bisa akses data marketing"
+on marketing_communities
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
+
+alter policy "Cuma admin platform yang bisa akses data marketing"
+on marketing_leads
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
+```
+
+Catatan: ini cuma mengatur **siapa yang dianggap admin platform**, bukan
+bikin akun baru di Supabase Auth — tiap email yang dimasukkan di daftar
+ini tetap harus sudah punya akun (lewat Daftar seperti akun toko biasa)
+sebelum bisa login dan dianggap admin.
 
 ## Belum dikerjakan / perlu diperiksa
 
