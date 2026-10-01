@@ -440,6 +440,49 @@ const result = await page.evaluate(async () => {
     document.getElementById('subsFilterTipe').value = 'semua';
   });
 
+  await step('subsSearchInput: mencari nama pelanggan paket/tempo (case-insensitive, substring), baik sendiri maupun digabung dengan filter Jenis, dan menampilkan empty-state khusus kalau tidak cocok', () => {
+    const filterStatusEl = document.getElementById('subsFilterStatus');
+    const savedFilterStatus = filterStatusEl ? filterStatusEl.value : 'aktif';
+    const searchEl = document.getElementById('subsSearchInput');
+    try {
+      if (filterStatusEl) filterStatusEl.value = 'semua'; // sama alasannya dengan test render kartu di atas -- lepas dari filter periode aktif
+      searchEl.value = 'budi';
+      renderSubscriptions();
+      let html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Budi Tempo')) throw new Error('search "budi" (huruf kecil) should still match "Budi Tempo"');
+      if (html.includes('Sari Bulanan')) throw new Error('search "budi" should not also show Sari Bulanan');
+
+      searchEl.value = 'SARI';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Sari Bulanan')) throw new Error('search "SARI" (uppercase) should match "Sari Bulanan" case-insensitively');
+      if (html.includes('Budi Tempo')) throw new Error('search "SARI" should not also show Budi Tempo');
+
+      // Digabung dengan filter Jenis=tempo: nama cocok tapi jenisnya bulanan -> tidak boleh muncul
+      document.getElementById('subsFilterTipe').value = 'tempo';
+      searchEl.value = 'sari';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (html.includes('Sari Bulanan')) throw new Error('search "sari" + filter Jenis=tempo should exclude Sari Bulanan (name matches but type does not)');
+      document.getElementById('subsFilterTipe').value = 'semua';
+
+      searchEl.value = 'nama-yang-tidak-ada-sama-sekali';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Tidak ada pelanggan yang cocok')) throw new Error('a search with zero matches should show the "no matching customer" empty state, not the generic "belum ada pelanggan" one: ' + html);
+
+      searchEl.value = '';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Budi Tempo') || !html.includes('Sari Bulanan')) throw new Error('clearing the search should restore both customers');
+    } finally {
+      searchEl.value = '';
+      if (filterStatusEl) filterStatusEl.value = savedFilterStatus;
+      document.getElementById('subsFilterTipe').value = 'semua';
+      renderSubscriptions();
+    }
+  });
+
   await step('openNewSubscription() + onSubsTipeChange() toggles fields', () => {
     openNewSubscription();
     document.getElementById('subsTipe').value = 'tempo';
