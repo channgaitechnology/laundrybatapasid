@@ -189,7 +189,7 @@ function resetTransactionForm(){
   document.getElementById('inEstimasi').value='';
   document.getElementById('inDiskon').value='0';
   document.getElementById('inDP').value='0';
-  document.getElementById('inStatus').value='lunas';
+  document.getElementById('inStatus').value='belum';
   document.getElementById('inCatatan').value='';
   draftItems = [];
   renderDraftItems();

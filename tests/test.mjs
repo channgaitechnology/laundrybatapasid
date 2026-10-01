@@ -2450,6 +2450,13 @@ const result = await page.evaluate(async () => {
     if (html.indexOf('Besar') > html.indexOf('Sedang') || html.indexOf('Sedang') > html.indexOf('Kecil')) throw new Error('rendered list not in descending order: ' + html);
   });
 
+  await step('resetTransactionForm(): status pembayaran default "Belum Lunas" (bukan "Lunas") -- transaksi baru jarang langsung lunas saat nota dibuat', () => {
+    document.getElementById('inStatus').value = 'lunas'; // ubah dulu biar bukan kebetulan nilainya sudah "belum"
+    resetTransactionForm();
+    if (document.getElementById('inStatus').value !== 'belum') throw new Error('resetTransactionForm() should default inStatus to "belum", not "lunas": got ' + document.getElementById('inStatus').value);
+    draftItems = [];
+  });
+
   // --- Multi-Outlet (opt-in): tanpa outlet, app harus jalan persis seperti sebelumnya ---
   await step('Multi-outlet is fully opt-in: with zero outlets, submitTransaction() sends no outlet_id and visibleTransactions()/visibleSubscriptions()/visibleExpenses() return everything unfiltered', async () => {
     outlets = []; currentOutletId = null;
