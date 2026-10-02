@@ -4,15 +4,25 @@ async function ensureAppSubscription(ownerId, isSelf){
     const { data, error } = await sb.from('app_subscriptions').select('*').eq('owner_id', ownerId).maybeSingle();
     if(data){ appSubscription = data; renderSubscriptionBadge(); return; }
     if(error || !isSelf){ appSubscription = null; renderSubscriptionBadge(); return; }
-    let paidSignup = false;
-    try{ paidSignup = localStorage.getItem('nk_paidSignup') === '1'; }catch(e){}
+    let paidSignup = false, referredBy = null;
+    try{
+      paidSignup = localStorage.getItem('nk_paidSignup') === '1';
+      referredBy = localStorage.getItem('nk_referredBy') || null;
+    }catch(e){}
     const now = new Date();
     const trialEnds = new Date(now.getTime() + 30*24*60*60*1000).toISOString();
     const insertRow = paidSignup
       ? { owner_id: ownerId, status: 'aktif', trial_ends_at: now.toISOString(), paid_until: trialEnds }
       : { owner_id: ownerId, status: 'trial', trial_ends_at: trialEnds };
+    /* Akun baru yang daftar pakai kode referral tetap mulai dari trial biasa
+       (lihat komentar di js/01-auth.js) -- cuma dicatat SIAPA yang
+       mereferensikannya di sini, supaya bonus 15 hari buat akun ini DAN buat
+       si perefensi bisa dikreditkan nanti begitu akun ini benar-benar bayar
+       (lihat apply_referral_bonus_if_pending() di README). */
+    if(referredBy) insertRow.referred_by_owner_id = referredBy;
     const { data: created, error: insErr } = await sb.from('app_subscriptions').insert(insertRow).select().single();
     if(paidSignup){ try{ localStorage.removeItem('nk_paidSignup'); }catch(e){} }
+    if(referredBy){ try{ localStorage.removeItem('nk_referredBy'); }catch(e){} }
     appSubscription = insErr ? null : created;
     renderSubscriptionBadge();
   }catch(e){
@@ -184,7 +194,7 @@ async function shareReferral(){
   const code = stale ? await getOrCreateReferralCode() : el.textContent;
   if(!code){ showToast(t('Gagal membuat kode referral, coba lagi')); return; }
   if(el) el.textContent = code;
-  const text = `${t('Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!')} ${t('Coba juga -- pas Daftar, isi Kode Pendaftaran ini biar saya dapat bonus perpanjangan 15 hari:')} ${code}\n\nhttps://laundryassist.netlify.app`;
+  const text = `${t('Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!')} ${t('Coba juga -- pas Daftar, isi Kode Pendaftaran ini. Begitu akun barumu aktif berbayar, kita berdua sama-sama dapat bonus 15 hari gratis:')} ${code}\n\nhttps://laundryassist.netlify.app`;
   try{
     if(navigator.share){
       await navigator.share({ title:'Dokter Laundry', text });

@@ -748,28 +748,45 @@ Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
 klik "Sudah Transfer Manual" di app — email harus masuk ke
 `ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
 
-## Program Referral (bagikan & dapat 15 hari)
+## Program Referral (bagikan & dapat bonus 15 hari)
 
-Tombol "📤 Bagikan & Dapat 15 Hari" di Pengaturan → Langganan: setiap
-pemilik toko punya **kode referral pribadi** (dibuat otomatis sekali,
-format `REF-XXXXXX`) yang bisa dibagikan ke calon pelanggan lain lewat
-Web Share API (atau fallback ke link share WhatsApp kalau browser-nya
-tidak dukung Web Share). Begitu ada orang baru yang **Daftar** pakai
-kode itu di kolom "Kode Pendaftaran", pemilik kode otomatis mendapat
-**+15 hari** masa langganan — tidak perlu klaim manual, dan kodenya
-bisa dipakai berkali-kali oleh banyak orang (beda dari kode admin biasa
-yang sekali pakai).
+Tombol **"🎁 Bagikan dan Dapat Bonus"** — sengaja ditaruh sebagai bar
+penuh-lebar persis di bawah appbar (bukan dikubur di dalam Pengaturan),
+supaya langsung kelihatan di semua tab, cuma hilang untuk akun kasir.
+Setiap pemilik toko punya **kode referral pribadi** (dibuat otomatis
+sekali saat pertama dipakai, format `REF-XXXXXX`, juga ditampilkan di
+Pengaturan → Langganan) yang bisa dibagikan lewat Web Share API (atau
+fallback ke link share WhatsApp `wa.me/?text=...` tanpa nomor tujuan —
+WhatsApp sendiri yang menampilkan pemilih kontak — kalau browsernya
+tidak dukung Web Share).
 
-Numpang di tabel `registration_codes` yang sudah ada (bukan tabel
-baru) — cuma tambah 1 kolom, plus 1 function Postgres yang menangani
-kedua jenis kode (admin & referral) dalam satu RPC supaya logikanya
-tidak terduplikasi di banyak tempat di kode browser. Jalankan sekali
-di Supabase SQL Editor:
+**Syarat bonus cair — PENTING, beda dari versi awal fitur ini:**
+Bonus 15 hari **BUKAN** langsung aktif begitu orang baru mendaftar
+pakai kode itu. Akun baru tetap mulai dari **trial 30 hari seperti
+biasa** (kode referral tidak melewati trial, beda dari kode admin).
+Baru **setelah akun baru itu benar-benar membayar** (lewat Bayar
+Otomatis Midtrans ATAU disetujui admin manual di Admin Platform) —
+**kedua belah pihak** sama-sama dapat +15 hari: pemilik kode (referrer)
+DAN akun baru itu sendiri. Ini jaminan satu kali per akun baru — kalau
+akun yang sama bayar lagi nanti (perpanjangan berikutnya), bonus TIDAK
+dobel. Kodenya sendiri tetap bisa dipakai berkali-kali ke banyak orang
+berbeda (beda dari kode admin yang sekali pakai) — jadi kalau mau dapat
+bonus lagi, bagikan ke orang lain lagi.
+
+Numpang di tabel `registration_codes` yang sudah ada untuk kode-nya,
+plus 2 kolom baru di `app_subscriptions` untuk mencatat siapa
+mereferensikan siapa & status klaimnya, plus 1 function Postgres yang
+dipanggil persis di titik "pembayaran benar-benar terjadi"
+(`approveRenewalRequest()` di `js/05-admin.js` untuk persetujuan
+manual, dan `netlify/functions/midtrans-webhook.js` untuk Bayar
+Otomatis) — bukan saat daftar. Jalankan sekali di Supabase SQL Editor:
 
 ```sql
 alter table registration_codes add column if not exists referrer_owner_id uuid references auth.users(id);
+alter table app_subscriptions add column if not exists referred_by_owner_id uuid references auth.users(id);
+alter table app_subscriptions add column if not exists referral_bonus_claimed boolean not null default false;
 
-create or replace function redeem_registration_code(p_code text, p_new_user_id uuid)
+create or replace function apply_referral_bonus_if_pending(p_owner_id uuid)
 returns void
 language plpgsql
 security definer
@@ -777,41 +794,53 @@ set search_path = public
 as $$
 declare
   v_referrer_id uuid;
+  v_claimed boolean;
 begin
-  select referrer_owner_id into v_referrer_id
-  from registration_codes
-  where code = p_code and status = 'aktif'
+  select referred_by_owner_id, referral_bonus_claimed into v_referrer_id, v_claimed
+  from app_subscriptions
+  where owner_id = p_owner_id
   for update;
 
-  if v_referrer_id is not null then
-    -- Kode referral: TIDAK ditandai 'terpakai' (sengaja boleh dipakai
-    -- ulang oleh banyak orang berbeda) -- cuma kreditkan +15 hari ke
-    -- langganan pemilik kode (referrer).
-    update app_subscriptions
-      set paid_until = greatest(paid_until, now()) + interval '15 days'
-      where owner_id = v_referrer_id;
-  else
-    -- Kode admin biasa: perilaku sekali-pakai seperti sebelumnya, tidak berubah.
-    update registration_codes set status = 'terpakai', used_by = p_new_user_id
-      where code = p_code and status = 'aktif';
+  -- Bukan akun hasil referral, atau bonusnya sudah pernah diklaim
+  -- sebelumnya (mis. perpanjangan kedua kalinya) -- diamkan, no-op.
+  if v_referrer_id is null or v_claimed then
+    return;
   end if;
+
+  -- Akun baru (yang baru saja bayar) dapat +15 hari, DITANDAI sudah
+  -- diklaim supaya tidak pernah dobel di perpanjangan-perpanjangan berikutnya.
+  update app_subscriptions
+    set paid_until = greatest(coalesce(paid_until, now()), now()) + interval '15 days',
+        referral_bonus_claimed = true
+    where owner_id = p_owner_id;
+
+  -- Pemilik kode (referrer) juga dapat +15 hari -- dari tanggal
+  -- berlaku langganannya SENDIRI (greatest(...,now()) supaya tidak
+  -- "ketelan" kalau langganan referrer kebetulan sedang kedaluwarsa).
+  update app_subscriptions
+    set paid_until = greatest(coalesce(paid_until, now()), now()) + interval '15 days'
+    where owner_id = v_referrer_id;
 end;
 $$;
 
-grant execute on function redeem_registration_code(text, uuid) to authenticated;
+grant execute on function apply_referral_bonus_if_pending(uuid) to authenticated;
 ```
 
-Kenapa lewat function `security definer` (bukan langsung `update` dari
-browser seperti kode admin): kreditnya mengubah baris `app_subscriptions`
-milik **orang lain** (si pemilik kode referral, bukan yang sedang
-login mendaftar) — menaruh logika ini di satu function server-side
-jauh lebih aman & tidak bergantung pada RLS tabel `app_subscriptions`
-yang permisif lintas-user atau tidak.
+Kenapa lewat function `security definer` (bukan `update` langsung dari
+browser): kreditnya mengubah baris `app_subscriptions` milik **orang
+lain** (si pemilik kode referral, bukan akun yang baru saja bayar) —
+menaruh logika ini di satu function server-side, dipanggil dari SATU
+titik yang sama persis dari 2 jalur pembayaran (manual & Midtrans), jauh
+lebih aman & konsisten daripada bergantung pada RLS `app_subscriptions`
+yang permisif lintas-user atau menduplikasi logikanya di banyak tempat.
 
-Sebelum migrasi ini dijalankan, tombol "Bagikan & Dapat 15 Hari" akan
+Sebelum migrasi ini dijalankan: tombol "Bagikan dan Dapat Bonus" akan
 gagal membuat kode (toast error "Gagal membuat kode referral") karena
-kolom `referrer_owner_id` belum ada — fitur daftar/kode admin biasa
-tidak terpengaruh sama sekali.
+kolom `referrer_owner_id` belum ada, dan persetujuan pembayaran
+(manual/Midtrans) akan tetap jalan seperti biasa — RPC bonus-nya
+dipanggil di dalam `try/catch`, jadi kalau function-nya belum ada,
+gagalnya diam-diam saja, tidak menggagalkan proses aktivasi langganan
+itu sendiri.
 
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 

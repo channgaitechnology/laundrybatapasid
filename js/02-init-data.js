@@ -38,12 +38,20 @@ async function resolveRoleAndInit(){
   try{
     const pending = localStorage.getItem('nk_pendingRegCode');
     if(pending){
-      // Lihat komentar di js/01-auth.js soal redeem_registration_code (RPC) --
-      // jalur ini dipakai kalau signup butuh konfirmasi email dulu (kode
-      // disimpan sementara di localStorage, baru "ditukar" setelah login).
-      await sb.rpc('redeem_registration_code', { p_code: pending, p_new_user_id: currentUser.id });
+      // Jalur ini dipakai kalau signup butuh konfirmasi email dulu (kode
+      // disimpan sementara di localStorage oleh handleAuthSubmit(), baru
+      // "ditukar" di sini setelah user benar-benar login pertama kali).
+      // Lihat komentar lengkap soal 2 jenis kode (admin vs referral) di
+      // js/01-auth.js / README bagian Program Referral.
+      const pendingReferrer = localStorage.getItem('nk_pendingReferrer');
+      if(pendingReferrer){
+        localStorage.setItem('nk_referredBy', pendingReferrer);
+        localStorage.removeItem('nk_pendingReferrer');
+      } else {
+        await sb.from('registration_codes').update({ status:'terpakai', used_by: currentUser.id }).eq('code', pending).eq('status','aktif');
+        localStorage.setItem('nk_paidSignup', '1');
+      }
       localStorage.removeItem('nk_pendingRegCode');
-      localStorage.setItem('nk_paidSignup', '1');
     }
   }catch(e){}
   const { data: memberRow } = await sb.from('team_members').select('*').eq('member_id', currentUser.id).eq('status','aktif').maybeSingle();

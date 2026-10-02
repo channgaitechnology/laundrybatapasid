@@ -595,13 +595,15 @@ const I18N_EN = {
   'memuat...': 'loading...',
   'Kelola / Perpanjang Langganan': 'Manage / Renew Subscription',
   '🎁 Program Referral': '🎁 Referral Program',
-  'Bagikan Dokter Laundry ke sesama pemilik usaha laundry. Setiap kali ada yang daftar pakai kode referral-mu, langgananmu otomatis diperpanjang 15 hari.':
-    'Share Dokter Laundry with fellow laundry business owners. Every time someone signs up with your referral code, your subscription is automatically extended by 15 days.',
-  '📤 Bagikan & Dapat 15 Hari': '📤 Share & Get 15 Days',
+  'Bagikan Dokter Laundry ke sesama pemilik usaha laundry pakai kode di bawah ini. Begitu akun barunya aktif berbayar (bukan langsung saat daftar), kalian berdua sama-sama dapat bonus 15 hari gratis -- bisa dipakai ulang ke banyak orang, berarti berkali-kali juga bonusnya.':
+    "Share Dokter Laundry with fellow laundry business owners using the code below. Once their new account becomes a paying one (not right at signup), you both get a 15-day free bonus -- the code is reusable for many people, so you can earn the bonus again and again.",
+  '🎁 Bagikan dan Dapat Bonus': '🎁 Share & Get a Bonus',
+  '📤 Bagikan dan Dapat Bonus': '📤 Share & Get a Bonus',
   'Gagal memuat kode': 'Failed to load code',
   'Gagal membuat kode referral, coba lagi': 'Failed to create referral code, try again',
   'Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!': 'I use Dokter Laundry for my laundry shop\'s cashier & receipts, super easy!',
-  'Coba juga -- pas Daftar, isi Kode Pendaftaran ini biar saya dapat bonus perpanjangan 15 hari:': 'Try it too -- when you Sign Up, enter this Registration Code so I get a 15-day bonus extension:',
+  'Coba juga -- pas Daftar, isi Kode Pendaftaran ini. Begitu akun barumu aktif berbayar, kita berdua sama-sama dapat bonus 15 hari gratis:':
+    "Try it too -- when you Sign Up, enter this Registration Code. Once your new account becomes a paying one, we both get a 15-day free bonus:",
   'Logo Toko': 'Store Logo',
   '🖼️ Pilih Logo Baru': '🖼️ Choose New Logo',
   'Pakai Logo Default': 'Use Default Logo',

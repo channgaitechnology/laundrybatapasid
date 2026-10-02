@@ -163,11 +163,13 @@ const result = await page.evaluate(async () => {
     };
     return q;
   }
-  let fakeReferralCode = null; // satu baris registration_codes bertipe referral (referrer_owner_id = shopOwnerId)
+  let fakeReferralCode = null; // satu baris registration_codes (referral ATAU admin, tergantung test) yang dikembalikan select()/dibuat insert()
+  let lastRegCodeUpdate = null; // payload update() terakhir (buat cek kode admin ditandai 'terpakai')
   function fakeRegistrationCodesQuery() {
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q, delete: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
       insert: (row) => { fakeReferralCode = { id: 'fake-regcode-1', ...row }; return q; },
+      update: (row) => { lastRegCodeUpdate = row; return q; },
       single: () => Promise.resolve({ data: fakeReferralCode, error: null }),
       maybeSingle: () => Promise.resolve({ data: fakeReferralCode, error: null }),
       then: (resolve) => resolve({ data: fakeReferralCode ? [fakeReferralCode] : [], error: null }),
@@ -2944,37 +2946,119 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  await step('handleAuthSubmit(): signup dengan kode pendaftaran memanggil RPC redeem_registration_code(p_code, p_new_user_id) -- bukan lagi update() langsung -- supaya kredit bonus ke pemilik kode referral bisa ditangani server-side', async () => {
-    const originalAuth = { signInWithPassword: sb.auth.signInWithPassword, signUp: sb.auth.signUp };
+  await step('handleAuthSubmit(): signup dengan kode REFERRAL (referrer_owner_id terisi) cuma mencatat nk_referredBy di localStorage -- TIDAK menandai kode "terpakai" (boleh dipakai ulang) dan TIDAK mengkreditkan bonus saat itu juga (baru nanti saat bayar, lihat apply_referral_bonus_if_pending)', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
     const originalRpc = sb.rpc;
     const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'REF-ABC123', referrer_owner_id: 'referrer-owner-1', status: 'aktif' };
+    lastRegCodeUpdate = null;
     try {
-      let capturedRpcCall = null;
-      sb.rpc = async (name, params) => {
-        if (name === 'check_registration_code') return { data: true, error: null }; // kode valid, lolos pengecekan sebelum signUp()
-        capturedRpcCall = { name, params };
-        return { data: null, error: null };
-      };
+      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-1' }, session: { access_token: 'fake' } }, error: null });
-
       authMode = 'daftar';
       document.getElementById('authEmail').value = 'referred@example.com';
       document.getElementById('authPassword').value = 'password123';
       document.getElementById('regCodeInput').value = 'REF-ABC123';
       document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
       await handleAuthSubmit();
 
-      if (!capturedRpcCall || capturedRpcCall.name !== 'redeem_registration_code') throw new Error('expected handleAuthSubmit() to call the redeem_registration_code RPC, got: ' + JSON.stringify(capturedRpcCall));
-      if (capturedRpcCall.params.p_code !== 'REF-ABC123' || capturedRpcCall.params.p_new_user_id !== 'new-user-1') throw new Error('RPC should be called with the entered code and the new signup user id: ' + JSON.stringify(capturedRpcCall.params));
+      if (localStorage.getItem('nk_referredBy') !== 'referrer-owner-1') throw new Error('expected nk_referredBy to be set to the code\'s referrer_owner_id, got: ' + localStorage.getItem('nk_referredBy'));
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('a referral-code signup should NOT set nk_paidSignup (new account must still start from a normal trial, not skip it)');
+      if (lastRegCodeUpdate !== null) throw new Error('a referral code should NOT be marked via update() (it must stay reusable for other people), got update payload: ' + JSON.stringify(lastRegCodeUpdate));
     } finally {
-      sb.auth.signInWithPassword = originalAuth.signInWithPassword;
       sb.auth.signUp = originalAuth.signUp;
       sb.rpc = originalRpc;
       authMode = savedAuthMode;
       document.getElementById('authEmail').value = '';
       document.getElementById('authPassword').value = '';
       document.getElementById('regCodeInput').value = '';
-      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
+      lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) tetap berperilaku sekali-pakai seperti sebelumnya -- update() status "terpakai" + nk_paidSignup, BUKAN nk_referredBy', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
+    lastRegCodeUpdate = null;
+    try {
+      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'paid@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'ADMIN123';
+      document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await handleAuthSubmit();
+
+      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup should set nk_paidSignup=1 (unchanged legacy behavior)');
+      if (localStorage.getItem('nk_referredBy')) throw new Error('an admin-code signup should NOT set nk_referredBy');
+      if (!lastRegCodeUpdate || lastRegCodeUpdate.status !== 'terpakai' || lastRegCodeUpdate.used_by !== 'new-user-2') throw new Error('an admin code should still be marked terpakai/used_by via update(), got: ' + JSON.stringify(lastRegCodeUpdate));
+    } finally {
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
+      lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('ensureAppSubscription(): akun baru hasil referral (nk_referredBy di localStorage) disimpan dengan referred_by_owner_id + TETAP status "trial" (bukan dilewati ke "aktif")', async () => {
+    const savedOriginalFrom = sb.from;
+    let capturedInsert = null;
+    try {
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = {
+          select: () => q, eq: () => q,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }), // belum ada baris -> dianggap akun baru
+          insert: (row) => { capturedInsert = row; return { select: () => ({ single: () => Promise.resolve({ data: { id:'sub1', ...row }, error: null }) }) }; },
+        };
+        return q;
+      };
+      try{ localStorage.setItem('nk_referredBy', 'referrer-owner-2'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await ensureAppSubscription('new-user-3', true);
+
+      if (!capturedInsert || capturedInsert.referred_by_owner_id !== 'referrer-owner-2') throw new Error('expected the inserted app_subscriptions row to include referred_by_owner_id: ' + JSON.stringify(capturedInsert));
+      if (capturedInsert.status !== 'trial') throw new Error('a referral signup should still start as a normal "trial" (not skip straight to "aktif"), got status: ' + capturedInsert.status);
+      if (localStorage.getItem('nk_referredBy')) throw new Error('nk_referredBy should be cleared from localStorage after being consumed');
+    } finally {
+      sb.from = savedOriginalFrom;
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
+    }
+  });
+
+  await step('approveRenewalRequest(): setelah mengaktifkan langganan, memanggil RPC apply_referral_bonus_if_pending(p_owner_id) -- titik "pembayaran benar-benar terjadi" buat kredit bonus referral', async () => {
+    // Tidak perlu override sb.from sama sekali -- app_subscriptions/payment_requests
+    // sudah jatuh ke fakeQuery([]) bawaan dispatcher suite (select/eq/order/update/
+    // insert/maybeSingle/then semua ada), cukup buat approveRenewalRequest() lolos
+    // tanpa error sampai ke titik yang mau diuji: panggilan RPC-nya.
+    const originalRpc = sb.rpc;
+    const savedCache = paymentReqCache.slice();
+    try {
+      paymentReqCache = [{ id: 'req1', type: 'perpanjangan', owner_id: 'paying-owner-1', wa: '081200000000', nama: 'Toko Uji', plan_days: 30 }];
+      let capturedRpcCall = null;
+      sb.rpc = async (name, params) => { capturedRpcCall = { name, params }; return { data: null, error: null }; };
+
+      await approveRenewalRequest('req1');
+
+      if (!capturedRpcCall || capturedRpcCall.name !== 'apply_referral_bonus_if_pending') throw new Error('expected approveRenewalRequest() to call apply_referral_bonus_if_pending, got: ' + JSON.stringify(capturedRpcCall));
+      if (capturedRpcCall.params.p_owner_id !== 'paying-owner-1') throw new Error('RPC should be called with the paying owner\'s id: ' + JSON.stringify(capturedRpcCall.params));
+    } finally {
+      sb.rpc = originalRpc;
+      paymentReqCache = savedCache;
     }
   });
 
