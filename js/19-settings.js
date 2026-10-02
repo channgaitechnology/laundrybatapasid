@@ -12,7 +12,7 @@ function openSettings(){
   renderOutletManagerList();
   renderBtPrinterStatus();
   if(currentRole==='owner') loadTeamList();
-  const isAdmin = !!(currentUser && currentUser.email===ADMIN_EMAIL);
+  const isAdmin = !!(currentUser && isAdminEmail(currentUser.email));
   document.getElementById('adminPlatformSection').style.display = isAdmin ? 'block' : 'none';
   document.getElementById('settingsTileAdmin').style.display = isAdmin ? 'flex' : 'none';
   if(isAdmin){ loadAdminData(); fillAppBrandingForm(); }
@@ -36,6 +36,7 @@ function openSettingsSub(id){
     admin:'🔐 Admin Platform'
   };
   document.getElementById('settingsSubTitle').textContent = t(titles[id] || 'Pengaturan');
+  if(id==='langganan') loadReferralCode();
   if(id==='bahasa'){
     const btnId = document.getElementById('langBtnId');
     const btnEn = document.getElementById('langBtnEn');

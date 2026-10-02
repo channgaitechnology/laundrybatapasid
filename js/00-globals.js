@@ -18,7 +18,23 @@
 const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const ADMIN_EMAIL = 'mukhlispertama@gmail.com';
+/* ADMIN_EMAILS: daftar (bisa lebih dari 1) email yang dianggap pemilik
+   platform -- bisa lihat Admin Platform, ringkasan semua toko, kode
+   pendaftaran, dan alat Marketing (marketing.html). ADMIN_EMAIL (string,
+   entri pertama) dipertahankan untuk kompatibilitas kalau ada kode lama
+   yang masih merujuknya langsung -- tapi semua pengecekan "apakah user
+   ini admin" HARUS lewat isAdminEmail(), bukan bandingkan ke ADMIN_EMAIL
+   secara langsung, supaya konsisten kalau daftarnya bertambah lagi nanti.
+   Daftar yang sama (persis, salin-tempel) juga harus diperbarui di
+   marketing.html dan netlify/functions/search-communities.js -- keduanya
+   file terpisah yang tidak bisa import dari sini (lihat arsitektur di
+   CLAUDE.md) -- dan RLS policy tabel marketing_communities/marketing_leads
+   di Supabase (lihat README). */
+const ADMIN_EMAILS = ['mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'];
+const ADMIN_EMAIL = ADMIN_EMAILS[0];
+function isAdminEmail(email){
+  return ADMIN_EMAILS.includes(String(email||'').toLowerCase());
+}
 /* Harga TAMPILAN saja (dropdown paket & pesan WA konfirmasi transfer
    manual) -- BUKAN sumber kebenaran harga. Harga sesungguhnya yang
    dipakai saat bayar otomatis lewat Midtrans diatur lewat env var

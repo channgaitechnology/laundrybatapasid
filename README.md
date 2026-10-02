@@ -748,13 +748,109 @@ Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
 klik "Sudah Transfer Manual" di app — email harus masuk ke
 `ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
 
+## Program Referral (bagikan & dapat bonus 15 hari)
+
+Tombol **"🎁 Bagikan dan Dapat Bonus"** — sengaja ditaruh sebagai bar
+penuh-lebar persis di bawah appbar (bukan dikubur di dalam Pengaturan),
+supaya langsung kelihatan di semua tab, cuma hilang untuk akun kasir.
+Setiap pemilik toko punya **kode referral pribadi** (dibuat otomatis
+sekali saat pertama dipakai, format `REF-XXXXXX`, juga ditampilkan di
+Pengaturan → Langganan) yang bisa dibagikan lewat Web Share API (atau
+fallback ke link share WhatsApp `wa.me/?text=...` tanpa nomor tujuan —
+WhatsApp sendiri yang menampilkan pemilih kontak — kalau browsernya
+tidak dukung Web Share).
+
+**Syarat bonus cair — PENTING, beda dari versi awal fitur ini:**
+Bonus 15 hari **BUKAN** langsung aktif begitu orang baru mendaftar
+pakai kode itu. Akun baru tetap mulai dari **trial 30 hari seperti
+biasa** (kode referral tidak melewati trial, beda dari kode admin).
+Baru **setelah akun baru itu benar-benar membayar** (lewat Bayar
+Otomatis Midtrans ATAU disetujui admin manual di Admin Platform) —
+**kedua belah pihak** sama-sama dapat +15 hari: pemilik kode (referrer)
+DAN akun baru itu sendiri. Ini jaminan satu kali per akun baru — kalau
+akun yang sama bayar lagi nanti (perpanjangan berikutnya), bonus TIDAK
+dobel. Kodenya sendiri tetap bisa dipakai berkali-kali ke banyak orang
+berbeda (beda dari kode admin yang sekali pakai) — jadi kalau mau dapat
+bonus lagi, bagikan ke orang lain lagi.
+
+Numpang di tabel `registration_codes` yang sudah ada untuk kode-nya,
+plus 2 kolom baru di `app_subscriptions` untuk mencatat siapa
+mereferensikan siapa & status klaimnya, plus 1 function Postgres yang
+dipanggil persis di titik "pembayaran benar-benar terjadi"
+(`approveRenewalRequest()` di `js/05-admin.js` untuk persetujuan
+manual, dan `netlify/functions/midtrans-webhook.js` untuk Bayar
+Otomatis) — bukan saat daftar. Jalankan sekali di Supabase SQL Editor:
+
+```sql
+alter table registration_codes add column if not exists referrer_owner_id uuid references auth.users(id);
+alter table app_subscriptions add column if not exists referred_by_owner_id uuid references auth.users(id);
+alter table app_subscriptions add column if not exists referral_bonus_claimed boolean not null default false;
+
+create or replace function apply_referral_bonus_if_pending(p_owner_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_referrer_id uuid;
+  v_claimed boolean;
+begin
+  select referred_by_owner_id, referral_bonus_claimed into v_referrer_id, v_claimed
+  from app_subscriptions
+  where owner_id = p_owner_id
+  for update;
+
+  -- Bukan akun hasil referral, atau bonusnya sudah pernah diklaim
+  -- sebelumnya (mis. perpanjangan kedua kalinya) -- diamkan, no-op.
+  if v_referrer_id is null or v_claimed then
+    return;
+  end if;
+
+  -- Akun baru (yang baru saja bayar) dapat +15 hari, DITANDAI sudah
+  -- diklaim supaya tidak pernah dobel di perpanjangan-perpanjangan berikutnya.
+  update app_subscriptions
+    set paid_until = greatest(coalesce(paid_until, now()), now()) + interval '15 days',
+        referral_bonus_claimed = true
+    where owner_id = p_owner_id;
+
+  -- Pemilik kode (referrer) juga dapat +15 hari -- dari tanggal
+  -- berlaku langganannya SENDIRI (greatest(...,now()) supaya tidak
+  -- "ketelan" kalau langganan referrer kebetulan sedang kedaluwarsa).
+  update app_subscriptions
+    set paid_until = greatest(coalesce(paid_until, now()), now()) + interval '15 days'
+    where owner_id = v_referrer_id;
+end;
+$$;
+
+grant execute on function apply_referral_bonus_if_pending(uuid) to authenticated;
+```
+
+Kenapa lewat function `security definer` (bukan `update` langsung dari
+browser): kreditnya mengubah baris `app_subscriptions` milik **orang
+lain** (si pemilik kode referral, bukan akun yang baru saja bayar) —
+menaruh logika ini di satu function server-side, dipanggil dari SATU
+titik yang sama persis dari 2 jalur pembayaran (manual & Midtrans), jauh
+lebih aman & konsisten daripada bergantung pada RLS `app_subscriptions`
+yang permisif lintas-user atau menduplikasi logikanya di banyak tempat.
+
+Sebelum migrasi ini dijalankan: tombol "Bagikan dan Dapat Bonus" akan
+gagal membuat kode (toast error "Gagal membuat kode referral") karena
+kolom `referrer_owner_id` belum ada, dan persetujuan pembayaran
+(manual/Midtrans) akan tetap jalan seperti biasa — RPC bonus-nya
+dipanggil di dalam `try/catch`, jadi kalau function-nya belum ada,
+gagalnya diam-diam saja, tidak menggagalkan proses aktivasi langganan
+itu sendiri.
+
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 
 Halaman **terpisah** dari `index.html` (bukan bagian aplikasi kasir yang
 dipakai pemilik toko laundry) — ini alat internal khusus untuk pemilik
-platform (`ADMIN_EMAIL`) memasarkan produk **Dokter Laundry** sendiri.
-Login pakai akun Supabase yang sama dengan aplikasi utama; kalau email-nya
-bukan `ADMIN_EMAIL`, langsung ditolak & di-sign-out.
+platform (email-nya ada di `ADMIN_EMAILS`, bisa lebih dari satu — lihat
+bagian "Lebih dari 1 akun Admin Platform" di bawah) memasarkan produk
+**Dokter Laundry** sendiri. Login pakai akun Supabase yang sama dengan
+aplikasi utama; kalau email-nya tidak ada di `ADMIN_EMAILS`, langsung
+ditolak & di-sign-out.
 
 Dibangun bertahap — fitur pertama yang sudah ada:
 
@@ -789,14 +885,15 @@ create table if not exists marketing_communities (
 
 alter table marketing_communities enable row level security;
 
--- SENGAJA dibatasi cuma ADMIN_EMAIL (beda dari model permisif
+-- SENGAJA dibatasi cuma email di ADMIN_EMAILS (beda dari model permisif
 -- registration_codes/payment_requests/app_branding) -- tabel ini murni data
 -- operasional marketing pemilik platform, tidak ada alasan akun toko biasa
--- perlu baca/tulis ke sini sama sekali.
+-- perlu baca/tulis ke sini sama sekali. Daftar email-nya HARUS sama persis
+-- dengan ADMIN_EMAILS di js/00-globals.js/marketing.html/search-communities.js.
 create policy "Cuma admin platform yang bisa akses data marketing"
 on marketing_communities
 for all
-using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
 
 -- Data awal (hasil riset nyata, bukan contoh mengada-ada) -- cukup sekali.
 insert into marketing_communities (platform, nama, daerah, link, jumlah_anggota, kontak_admin, catatan)
@@ -865,8 +962,9 @@ Januari 2027, jadi tidak dipakai). Dipanggil lewat
 Serper — supaya `SERPER_API_KEY` tidak pernah ada di kode browser (kalau
 ditaruh di sana, siapa saja bisa mencurinya dari DevTools dan menghabiskan
 kuota berbayar kita). Function ini juga memverifikasi token Supabase Auth
-pengirim request benar-benar `ADMIN_EMAIL`, jadi orang lain yang
-menemukan URL function-nya langsung dari luar tetap tidak bisa memakainya.
+pengirim request benar-benar salah satu email di `ADMIN_EMAILS`, jadi
+orang lain yang menemukan URL function-nya langsung dari luar tetap
+tidak bisa memakainya.
 
 **Environment variables di Netlify** (Site settings → Environment
 variables, bukan di kode/git):
@@ -920,12 +1018,12 @@ create table if not exists marketing_leads (
 
 alter table marketing_leads enable row level security;
 
--- Sama seperti marketing_communities: sengaja dibatasi cuma ADMIN_EMAIL,
--- bukan model permisif seperti registration_codes/payment_requests.
+-- Sama seperti marketing_communities: sengaja dibatasi cuma email di
+-- ADMIN_EMAILS, bukan model permisif seperti registration_codes/payment_requests.
 create policy "Cuma admin platform yang bisa akses data marketing"
 on marketing_leads
 for all
-using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
 ```
 
 Sebelum tabel ini ada, tab "Kontak Laundry" akan gagal memuat data (toast
@@ -933,6 +1031,36 @@ error) — tab/fitur lain tidak terpengaruh.
 
 Tab lain di halaman ini (Konten Promosi, Landing Page, Program Referral)
 baru placeholder ("Segera") — akan dikerjakan satu-satu sesuai permintaan.
+
+### Lebih dari 1 akun Admin Platform
+
+Akses Admin Platform (panel di Pengaturan, alat Marketing di atas, dan
+fitur Cari Komunitas/Kontak Laundri Online) **bisa dipakai lebih dari 1
+email** — diatur lewat daftar `ADMIN_EMAILS`, BUKAN 1 email tunggal lagi.
+
+Untuk nambah/ganti admin, daftar emailnya harus diperbarui **persis sama**
+di 4 tempat ini sekaligus (kalau cuma sebagian, perilakunya jadi
+tidak konsisten antar fitur):
+
+1. `ADMIN_EMAILS` di `js/00-globals.js` (aplikasi utama, `index.html`)
+2. `ADMIN_EMAILS` di `marketing.html` (login alat Marketing)
+3. `ADMIN_EMAILS` di `netlify/functions/search-communities.js` (gerbang function Cari Online)
+4. RLS policy tabel `marketing_communities` & `marketing_leads` di Supabase — jalankan sekali di SQL Editor (aman dijalankan berapa kali pun, cukup ganti daftar email di dalam `in (...)` sesuai kebutuhan):
+
+```sql
+alter policy "Cuma admin platform yang bisa akses data marketing"
+on marketing_communities
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
+
+alter policy "Cuma admin platform yang bisa akses data marketing"
+on marketing_leads
+using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
+```
+
+Catatan: ini cuma mengatur **siapa yang dianggap admin platform**, bukan
+bikin akun baru di Supabase Auth — tiap email yang dimasukkan di daftar
+ini tetap harus sudah punya akun (lewat Daftar seperti akun toko biasa)
+sebelum bisa login dan dianggap admin.
 
 ## Belum dikerjakan / perlu diperiksa
 

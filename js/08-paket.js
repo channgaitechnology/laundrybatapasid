@@ -98,9 +98,12 @@ function renderSubscriptions(){
   const filter = filterEl ? filterEl.value : 'aktif';
   const filterTipeEl = document.getElementById('subsFilterTipe');
   const filterTipe = filterTipeEl ? filterTipeEl.value : 'semua';
+  const searchEl = document.getElementById('subsSearchInput');
+  const q = searchEl ? (searchEl.value||'').toLowerCase() : '';
   const today = todayISO();
   const el = document.getElementById('subscriptionList');
   let list = visibleSubscriptions().slice();
+  if(q) list = list.filter(s=>s.nama.toLowerCase().includes(q));
   if(filterTipe==='bulanan') list = list.filter(s=>!isTempo(s));
   else if(filterTipe==='tempo') list = list.filter(s=>isTempo(s));
   if(filter==='aktif'){
@@ -110,11 +113,17 @@ function renderSubscriptions(){
   list.sort((a,b)=> (b.tanggalMulai||'').localeCompare(a.tanggalMulai||''));
 
   if(list.length===0){
-    el.innerHTML = `<div class="empty">
-      <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
-      <h3>${t('Belum ada pelanggan')} ${filter==='aktif' ? t('yang sedang aktif') : ''}</h3>
-      <p>${t('Klik "+ Pelanggan" untuk mendaftarkan pelanggan paket atau tempo baru.')}</p>
-    </div>`;
+    el.innerHTML = q
+      ? `<div class="empty">
+        <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+        <h3>${t('Tidak ada pelanggan yang cocok')}</h3>
+        <p>${t('Coba kata kunci lain, atau cek filter Jenis/Tampilkan di atas.')}</p>
+      </div>`
+      : `<div class="empty">
+        <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/></svg>
+        <h3>${t('Belum ada pelanggan')} ${filter==='aktif' ? t('yang sedang aktif') : ''}</h3>
+        <p>${t('Klik "+ Pelanggan" untuk mendaftarkan pelanggan paket atau tempo baru.')}</p>
+      </div>`;
     return;
   }
   el.innerHTML = list.map(s=>{
