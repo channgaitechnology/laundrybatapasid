@@ -1595,7 +1595,7 @@
     <label for="authPassword">Password</label>
     <div style="position:relative;">
       <input id="authPassword" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
-      <button type="button" onclick="togglePasswordVisibility()" aria-label="Tampilkan password"
+      <button type="button" onclick="togglePasswordVisibility('authPassword','eyeIcon')" aria-label="Tampilkan password"
         style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;padding:8px;color:var(--ink-soft);cursor:pointer;">
         <svg id="eyeIcon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -1634,7 +1634,25 @@
     <h3>Atur Password Baru</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Masukkan password baru untuk akunmu.</p>
     <label for="newPasswordInput">Password Baru</label>
-    <input id="newPasswordInput" type="password" placeholder="Minimal 6 karakter">
+    <div style="position:relative;">
+      <input id="newPasswordInput" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
+      <button type="button" onclick="togglePasswordVisibility('newPasswordInput','eyeIconNew')" aria-label="Tampilkan password"
+        style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;padding:8px;color:var(--ink-soft);cursor:pointer;">
+        <svg id="eyeIconNew" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+    <label for="newPasswordConfirmInput">Ulangi Password Baru</label>
+    <div style="position:relative;">
+      <input id="newPasswordConfirmInput" type="password" placeholder="Ketik ulang password baru" style="padding-right:44px;">
+      <button type="button" onclick="togglePasswordVisibility('newPasswordConfirmInput','eyeIconNewConfirm')" aria-label="Tampilkan password"
+        style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;padding:8px;color:var(--ink-soft);cursor:pointer;">
+        <svg id="eyeIconNewConfirm" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
     <div class="auth-msg" id="newPasswordMsg"></div>
     <button class="btn btn-primary" onclick="submitNewPassword()">Simpan Password Baru</button>
   </div>

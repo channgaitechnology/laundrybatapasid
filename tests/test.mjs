@@ -1347,6 +1347,36 @@ const result = await page.evaluate(async () => {
     if (getComputedStyle(document.getElementById('authTosField')).display !== 'none' || document.getElementById('authTosCheck').checked) throw new Error('balik ke mode Masuk harus menyembunyikan & mereset checkbox S&K');
   });
 
+  await step('submitNewPassword(): field konfirmasi wajib cocok dengan password baru sebelum updateUser() dipanggil -- mencegah salah ketik password tanpa sadar karena tidak ada tombol lihat password', async () => {
+    const originalAuth = { updateUser: sb.auth.updateUser };
+    let updateUserCalled = false;
+    sb.auth.updateUser = async (args) => { updateUserCalled = true; return { error: null }; };
+    try {
+      document.getElementById('newPasswordInput').value = 'rahasia123';
+      document.getElementById('newPasswordConfirmInput').value = 'rahasia999';
+      await submitNewPassword();
+      if (updateUserCalled) throw new Error('updateUser() TIDAK boleh dipanggil kalau konfirmasi password tidak cocok');
+      if (!document.getElementById('newPasswordMsg').textContent.includes('tidak cocok')) throw new Error('harus ada pesan error konfirmasi tidak cocok, got: ' + document.getElementById('newPasswordMsg').textContent);
+
+      document.getElementById('newPasswordConfirmInput').value = 'rahasia123';
+      await submitNewPassword();
+      if (!updateUserCalled) throw new Error('updateUser() harus dipanggil begitu password & konfirmasinya cocok');
+    } finally {
+      sb.auth.updateUser = originalAuth.updateUser;
+      document.getElementById('newPasswordInput').value = '';
+      document.getElementById('newPasswordConfirmInput').value = '';
+    }
+  });
+
+  await step('togglePasswordVisibility(inputId, eyeId) bisa dipakai untuk field password manapun (bukan cuma authPassword/eyeIcon hardcoded) -- dipakai newPasswordInput & newPasswordConfirmInput supaya user bisa cek ketikannya sebelum simpan', () => {
+    document.getElementById('newPasswordInput').value = 'cekvisibilitas';
+    togglePasswordVisibility('newPasswordInput', 'eyeIconNew');
+    if (document.getElementById('newPasswordInput').type !== 'text') throw new Error('toggle pertama harus mengubah type jadi text (password terlihat)');
+    togglePasswordVisibility('newPasswordInput', 'eyeIconNew');
+    if (document.getElementById('newPasswordInput').type !== 'password') throw new Error('toggle kedua harus mengembalikan type ke password (tersembunyi lagi)');
+    document.getElementById('newPasswordInput').value = '';
+  });
+
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
   await step('WA-text notas (tempo, bulanan, invoice, regular receipt) carry the new promo footer', () => {
     tempoSub.dp = 0;

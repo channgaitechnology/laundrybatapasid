@@ -1,7 +1,7 @@
 /* ===================== AUTH ===================== */
-function togglePasswordVisibility(){
-  const input = document.getElementById('authPassword');
-  const eye = document.getElementById('eyeIcon');
+function togglePasswordVisibility(inputId, eyeId){
+  const input = document.getElementById(inputId || 'authPassword');
+  const eye = document.getElementById(eyeId || 'eyeIcon');
   if(input.type === 'password'){
     input.type = 'text';
     eye.innerHTML = '<path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a21.6 21.6 0 015.06-6.06M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a21.4 21.4 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
@@ -125,8 +125,10 @@ async function sendResetPasswordEmail(){
 }
 async function submitNewPassword(){
   const password = document.getElementById('newPasswordInput').value;
+  const confirmPassword = document.getElementById('newPasswordConfirmInput').value;
   const msgEl = document.getElementById('newPasswordMsg');
   if(!password || password.length<6){ msgEl.className='auth-msg error'; msgEl.textContent=t('Password minimal 6 karakter'); return; }
+  if(password !== confirmPassword){ msgEl.className='auth-msg error'; msgEl.textContent=t('Konfirmasi password tidak cocok, ketik ulang dengan benar'); return; }
   msgEl.className='auth-msg'; msgEl.textContent=t('Menyimpan...');
   const { error } = await sb.auth.updateUser({ password });
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent=error.message; return; }
