@@ -18,6 +18,29 @@
 const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* Listener KHUSUS event PASSWORD_RECOVERY, didaftarkan di sini -- skrip
+   PALING AWAL -- bukan digabung ke listener sesi-login utama di <script>
+   paling akhir index.html (lihat komentar panjang di sana soal kenapa
+   listener itu SENGAJA ditunda sampai akhir, supaya resolveRoleAndInit()
+   dkk pasti sudah terdefinisi). supabase-js mendeteksi & memproses token
+   recovery dari location.hash SESAAT setelah createClient() dipanggil di
+   atas (lalu hash-nya langsung dibersihkan dari URL lewat
+   history.replaceState) -- jauh lebih cepat daripada 23 <script src>
+   lain yang masih harus dimuat berurutan satu per satu. Kalau listener
+   PASSWORD_RECOVERY ikut ditunda ke akhir seperti listener sesi-login
+   lainnya, event ini sudah lewat & hash sudah hilang dari URL sebelum ada
+   yang sempat dengar -- akibatnya link reset password cuma diam-diam
+   login-kan user (karena token recovery tetap sah membentuk sesi), TANPA
+   PERNAH menampilkan form ganti password (bug nyata dilaporkan user: klik
+   link reset password di HP yang sudah ada sesi lama, malah langsung
+   masuk ke app bukan diminta ganti password). Listener ini sengaja HANYA
+   menyentuh DOM modal (tidak memanggil fungsi apa pun dari modul lain),
+   supaya aman didaftarkan paling awal tanpa risiko ReferenceError. */
+sb.auth.onAuthStateChange((event) => {
+  if(event === 'PASSWORD_RECOVERY'){
+    document.getElementById('newPasswordModal').classList.add('show');
+  }
+});
 /* ADMIN_EMAILS: daftar (bisa lebih dari 1) email yang dianggap pemilik
    platform -- bisa lihat Admin Platform, ringkasan semua toko, kode
    pendaftaran, dan alat Marketing (marketing.html). ADMIN_EMAIL (string,

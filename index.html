@@ -1879,15 +1879,14 @@
      auto-login (harus masuk ulang terus meski sesinya sebenarnya valid).
      Didaftarkan di sini (paling akhir dari SEMUA <script src="js/*.js">)
      menjamin seluruh fungsi lain sudah pasti terdefinisi lebih dulu, apa pun
-     secepat apa callback-nya terpicu. */
-  if(window.location.hash.includes('type=recovery')){
-    document.getElementById('newPasswordModal').classList.add('show');
-  }
+     secepat apa callback-nya terpicu.
+     Event PASSWORD_RECOVERY SENGAJA TIDAK ditangani di sini (lihat listener
+     terpisah di js/00-globals.js, langsung setelah createClient()) --
+     supabase-js memproses & membersihkan token recovery dari location.hash
+     jauh lebih cepat daripada 23 <script src> ini selesai dimuat semua,
+     jadi kalau ditangani di sini saja, event-nya sering sudah kelewat. */
   sb.auth.onAuthStateChange((event, session) => {
-    if(event === 'PASSWORD_RECOVERY'){
-      document.getElementById('newPasswordModal').classList.add('show');
-      return;
-    }
+    if(event === 'PASSWORD_RECOVERY') return;
     if(session && session.user){
       currentUser = session.user;
       document.getElementById('authScreen').classList.add('hidden');

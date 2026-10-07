@@ -17,7 +17,7 @@
  * auth/login & panggilan API selalu langsung ke jaringan, tidak pernah
  * lewat cache ini.
  */
-const CACHE_NAME = 'laundry-batapas-v5';
+const CACHE_NAME = 'laundry-batapas-v6';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

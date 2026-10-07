@@ -42,6 +42,11 @@ await page.addInitScript(() => {
         // possible regression guard for that whole class of "works in one script,
         // breaks once split across <script src> tags" bug.
         onAuthStateChange: (cb) => {
+          // Both the js/00-globals.js listener AND the final <script> listener (see
+          // index.html) call this -- track every one of them so a later test step can
+          // simulate a real PASSWORD_RECOVERY event firing to ALL subscribers at once,
+          // the way supabase-js actually broadcasts it.
+          (window.__authListeners = window.__authListeners || []).push(cb);
           Promise.resolve().then(() => cb('SIGNED_IN', { user: { id: 'init-load-test-user', email: 'init-load@test.com' } }));
           return { data: { subscription: { unsubscribe(){} } } };
         },
@@ -1375,6 +1380,14 @@ const result = await page.evaluate(async () => {
     togglePasswordVisibility('newPasswordInput', 'eyeIconNew');
     if (document.getElementById('newPasswordInput').type !== 'password') throw new Error('toggle kedua harus mengembalikan type ke password (tersembunyi lagi)');
     document.getElementById('newPasswordInput').value = '';
+  });
+
+  await step('Event PASSWORD_RECOVERY ditangkap oleh listener di js/00-globals.js (didaftarkan paling awal), bukan cuma listener utama di <script> paling akhir -- regresi bug nyata: link reset password yang diklik di HP dengan sesi lama masih aktif cuma login diam-diam, tidak pernah menampilkan form ganti password, karena listener lama ditunda ke akhir & keburu kelewat event + hash URL-nya', () => {
+    document.getElementById('newPasswordModal').classList.remove('show');
+    if (!window.__authListeners || window.__authListeners.length < 2) throw new Error('harus ada minimal 2 listener onAuthStateChange terdaftar (js/00-globals.js + <script> akhir index.html), got ' + (window.__authListeners || []).length);
+    window.__authListeners.forEach(cb => cb('PASSWORD_RECOVERY', { user: { id: 'recovery-test-user' } }));
+    if (!document.getElementById('newPasswordModal').classList.contains('show')) throw new Error('form ganti password harus langsung tampil begitu event PASSWORD_RECOVERY diterima, modal-nya tidak dapat class "show"');
+    document.getElementById('newPasswordModal').classList.remove('show');
   });
 
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
