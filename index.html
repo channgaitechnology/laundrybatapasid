@@ -484,6 +484,7 @@
     </button>
   </div>
 </div>
+<button type="button" class="owner-only" onclick="shareReferral()" style="display:block;width:100%;border:none;background:linear-gradient(135deg,var(--suds,#1768AC) 0%, var(--bubble,#4FD1C5) 100%);color:#fff;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;text-align:center;">🎁 Bagikan dan Dapat Bonus</button>
 <div id="subStatusBadge" style="display:none;padding:8px 14px;font-size:12px;color:#fff;text-align:center;"></div>
 
 <main>
@@ -571,7 +572,7 @@
       <h2>Status Pembayaran</h2>
       <select id="inStatus">
         <option value="lunas">Lunas</option>
-        <option value="belum">Belum Lunas</option>
+        <option value="belum" selected>Belum Lunas</option>
       </select>
       <label for="inCatatan">Catatan (opsional)</label>
       <textarea id="inCatatan" rows="2" placeholder="cth. Ada noda membandel di kerah"></textarea>
@@ -771,6 +772,10 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h2 style="margin:0;">Pelanggan Paket &amp; Tempo</h2>
         <button class="btn btn-primary btn-sm" style="width:auto;" onclick="openNewSubscription()">+ Pelanggan</button>
+      </div>
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="subsSearchInput" placeholder="Cari nama pelanggan paket/tempo..." oninput="renderSubscriptions()">
       </div>
       <div class="row2">
         <div>
@@ -1085,6 +1090,12 @@
         <div class="card" id="settingsSubCard" style="box-shadow:none;border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;">
           <div class="item-line" style="margin-bottom:6px;"><b style="font-size:13px;">Langganan Aplikasi</b><span id="settingsSubStatus" style="font-size:12.5px;color:var(--ink-soft);">memuat...</span></div>
           <button class="btn btn-outline btn-sm" style="width:100%;" onclick="showPaywallModal()">Kelola / Perpanjang Langganan</button>
+        </div>
+        <div class="card" style="box-shadow:none;border:1px solid var(--line);padding:12px 14px;">
+          <b style="font-size:13px;">🎁 Program Referral</b>
+          <p style="font-size:12px;color:var(--ink-soft);margin:6px 0 10px;">Bagikan Dokter Laundry ke sesama pemilik usaha laundry pakai kode di bawah ini. Begitu akun barunya aktif berbayar (bukan langsung saat daftar), kalian berdua sama-sama dapat bonus 15 hari gratis -- bisa dipakai ulang ke banyak orang, berarti berkali-kali juga bonusnya.</p>
+          <div id="referralCodeDisplay" style="background:var(--mist);border-radius:10px;padding:10px 12px;text-align:center;font-weight:800;font-size:16px;letter-spacing:1px;margin-bottom:10px;">Memuat...</div>
+          <button class="btn btn-primary btn-sm" style="width:100%;" onclick="shareReferral()">📤 Bagikan dan Dapat Bonus</button>
         </div>
       </div>
 

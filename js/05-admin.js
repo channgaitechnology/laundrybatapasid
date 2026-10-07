@@ -256,6 +256,12 @@ async function approveRenewalRequest(id){
     ({ error: upErr } = await sb.from('app_subscriptions').insert({ owner_id: req.owner_id, status:'aktif', trial_ends_at: now.toISOString(), paid_until: newPaidUntil }));
   }
   if(upErr){ showToast(t('Gagal mengaktifkan langganan')); return; }
+  /* Ini titik "pembayaran benar-benar terjadi" buat akun yang mungkin
+     daftar pakai kode referral orang lain (lihat README, Program
+     Referral) -- apply_referral_bonus_if_pending() cuma akan benar-benar
+     ngapa-ngapain kalau baris app_subscriptions akun ini memang punya
+     referred_by_owner_id & belum pernah diklaim; selain itu no-op. */
+  try{ await sb.rpc('apply_referral_bonus_if_pending', { p_owner_id: req.owner_id }); }catch(e){}
   const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui' }).eq('id', id);
   if(e2){ showToast(t('Langganan aktif tapi gagal update status permintaan')); }
   await loadAdminData();

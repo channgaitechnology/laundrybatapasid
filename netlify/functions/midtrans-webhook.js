@@ -103,6 +103,16 @@ exports.handler = async (event) => {
     });
   }
 
+  // Sama seperti approveRenewalRequest() (js/05-admin.js) -- ini titik
+  // "pembayaran benar-benar terjadi" buat akun yang mungkin daftar pakai
+  // kode referral orang lain (lihat README, Program Referral). RPC ini
+  // no-op kalau baris app_subscriptions akun ini tidak punya
+  // referred_by_owner_id yang belum diklaim.
+  await supabaseRest('rpc/apply_referral_bonus_if_pending', {
+    method: 'POST',
+    body: JSON.stringify({ p_owner_id: req.owner_id }),
+  });
+
   await supabaseRest(`payment_requests?id=eq.${req.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: 'disetujui', paid_at: now.toISOString() }),

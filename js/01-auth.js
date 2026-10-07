@@ -47,6 +47,21 @@ async function handleAuthSubmit(){
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if(error) throw error;
     } else {
+      /* Kode pendaftaran ada 2 jenis, dibedakan dari kolom referrer_owner_id
+         (lihat README, bagian Program Referral):
+         - Kode admin biasa (referrer_owner_id kosong): sekali pakai, langsung
+           ditandai 'terpakai' + akun baru langsung 'aktif' (trial dilewati) --
+           ini merepresentasikan pembayaran yang SUDAH diverifikasi admin
+           sebelum kode ini dibagikan ke calon pengguna.
+         - Kode referral (referrer_owner_id terisi, dibuat sendiri oleh
+           pengguna lewat getOrCreateReferralCode()): TIDAK ditandai
+           'terpakai' (boleh dipakai berkali-kali oleh orang berbeda), dan
+           akun baru TETAP mulai dari trial 30 hari seperti biasa -- bonus
+           15 hari ke akun baru INI dan ke pemilik kode baru dikreditkan
+           nanti, begitu akun baru ini benar-benar membayar (lihat
+           apply_referral_bonus_if_pending(), dipanggil dari
+           approveRenewalRequest()/midtrans-webhook.js), bukan saat daftar. */
+      let referrerOwnerId = null;
       if(regCode){
         const { data: valid, error: codeErr } = await sb.rpc('check_registration_code', { p_code: regCode });
         if(codeErr || !valid){
@@ -54,20 +69,27 @@ async function handleAuthSubmit(){
           card.classList.remove('auth-loading');
           return;
         }
+        const { data: codeRow } = await sb.from('registration_codes').select('referrer_owner_id').eq('code', regCode).maybeSingle();
+        referrerOwnerId = codeRow ? codeRow.referrer_owner_id : null;
       }
       const { data, error } = await sb.auth.signUp({ email, password });
       if(error) throw error;
       if(data.user && !data.session){
         try{
           if(regCode) localStorage.setItem('nk_pendingRegCode', regCode);
+          if(referrerOwnerId) localStorage.setItem('nk_pendingReferrer', referrerOwnerId);
         }catch(e){}
         setAuthMsg(regCode ? t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk.') : t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk. Trial 30 hari akan aktif otomatis.'), 'ok');
         card.classList.remove('auth-loading');
         return;
       }
       if(data.session && regCode){
-        try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
-        await sb.from('registration_codes').update({ status:'terpakai', used_by: data.user.id }).eq('code', regCode).eq('status','aktif');
+        if(referrerOwnerId){
+          try{ localStorage.setItem('nk_referredBy', referrerOwnerId); }catch(e){}
+        } else {
+          try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
+          await sb.from('registration_codes').update({ status:'terpakai', used_by: data.user.id }).eq('code', regCode).eq('status','aktif');
+        }
       }
     }
   }catch(e){

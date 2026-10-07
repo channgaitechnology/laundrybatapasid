@@ -163,6 +163,19 @@ const result = await page.evaluate(async () => {
     };
     return q;
   }
+  let fakeReferralCode = null; // satu baris registration_codes (referral ATAU admin, tergantung test) yang dikembalikan select()/dibuat insert()
+  let lastRegCodeUpdate = null; // payload update() terakhir (buat cek kode admin ditandai 'terpakai')
+  function fakeRegistrationCodesQuery() {
+    const q = {
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
+      insert: (row) => { fakeReferralCode = { id: 'fake-regcode-1', ...row }; return q; },
+      update: (row) => { lastRegCodeUpdate = row; return q; },
+      single: () => Promise.resolve({ data: fakeReferralCode, error: null }),
+      maybeSingle: () => Promise.resolve({ data: fakeReferralCode, error: null }),
+      then: (resolve) => resolve({ data: fakeReferralCode ? [fakeReferralCode] : [], error: null }),
+    };
+    return q;
+  }
   let lastAppBrandingUpsert = null;
   function fakeAppBrandingQuery() {
     const q = {
@@ -379,6 +392,7 @@ const result = await page.evaluate(async () => {
     if (table === 'subscription_usage') return fakeUsageQuery();
     if (table === 'settings') return fakeSettingsQuery();
     if (table === 'app_branding') return fakeAppBrandingQuery();
+    if (table === 'registration_codes') return fakeRegistrationCodesQuery();
     if (table === 'expenses') return fakeExpensesQuery();
     if (table === 'expense_catalog') return fakeExpenseCatalogQuery();
     if (table === 'outlets') return fakeOutletsQuery();
@@ -438,6 +452,49 @@ const result = await page.evaluate(async () => {
     if (html.includes('Sari Bulanan')) throw new Error('bulanan leaked into tempo filter');
     if (!html.includes('Budi Tempo')) throw new Error('tempo missing from tempo filter');
     document.getElementById('subsFilterTipe').value = 'semua';
+  });
+
+  await step('subsSearchInput: mencari nama pelanggan paket/tempo (case-insensitive, substring), baik sendiri maupun digabung dengan filter Jenis, dan menampilkan empty-state khusus kalau tidak cocok', () => {
+    const filterStatusEl = document.getElementById('subsFilterStatus');
+    const savedFilterStatus = filterStatusEl ? filterStatusEl.value : 'aktif';
+    const searchEl = document.getElementById('subsSearchInput');
+    try {
+      if (filterStatusEl) filterStatusEl.value = 'semua'; // sama alasannya dengan test render kartu di atas -- lepas dari filter periode aktif
+      searchEl.value = 'budi';
+      renderSubscriptions();
+      let html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Budi Tempo')) throw new Error('search "budi" (huruf kecil) should still match "Budi Tempo"');
+      if (html.includes('Sari Bulanan')) throw new Error('search "budi" should not also show Sari Bulanan');
+
+      searchEl.value = 'SARI';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Sari Bulanan')) throw new Error('search "SARI" (uppercase) should match "Sari Bulanan" case-insensitively');
+      if (html.includes('Budi Tempo')) throw new Error('search "SARI" should not also show Budi Tempo');
+
+      // Digabung dengan filter Jenis=tempo: nama cocok tapi jenisnya bulanan -> tidak boleh muncul
+      document.getElementById('subsFilterTipe').value = 'tempo';
+      searchEl.value = 'sari';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (html.includes('Sari Bulanan')) throw new Error('search "sari" + filter Jenis=tempo should exclude Sari Bulanan (name matches but type does not)');
+      document.getElementById('subsFilterTipe').value = 'semua';
+
+      searchEl.value = 'nama-yang-tidak-ada-sama-sekali';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Tidak ada pelanggan yang cocok')) throw new Error('a search with zero matches should show the "no matching customer" empty state, not the generic "belum ada pelanggan" one: ' + html);
+
+      searchEl.value = '';
+      renderSubscriptions();
+      html = document.getElementById('subscriptionList').innerHTML;
+      if (!html.includes('Budi Tempo') || !html.includes('Sari Bulanan')) throw new Error('clearing the search should restore both customers');
+    } finally {
+      searchEl.value = '';
+      if (filterStatusEl) filterStatusEl.value = savedFilterStatus;
+      document.getElementById('subsFilterTipe').value = 'semua';
+      renderSubscriptions();
+    }
   });
 
   await step('openNewSubscription() + onSubsTipeChange() toggles fields', () => {
@@ -2407,6 +2464,13 @@ const result = await page.evaluate(async () => {
     if (html.indexOf('Besar') > html.indexOf('Sedang') || html.indexOf('Sedang') > html.indexOf('Kecil')) throw new Error('rendered list not in descending order: ' + html);
   });
 
+  await step('resetTransactionForm(): status pembayaran default "Belum Lunas" (bukan "Lunas") -- transaksi baru jarang langsung lunas saat nota dibuat', () => {
+    document.getElementById('inStatus').value = 'lunas'; // ubah dulu biar bukan kebetulan nilainya sudah "belum"
+    resetTransactionForm();
+    if (document.getElementById('inStatus').value !== 'belum') throw new Error('resetTransactionForm() should default inStatus to "belum", not "lunas": got ' + document.getElementById('inStatus').value);
+    draftItems = [];
+  });
+
   // --- Multi-Outlet (opt-in): tanpa outlet, app harus jalan persis seperti sebelumnya ---
   await step('Multi-outlet is fully opt-in: with zero outlets, submitTransaction() sends no outlet_id and visibleTransactions()/visibleSubscriptions()/visibleExpenses() return everything unfiltered', async () => {
     outlets = []; currentOutletId = null;
@@ -2731,6 +2795,26 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('isAdminEmail(): ADMIN_EMAILS mendukung lebih dari 1 admin platform (case-insensitive, trim whitespace via lowercase), dan openSettings() mengenali admin kedua sama seperti admin pertama', async () => {
+    if (!Array.isArray(ADMIN_EMAILS) || ADMIN_EMAILS.length < 2) throw new Error('ADMIN_EMAILS should be a list with at least 2 admin emails (the task that added isAdminEmail() was specifically to support more than 1): ' + JSON.stringify(ADMIN_EMAILS));
+    if (!isAdminEmail(ADMIN_EMAILS[0])) throw new Error('isAdminEmail() should recognize the first admin email');
+    if (!isAdminEmail(ADMIN_EMAILS[1])) throw new Error('isAdminEmail() should recognize the second admin email, not just the first');
+    if (!isAdminEmail(ADMIN_EMAILS[1].toUpperCase())) throw new Error('isAdminEmail() should be case-insensitive for the second admin too');
+    if (isAdminEmail('bukan-admin@example.com')) throw new Error('isAdminEmail() should reject an email that is not in ADMIN_EMAILS');
+    if (isAdminEmail('')) throw new Error('isAdminEmail() should reject an empty/falsy email, not throw or false-positive');
+
+    const savedUser = currentUser;
+    try {
+      currentUser = { email: ADMIN_EMAILS[1] };
+      openSettings();
+      if (document.getElementById('settingsTileAdmin').style.display === 'none') throw new Error('openSettings() should show the Admin Platform tile for the SECOND admin email too, not just ADMIN_EMAILS[0]');
+      if (document.getElementById('adminPlatformSection').style.display === 'none') throw new Error('openSettings() should show adminPlatformSection for the second admin email too');
+    } finally {
+      currentUser = savedUser;
+      closeSettings();
+    }
+  });
+
   await step('appBranding: saveAppBranding()/loadAppBranding() persist & reload the developer-credit footer, and every nota builder (WA text, PDF lines, HTML) reflects it instead of the old hardcoded Tinggiran Tech Studio values', async () => {
     const savedBranding = { ...appBranding };
     try {
@@ -2814,6 +2898,167 @@ const result = await page.evaluate(async () => {
       updateMidtransButtonVisibility();
       fillAppBrandingForm();
       btn.style.display = savedBtnDisplay;
+    }
+  });
+
+  await step('getOrCreateReferralCode(): dibuat sekali (format REF-XXXXXX, referrer_owner_id = shopOwnerId, status "aktif" supaya bisa dipakai ulang), lalu dipakai ulang (bukan insert baru lagi) pada panggilan berikutnya', async () => {
+    fakeReferralCode = null;
+    try {
+      const code1 = await getOrCreateReferralCode();
+      if (!/^REF-[A-Z0-9]{6}$/.test(code1)) throw new Error('expected a code in the REF-XXXXXX format, got: ' + code1);
+      if (!fakeReferralCode || fakeReferralCode.referrer_owner_id !== shopOwnerId) throw new Error('getOrCreateReferralCode() should insert a row with referrer_owner_id = shopOwnerId: ' + JSON.stringify(fakeReferralCode));
+      if (fakeReferralCode.status !== 'aktif') throw new Error('a referral code should be inserted with status "aktif" (reusable by many people), not a single-use status: ' + JSON.stringify(fakeReferralCode));
+
+      const insertedRowBefore = fakeReferralCode;
+      const code2 = await getOrCreateReferralCode();
+      if (code2 !== code1) throw new Error('a second call should reuse the existing code, not generate a new one: ' + code1 + ' vs ' + code2);
+      if (fakeReferralCode !== insertedRowBefore) throw new Error('a second call should NOT insert another row');
+    } finally {
+      fakeReferralCode = null;
+    }
+  });
+
+  await step('shareReferral(): memakai navigator.share() berisi kode referral kalau didukung, dan fallback ke link share WhatsApp (wa.me/?text=...) kalau tidak', async () => {
+    fakeReferralCode = null;
+    const originalShare = navigator.share;
+    const originalOpen = window.open;
+    const displayEl = document.getElementById('referralCodeDisplay');
+    const savedDisplay = displayEl.textContent;
+    try {
+      let capturedShare = null;
+      navigator.share = async (opts) => { capturedShare = opts; };
+      await shareReferral();
+      if (!fakeReferralCode) throw new Error('shareReferral() should create a referral code when none exists yet');
+      if (!capturedShare || !capturedShare.text.includes(fakeReferralCode.code)) throw new Error('navigator.share() should be called with text containing the referral code: ' + JSON.stringify(capturedShare));
+      if (!capturedShare.text.includes('15')) throw new Error('the shared text should mention the 15-day bonus: ' + capturedShare.text);
+
+      navigator.share = undefined;
+      let openedUrl = null;
+      window.open = (url) => { openedUrl = url; };
+      await shareReferral();
+      if (!openedUrl || !openedUrl.startsWith('https://wa.me/?text=')) throw new Error('expected a fallback to the no-phone wa.me share link when navigator.share is unsupported, got: ' + openedUrl);
+      if (!decodeURIComponent(openedUrl).includes(fakeReferralCode.code)) throw new Error('the WA fallback text should include the referral code too');
+    } finally {
+      navigator.share = originalShare;
+      window.open = originalOpen;
+      displayEl.textContent = savedDisplay;
+      fakeReferralCode = null;
+    }
+  });
+
+  await step('handleAuthSubmit(): signup dengan kode REFERRAL (referrer_owner_id terisi) cuma mencatat nk_referredBy di localStorage -- TIDAK menandai kode "terpakai" (boleh dipakai ulang) dan TIDAK mengkreditkan bonus saat itu juga (baru nanti saat bayar, lihat apply_referral_bonus_if_pending)', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'REF-ABC123', referrer_owner_id: 'referrer-owner-1', status: 'aktif' };
+    lastRegCodeUpdate = null;
+    try {
+      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-1' }, session: { access_token: 'fake' } }, error: null });
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'referred@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'REF-ABC123';
+      document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await handleAuthSubmit();
+
+      if (localStorage.getItem('nk_referredBy') !== 'referrer-owner-1') throw new Error('expected nk_referredBy to be set to the code\'s referrer_owner_id, got: ' + localStorage.getItem('nk_referredBy'));
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('a referral-code signup should NOT set nk_paidSignup (new account must still start from a normal trial, not skip it)');
+      if (lastRegCodeUpdate !== null) throw new Error('a referral code should NOT be marked via update() (it must stay reusable for other people), got update payload: ' + JSON.stringify(lastRegCodeUpdate));
+    } finally {
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
+      lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) tetap berperilaku sekali-pakai seperti sebelumnya -- update() status "terpakai" + nk_paidSignup, BUKAN nk_referredBy', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
+    lastRegCodeUpdate = null;
+    try {
+      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'paid@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'ADMIN123';
+      document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await handleAuthSubmit();
+
+      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup should set nk_paidSignup=1 (unchanged legacy behavior)');
+      if (localStorage.getItem('nk_referredBy')) throw new Error('an admin-code signup should NOT set nk_referredBy');
+      if (!lastRegCodeUpdate || lastRegCodeUpdate.status !== 'terpakai' || lastRegCodeUpdate.used_by !== 'new-user-2') throw new Error('an admin code should still be marked terpakai/used_by via update(), got: ' + JSON.stringify(lastRegCodeUpdate));
+    } finally {
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
+      lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('ensureAppSubscription(): akun baru hasil referral (nk_referredBy di localStorage) disimpan dengan referred_by_owner_id + TETAP status "trial" (bukan dilewati ke "aktif")', async () => {
+    const savedOriginalFrom = sb.from;
+    let capturedInsert = null;
+    try {
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = {
+          select: () => q, eq: () => q,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }), // belum ada baris -> dianggap akun baru
+          insert: (row) => { capturedInsert = row; return { select: () => ({ single: () => Promise.resolve({ data: { id:'sub1', ...row }, error: null }) }) }; },
+        };
+        return q;
+      };
+      try{ localStorage.setItem('nk_referredBy', 'referrer-owner-2'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await ensureAppSubscription('new-user-3', true);
+
+      if (!capturedInsert || capturedInsert.referred_by_owner_id !== 'referrer-owner-2') throw new Error('expected the inserted app_subscriptions row to include referred_by_owner_id: ' + JSON.stringify(capturedInsert));
+      if (capturedInsert.status !== 'trial') throw new Error('a referral signup should still start as a normal "trial" (not skip straight to "aktif"), got status: ' + capturedInsert.status);
+      if (localStorage.getItem('nk_referredBy')) throw new Error('nk_referredBy should be cleared from localStorage after being consumed');
+    } finally {
+      sb.from = savedOriginalFrom;
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
+    }
+  });
+
+  await step('approveRenewalRequest(): setelah mengaktifkan langganan, memanggil RPC apply_referral_bonus_if_pending(p_owner_id) -- titik "pembayaran benar-benar terjadi" buat kredit bonus referral', async () => {
+    // Tidak perlu override sb.from sama sekali -- app_subscriptions/payment_requests
+    // sudah jatuh ke fakeQuery([]) bawaan dispatcher suite (select/eq/order/update/
+    // insert/maybeSingle/then semua ada), cukup buat approveRenewalRequest() lolos
+    // tanpa error sampai ke titik yang mau diuji: panggilan RPC-nya.
+    const originalRpc = sb.rpc;
+    const savedCache = paymentReqCache.slice();
+    try {
+      paymentReqCache = [{ id: 'req1', type: 'perpanjangan', owner_id: 'paying-owner-1', wa: '081200000000', nama: 'Toko Uji', plan_days: 30 }];
+      let capturedRpcCall = null;
+      sb.rpc = async (name, params) => { capturedRpcCall = { name, params }; return { data: null, error: null }; };
+
+      await approveRenewalRequest('req1');
+
+      if (!capturedRpcCall || capturedRpcCall.name !== 'apply_referral_bonus_if_pending') throw new Error('expected approveRenewalRequest() to call apply_referral_bonus_if_pending, got: ' + JSON.stringify(capturedRpcCall));
+      if (capturedRpcCall.params.p_owner_id !== 'paying-owner-1') throw new Error('RPC should be called with the paying owner\'s id: ' + JSON.stringify(capturedRpcCall.params));
+    } finally {
+      sb.rpc = originalRpc;
+      paymentReqCache = savedCache;
     }
   });
 
