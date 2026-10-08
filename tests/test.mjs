@@ -2785,6 +2785,35 @@ const result = await page.evaluate(async () => {
     onReportOutletFilterChange();
   });
 
+  await step('downloadReportPDF(): REGRESI bocor outlet -- harus ikut reportOutletFilter (visibleReportTransactions()) seperti tampilan Laporan di layar, bukan daftar transactions[] mentah semua outlet', async () => {
+    const outletA = outlets[0].id;
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [] };
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){} setLineWidth(){} line(){} addPage(){}
+      text(str){ calls.texts.push(String(str)); }
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+      save(){}
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      document.getElementById('reportMonth').value = '2026-08';
+      document.getElementById('reportOutletFilterSelect').value = String(outletA);
+      onReportOutletFilterChange();
+
+      downloadReportPDF();
+
+      const joined = calls.texts.join(' | ');
+      if (joined.includes('Uji Tanpa Outlet')) throw new Error('REGRESI KEBOCORAN DATA: PDF Laporan yang dipersempit ke Outlet A tidak boleh ikut mencetak transaksi yang tidak terkait outlet manapun: ' + joined);
+      if (!joined.includes('Pelanggan Outlet A')) throw new Error('PDF Laporan Outlet A harus tetap mencetak transaksi Outlet A sendiri: ' + joined);
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+      document.getElementById('reportOutletFilterSelect').value = '';
+      onReportOutletFilterChange();
+    }
+  });
+
   await step('notaHeaderInfo()/nota builders (WA text, PDF lines, receipt HTML) use the outlet\'s own alamat/telp when the transaction has one, and fall back to the global toko settings otherwise', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     // outletA (Cabang Fatmawati) punya alamat/telp sendiri; outletB (Cabang Kemang) tidak.
@@ -3092,22 +3121,77 @@ const result = await page.evaluate(async () => {
   });
 
   await step('approveRenewalRequest(): setelah mengaktifkan langganan, memanggil RPC apply_referral_bonus_if_pending(p_owner_id) -- titik "pembayaran benar-benar terjadi" buat kredit bonus referral', async () => {
-    // Tidak perlu override sb.from sama sekali -- app_subscriptions/payment_requests
-    // sudah jatuh ke fakeQuery([]) bawaan dispatcher suite (select/eq/order/update/
-    // insert/maybeSingle/then semua ada), cukup buat approveRenewalRequest() lolos
-    // tanpa error sampai ke titik yang mau diuji: panggilan RPC-nya.
+    // app_subscriptions jatuh ke fakeQuery([]) bawaan dispatcher suite. payment_requests
+    // HARUS di-override khusus: approveRenewalRequest() sekarang melakukan klaim atomik
+    // (update bersyarat status='menunggu' -> 'disetujui', lalu .select()) SEBELUM
+    // menyentuh app_subscriptions sama sekali -- kalau hasilnya array kosong (seperti
+    // fakeQuery([] default), fungsi berhenti lebih awal (anggap sudah diproses pihak
+    // lain) dan RPC referral TIDAK akan pernah terpanggil. Array non-kosong di sini
+    // mewakili klaim yang berhasil.
     const originalRpc = sb.rpc;
+    const originalFrom = sb.from;
     const savedCache = paymentReqCache.slice();
     try {
       paymentReqCache = [{ id: 'req1', type: 'perpanjangan', owner_id: 'paying-owner-1', wa: '081200000000', nama: 'Toko Uji', plan_days: 30 }];
       let capturedRpcCall = null;
       sb.rpc = async (name, params) => { capturedRpcCall = { name, params }; return { data: null, error: null }; };
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q,
+            single: () => Promise.resolve({ data: { id: 'req1' }, error: null }),
+            maybeSingle: () => Promise.resolve({ data: { id: 'req1' }, error: null }),
+            then: (resolve) => resolve({ data: [{ id: 'req1' }], error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
 
       await approveRenewalRequest('req1');
 
       if (!capturedRpcCall || capturedRpcCall.name !== 'apply_referral_bonus_if_pending') throw new Error('expected approveRenewalRequest() to call apply_referral_bonus_if_pending, got: ' + JSON.stringify(capturedRpcCall));
       if (capturedRpcCall.params.p_owner_id !== 'paying-owner-1') throw new Error('RPC should be called with the paying owner\'s id: ' + JSON.stringify(capturedRpcCall.params));
     } finally {
+      sb.rpc = originalRpc;
+      sb.from = originalFrom;
+      paymentReqCache = savedCache;
+    }
+  });
+
+  await step('approveRenewalRequest(): klaim payment_requests yang gagal (status sudah bukan "menunggu", mis. sudah diproses lebih dulu oleh midtrans-webhook.js) HARUS berhenti SEBELUM menyentuh app_subscriptions -- mencegah race condition memperpanjang paid_until dobel dari 1 pembayaran', async () => {
+    const originalFrom = sb.from;
+    const originalRpc = sb.rpc;
+    const savedCache = paymentReqCache.slice();
+    try {
+      paymentReqCache = [{ id: 'req-race', type: 'perpanjangan', owner_id: 'owner-race', wa: '081200000000', nama: 'Toko Race', plan_days: 30 }];
+      let appSubscriptionsTouched = false;
+      let rpcCalled = false;
+      sb.rpc = async () => { rpcCalled = true; return { data: null, error: null }; };
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          // klaim GAGAL (array kosong) -- tapi chain lain (dipakai loadAdminData() yang
+          // ikut terpanggil di akhir approveRenewalRequest()) tetap harus lengkap.
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q,
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: [], error: null }) };
+          return q;
+        }
+        if (table === 'app_subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: () => { appSubscriptionsTouched = true; return q; }, insert: () => { appSubscriptionsTouched = true; return q; },
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }), then: (resolve) => resolve({ data: null, error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      await approveRenewalRequest('req-race');
+
+      if (appSubscriptionsTouched) throw new Error('REGRESI race condition: app_subscriptions TIDAK BOLEH disentuh kalau klaim payment_requests gagal (sudah diproses pihak lain)');
+      if (rpcCalled) throw new Error('RPC bonus referral TIDAK BOLEH dipanggil kalau klaim payment_requests gagal');
+    } finally {
+      sb.from = originalFrom;
       sb.rpc = originalRpc;
       paymentReqCache = savedCache;
     }
@@ -3471,7 +3555,12 @@ const result = await page.evaluate(async () => {
         const q = {
           select: () => q, eq: () => q, order: () => q, limit: () => q, in: () => q,
           update: (payload) => { reqUpdatePayload = payload; return q; },
-          then: (resolve) => resolve({ data: [], error: null }),
+          // Array TIDAK kosong -- mewakili klaim atomik (update bersyarat
+          // status='menunggu') yang "berhasil mengenai 1 baris". approveRenewalRequest()
+          // sekarang berhenti lebih awal (tanpa menyentuh app_subscriptions) kalau array
+          // ini kosong, sebagai pertahanan race condition dengan midtrans-webhook.js --
+          // lihat README/komentar di js/05-admin.js.
+          then: (resolve) => resolve({ data: [{ id: 1 }], error: null }),
         };
         return q;
       }

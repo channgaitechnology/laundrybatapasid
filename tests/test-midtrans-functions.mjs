@@ -118,10 +118,22 @@ await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan me
 
 await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanjang paid_until sesuai plan_days begitu status settlement diterima', async () => {
   const patches = [];
+  // claimedOnce mensimulasikan baris payment_requests di database sungguhan:
+  // begitu klaim atomik (PATCH bersyarat status=eq.menunggu) pertama "mengenai"
+  // baris ini, status-nya berubah jadi 'disetujui' -- klaim KEDUA untuk order_id
+  // yang sama (mis. Midtrans retry notifikasi) tidak akan menemukan baris
+  // berstatus 'menunggu' lagi, jadi harus balik array KOSONG, bukan baris yang sama.
+  let claimedOnce = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
     const u = String(url);
-    if (u.includes('payment_requests') && (!opts || !opts.method || opts.method === 'GET')) {
+    if (u.includes('payment_requests') && opts && opts.method === 'PATCH') {
+      if (claimedOnce) {
+        patches.push({ table: 'payment_requests_claim_noop', body: JSON.parse(opts.body) });
+        return { ok: true, json: async () => ([]) };
+      }
+      claimedOnce = true;
+      patches.push({ table: 'payment_requests_claim', body: JSON.parse(opts.body) });
       return { ok: true, json: async () => ([{ id: 42, owner_id: 'owner-99', plan_days: 90 }]) };
     }
     if (u.includes('app_subscriptions') && (!opts || !opts.method || opts.method === 'GET')) {
@@ -131,9 +143,9 @@ await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanja
       patches.push({ table: 'app_subscriptions_insert', body: JSON.parse(opts.body) });
       return { ok: true, json: async () => ([{}]) };
     }
-    if (u.includes('payment_requests') && opts && opts.method === 'PATCH') {
-      patches.push({ table: 'payment_requests_patch', body: JSON.parse(opts.body) });
-      return { ok: true, json: async () => ([{}]) };
+    if (u.includes('rpc/apply_referral_bonus_if_pending')) {
+      patches.push({ table: 'rpc_apply_referral_bonus', body: JSON.parse(opts.body) });
+      return { ok: true, json: async () => null };
     }
     throw new Error('unexpected fetch to ' + u + ' method=' + (opts && opts.method));
   };
@@ -161,9 +173,24 @@ await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanja
     const daysGranted = Math.round((new Date(subInsert.body.paid_until) - new Date()) / (24*60*60*1000));
     assert.ok(daysGranted >= 89 && daysGranted <= 90, 'paid_until harus sekitar 90 hari dari sekarang (plan_days=90), got ' + daysGranted);
 
-    const reqPatch = patches.find(p => p.table === 'payment_requests_patch');
-    assert.ok(reqPatch, 'payment_requests harus ditandai disetujui');
-    assert.strictEqual(reqPatch.body.status, 'disetujui');
+    const reqClaim = patches.find(p => p.table === 'payment_requests_claim');
+    assert.ok(reqClaim, 'payment_requests harus diklaim (update bersyarat status=menunggu) jadi disetujui');
+    assert.strictEqual(reqClaim.body.status, 'disetujui');
+
+    const rpcCall = patches.find(p => p.table === 'rpc_apply_referral_bonus');
+    assert.ok(rpcCall, 'harus memanggil RPC apply_referral_bonus_if_pending setelah app_subscriptions diaktifkan (titik "pembayaran benar-benar terjadi" buat kredit bonus referral)');
+    assert.strictEqual(rpcCall.body.p_owner_id, 'owner-99', 'RPC harus dipanggil dengan owner_id yang sama dengan payment_requests yang baru diaktifkan');
+
+    // REGRESI race condition: Midtrans bisa kirim notifikasi SUKSES yang SAMA lebih
+    // dari sekali (retry jaringan normal di sisi mereka) -- panggilan KEDUA untuk
+    // order_id yang sama HARUS tidak melakukan apa pun ke app_subscriptions/RPC,
+    // karena baris payment_requests-nya sudah tidak berstatus 'menunggu' lagi.
+    patches.length = 0;
+    const dupRes = await webhookHandler({ httpMethod: 'POST', body: JSON.stringify({ order_id: orderId, status_code: statusCode, gross_amount: grossAmount, signature_key: validSig, transaction_status: 'settlement' }) });
+    assert.strictEqual(dupRes.statusCode, 200, dupRes.body);
+    assert.ok(!patches.find(p => p.table === 'app_subscriptions_insert' || p.table === 'app_subscriptions_patch'), 'REGRESI: notifikasi duplikat TIDAK BOLEH memperpanjang app_subscriptions lagi (double-crediting dari 1 pembayaran)');
+    assert.ok(!patches.find(p => p.table === 'rpc_apply_referral_bonus'), 'REGRESI: notifikasi duplikat TIDAK BOLEH memanggil RPC bonus referral lagi');
+    assert.ok(patches.find(p => p.table === 'payment_requests_claim_noop'), 'klaim kedua harus terdeteksi sebagai no-op (array kosong), bukan diam-diam di-skip tanpa alasan jelas');
 
     // Status "pending"/belum bayar -- tidak boleh memproses apa pun.
     patches.length = 0;

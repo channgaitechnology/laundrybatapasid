@@ -128,7 +128,7 @@ function downloadReportPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
   const monthInput = document.getElementById('reportMonth');
   const ym = monthInput.value || todayISO().slice(0,7);
-  const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
+  const list = sortByTanggalAsc(visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });

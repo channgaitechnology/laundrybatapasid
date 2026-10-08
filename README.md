@@ -860,8 +860,10 @@ as $$
 declare
   v_referrer_id uuid;
   v_claimed boolean;
+  v_status text;
 begin
-  select referred_by_owner_id, referral_bonus_claimed into v_referrer_id, v_claimed
+  select referred_by_owner_id, referral_bonus_claimed, status
+    into v_referrer_id, v_claimed, v_status
   from app_subscriptions
   where owner_id = p_owner_id
   for update;
@@ -869,6 +871,24 @@ begin
   -- Bukan akun hasil referral, atau bonusnya sudah pernah diklaim
   -- sebelumnya (mis. perpanjangan kedua kalinya) -- diamkan, no-op.
   if v_referrer_id is null or v_claimed then
+    return;
+  end if;
+
+  -- Perbaikan keamanan (7 Okt 2026, ditemukan lewat audit): function ini
+  -- TIDAK percaya begitu saja ke pemanggil bahwa "pembayaran sudah
+  -- terjadi" -- diverifikasi sendiri lewat status='aktif' (cuma bisa
+  -- begini kalau approveRenewalRequest()/midtrans-webhook.js SUDAH
+  -- berhasil mengaktifkan baris ini LEBIH DULU, lihat urutan panggilan di
+  -- kode kedua file itu). Tanpa pengecekan ini, siapa pun yang login bisa
+  -- panggil RPC ini lewat console browser untuk owner_id mana pun yang
+  -- masih 'trial' dan dapat bonus 15 hari gratis tanpa pernah bayar
+  -- (berkali-kali lewat akun dummy pakai kode referral sendiri).
+  if v_status is distinct from 'aktif' then
+    return;
+  end if;
+
+  -- Cegah self-referral supaya tidak dobel +30 hari dari 1 pemanggilan.
+  if v_referrer_id = p_owner_id then
     return;
   end if;
 

@@ -73,20 +73,32 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: `status "${body.transaction_status}" belum sukses, diabaikan` };
   }
 
-  const found = await supabaseRest(
-    `payment_requests?order_id=eq.${encodeURIComponent(body.order_id)}&status=eq.menunggu&select=*`,
-    { method: 'GET' }
+  const now = new Date();
+  // KLAIM atomik -- satu statement UPDATE bersyarat status='menunggu' ini
+  // SEKALIGUS jadi "cari baris" dan "kunci baris supaya tidak diproses 2x",
+  // menggantikan pola lama (GET cek status, baru PATCH di akhir) yang
+  // rawan race condition: Midtrans bisa mengirim notifikasi yang sama lebih
+  // dari sekali (retry), dan approveRenewalRequest() di js/05-admin.js bisa
+  // saja diklik admin di waktu yang berdekatan untuk payment_request yang
+  // sama -- Postgres menjamin cuma SATU pemanggil yang berhasil mengubah
+  // baris dengan status='menunggu' itu; pemanggil lain (telat sepersekian
+  // detik) akan melihat baris sudah bukan 'menunggu' lagi dan dapat array
+  // kosong, lalu berhenti SEBELUM sempat menyentuh app_subscriptions sama
+  // sekali -- mencegah paid_until diperpanjang dobel dari 1 pembayaran.
+  const claimed = await supabaseRest(
+    `payment_requests?order_id=eq.${encodeURIComponent(body.order_id)}&status=eq.menunggu`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'disetujui', paid_at: now.toISOString() }) }
   );
-  const req = found.ok && Array.isArray(found.data) ? found.data[0] : null;
+  const req = claimed.ok && Array.isArray(claimed.data) ? claimed.data[0] : null;
   if (!req) {
     // Sudah diproses sebelumnya (notifikasi Midtrans bisa terkirim lebih dari
-    // sekali untuk transaksi yang sama), atau order_id memang tidak dikenal.
+    // sekali untuk transaksi yang sama, atau admin sudah klik approve manual
+    // duluan), atau order_id memang tidak dikenal.
     return { statusCode: 200, body: 'payment_request tidak ditemukan/sudah diproses, diabaikan' };
   }
 
   const subRes = await supabaseRest(`app_subscriptions?owner_id=eq.${encodeURIComponent(req.owner_id)}&select=*`, { method: 'GET' });
   const existing = subRes.ok && Array.isArray(subRes.data) ? subRes.data[0] : null;
-  const now = new Date();
   const base = (existing && existing.paid_until && new Date(existing.paid_until) > now) ? new Date(existing.paid_until) : now;
   const planDays = Number(req.plan_days) || 30; // fallback 30 hari kalau baris lama sebelum kolom ini ada
   const newPaidUntil = new Date(base.getTime() + planDays * 24 * 60 * 60 * 1000).toISOString();
@@ -111,11 +123,6 @@ exports.handler = async (event) => {
   await supabaseRest('rpc/apply_referral_bonus_if_pending', {
     method: 'POST',
     body: JSON.stringify({ p_owner_id: req.owner_id }),
-  });
-
-  await supabaseRest(`payment_requests?id=eq.${req.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: 'disetujui', paid_at: now.toISOString() }),
   });
 
   return { statusCode: 200, body: 'ok' };
