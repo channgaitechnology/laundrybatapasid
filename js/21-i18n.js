@@ -399,8 +399,6 @@ const I18N_EN = {
   'Laundry masuk tercatat': 'Laundry drop-off logged',
   'Isi nama layanan dulu': 'Please enter the service name first',
   'Isi qty dan harga layanan': 'Enter the service qty and price',
-  'Gagal menambah layanan': 'Failed to add service',
-  'Layanan tambahan dicatat': 'Extra service logged',
   'Tambahkan minimal 1 layanan dulu': 'Add at least 1 service first',
   'Gagal menyimpan salah satu layanan, coba lagi': 'Failed to save one of the services, please try again',
   'Layanan tercatat': 'Services logged',
@@ -620,6 +618,8 @@ const I18N_EN = {
   'Simpan Pengaturan': 'Save Settings',
   'Pengaturan disimpan': 'Settings saved',
   'Toko Laundry Saya': 'My Laundry Shop',
+  'Logo Toko': 'Shop Logo',
+  'Logo toko': 'Shop logo',
   'Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.':
     'When on, marking a job "Done" on the Task Board instantly opens WhatsApp with a ready-to-send message to the customer (you still tap "Send" in WhatsApp — browsers can\'t send automatically without that). When off, a "Send Notification" button appears manually on each Done card instead.',
   'Kirim notifikasi WA otomatis saat Selesai': 'Auto-send WhatsApp notification when Done',
@@ -1037,7 +1037,6 @@ const I18N_EN = {
   'Kirim Rekap': 'Send Recap',
   'Unduh / Bagikan Rekap (JPG)': 'Download / Share Recap (JPG)',
   'Isi nama pelanggan dulu': 'Fill in the customer name first',
-  'Belum ada transaksi ditemukan untuk nama itu': 'No transactions found for that name yet',
   'REKAP TRANSAKSI PELANGGAN': 'CUSTOMER TRANSACTION RECAP',
   'Rekap transaksi': 'Transaction recap',
   'No. WhatsApp pelanggan belum diisi di transaksi manapun': "Customer's WhatsApp number isn't filled in on any of their transactions",
@@ -1085,7 +1084,7 @@ function translateStaticDOM(root){
     n.nodeValue = raw.slice(0, start) + translated + raw.slice(start + trimmed.length);
   });
 
-  const ATTRS = ['placeholder', 'aria-label', 'title', 'data-placeholder'];
+  const ATTRS = ['placeholder', 'aria-label', 'title', 'data-placeholder', 'alt'];
   const all = root.querySelectorAll('*');
   all.forEach(el=>{
     ATTRS.forEach(attr=>{

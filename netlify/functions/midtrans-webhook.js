@@ -27,7 +27,15 @@ function verifySignature(body, serverKey) {
     .createHash('sha512')
     .update(String(body.order_id) + String(body.status_code) + String(body.gross_amount) + serverKey)
     .digest('hex');
-  return expected === body.signature_key;
+  // Bandingkan pakai timingSafeEqual (bukan ===) -- jaga-jaga terhadap timing
+  // attack (durasi perbandingan string biasa bisa sedikit bocorkan di
+  // karakter mana perbedaannya terjadi). timingSafeEqual WAJIB panjang buffer
+  // sama, jadi cek panjang dulu (aman -- SHA512 hex selalu tepat 128 karakter,
+  // bukan info yang bisa dimanfaatkan penyerang).
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from(String(body.signature_key || ''), 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
 }
 
 async function supabaseRest(path, options) {

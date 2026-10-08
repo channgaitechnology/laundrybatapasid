@@ -120,6 +120,37 @@ await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan me
   }
 });
 
+await step('midtrans-create-transaction: method selain POST ditolak 405', async () => {
+  const res = await createTransactionHandler({ httpMethod: 'GET', body: '{}' });
+  assert.strictEqual(res.statusCode, 405, 'method GET harus ditolak 405, got: ' + res.statusCode);
+});
+
+await step('midtrans-create-transaction: gagal insert payment_requests atau gagal panggil Midtrans Snap API harus balas 502 (bukan crash/500 polos)', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    // payment_requests insert gagal (mis. Supabase down/error) -- harus 502 dengan detail, TIDAK lanjut ke Midtrans sama sekali.
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'owner-1' }) };
+      if (String(url).includes('/rest/v1/payment_requests')) return { ok: false, status: 500, text: async () => 'db down' };
+      throw new Error('unexpected fetch to ' + url + ' -- Midtrans Snap TIDAK BOLEH dipanggil kalau insert payment_requests saja sudah gagal');
+    };
+    const insertFailRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-owner-1' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(insertFailRes.statusCode, 502, 'insert payment_requests gagal harus balas 502, got: ' + insertFailRes.statusCode + ' ' + insertFailRes.body);
+
+    // payment_requests insert sukses, tapi Midtrans Snap API gagal/balas tanpa redirect_url -- harus 502.
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'owner-1' }) };
+      if (String(url).includes('/rest/v1/payment_requests')) return { ok: true, json: async () => ([{ id: 1 }]) };
+      if (String(url).includes('sandbox.midtrans.com')) return { ok: false, json: async () => ({ error_messages: ['server key salah'] }) };
+      throw new Error('unexpected fetch to ' + url);
+    };
+    const snapFailRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-owner-1' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(snapFailRes.statusCode, 502, 'Midtrans Snap API gagal harus balas 502, got: ' + snapFailRes.statusCode + ' ' + snapFailRes.body);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 await step('midtrans-create-transaction: REGRESI keamanan -- menolak request tanpa token login, token tidak valid, atau token milik user yang bukan pemilik/kasir toko itu', async () => {
   const originalFetch = globalThis.fetch;
   try {

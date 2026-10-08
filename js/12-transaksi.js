@@ -76,7 +76,12 @@ document.getElementById('inStatus').addEventListener('change', function(){
   const total = Math.max(subtotal - diskon, 0);
   const dpEl = document.getElementById('inDP');
   const dp = parseFloat(dpEl.value) || 0;
-  if(total>0 && dp===total) dpEl.value = '0';
+  // Math.round() di kedua sisi -- total/dp bisa punya residu floating-point kecil
+  // (mis. dari qty kg desimal berulang: 2.33*8500 = 19805.00000000002) yang bikin
+  // perbandingan persis (===) gagal mendeteksi "sebenarnya sama", padahal submitTransaction()
+  // (dp>=total di bawah) sudah dibulatkan juga -- harus konsisten, kalau tidak listener ini
+  // gagal membersihkan DP padahal auto-promote tetap jalan, membalikkan pilihan "Belum Lunas".
+  if(total>0 && Math.round(dp)===Math.round(total)) dpEl.value = '0';
 });
 
 /* ===================== SUBMIT TRANSAKSI (tambah / edit) ===================== */
@@ -113,7 +118,7 @@ async function submitTransaction(){
      "Belum Lunas" tapi Sudah Dibayar-nya sudah pas dengan totalnya -- padahal
      keduanya sama-sama benar, cuma status-nya yang ketinggalan. */
   let autoPromotedToLunas = false;
-  if(status==='belum' && total>0 && dp>=total){
+  if(status==='belum' && total>0 && Math.round(dp)>=Math.round(total)){
     status = 'lunas';
     autoPromotedToLunas = true;
   }

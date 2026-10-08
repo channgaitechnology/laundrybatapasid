@@ -290,7 +290,7 @@ async function refreshSubsDetail(){
   const sisaKg = Math.max(s.kuotaKg - terpakai, 0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   const extraList = currentUsageList.filter(u=>u.type==='layanan_tambahan');
   const extraTotal = extraList.reduce((sum,u)=>sum+u.subtotal,0);
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
@@ -356,7 +356,7 @@ function subscriptionOutstanding(s){
   const extraTotal = usage.filter(u=>u.type==='layanan_tambahan').reduce((sum,u)=>sum+u.subtotal,0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
   return Math.max(totalTagihan - (s.dp||0), 0);
 }
@@ -370,7 +370,7 @@ function subscriptionOutstandingBreakdown(s){
   const terpakai = usage.filter(u=>u.type==='pemakaian').reduce((sum,u)=>sum+u.berat,0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   return { groups: groupExtrasIntoTransactions(extras), excessKg, excessCost, dp: s.dp||0, outstanding: subscriptionOutstanding(s) };
 }
 /* Kelompokkan baris layanan_tambahan (Tempo) yang dicatat SEKALIGUS dalam satu
