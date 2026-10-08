@@ -132,6 +132,7 @@ const I18N_EN = {
   'Kosongkan untuk trial 30 hari gratis': 'Leave blank for a free 30-day trial',
   'Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin?': 'Sign up now to start your free 30-day trial. Already paid and have a code from the admin?',
   'Lihat cara daftar & bayar': 'See how to sign up & pay',
+  'Pakai email aktif yang bisa kamu buka -- nanti ada link konfirmasi yang wajib diklik dulu sebelum bisa masuk.': "Use an active email you can access -- you'll get a confirmation link you must click before you can log in.",
   'nama@email.com': 'name@email.com',
   'Password': 'Password',
   'Minimal 6 karakter': 'At least 6 characters',

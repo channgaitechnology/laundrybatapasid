@@ -1352,6 +1352,14 @@ const result = await page.evaluate(async () => {
     if (getComputedStyle(document.getElementById('authTosField')).display !== 'none' || document.getElementById('authTosCheck').checked) throw new Error('balik ke mode Masuk harus menyembunyikan & mereset checkbox S&K');
   });
 
+  await step('setAuthMode(): info "pakai email aktif" di field Email cuma tampil di mode Daftar (bukan Masuk) -- mengingatkan user supaya bisa terima & klik link konfirmasi, tanpa bikin layar Masuk jadi berantakan', () => {
+    setAuthMode('masuk');
+    if (getComputedStyle(document.getElementById('authEmailHint')).display !== 'none') throw new Error('info email aktif seharusnya tersembunyi di mode Masuk (tidak relevan, user ini sudah terkonfirmasi)');
+    setAuthMode('daftar');
+    if (getComputedStyle(document.getElementById('authEmailHint')).display === 'none') throw new Error('info email aktif harus tampil di mode Daftar');
+    setAuthMode('masuk');
+  });
+
   await step('submitNewPassword(): field konfirmasi wajib cocok dengan password baru sebelum updateUser() dipanggil -- mencegah salah ketik password tanpa sadar karena tidak ada tombol lihat password', async () => {
     const originalAuth = { updateUser: sb.auth.updateUser };
     let updateUserCalled = false;

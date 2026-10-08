@@ -17,6 +17,7 @@ function setAuthMode(mode){
   document.getElementById('authSubmitBtn').textContent = mode==='masuk' ? t('Masuk') : t('Daftar');
   document.getElementById('authMsg').textContent = '';
   document.getElementById('regCodeField').style.display = mode==='daftar' ? 'block' : 'none';
+  document.getElementById('authEmailHint').style.display = mode==='daftar' ? 'block' : 'none';
   document.getElementById('authTosField').style.display = mode==='daftar' ? 'flex' : 'none';
   document.getElementById('authTosCheck').checked = false;
 }
