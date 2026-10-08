@@ -491,11 +491,13 @@ with check (auth.role() = 'authenticated');
 
 ⚠️ RLS di atas sengaja permisif (siapa saja yang login bisa ubah lewat
 API langsung) — proteksinya murni di level UI (form "Footer Nota" cuma
-tampil untuk `ADMIN_EMAIL`), sama seperti model kepercayaan yang sudah
-dipakai `registration_codes`/`payment_requests` di app ini. Risikonya
-rendah (satu baris teks footer, bukan data keuangan), tapi kalau mau
-lebih ketat, tulis ulang policy `for all` di atas supaya cuma mengizinkan
-`auth.uid()` milik akun admin tertentu.
+tampil untuk `ADMIN_EMAIL`). Risikonya rendah (satu baris teks footer,
+bukan data keuangan), tapi kalau mau lebih ketat, tulis ulang policy
+`for all` di atas supaya cuma mengizinkan `auth.uid()` milik akun admin
+tertentu. (Catatan: `registration_codes`/`payment_requests` TIDAK pakai
+model permisif seperti ini — keduanya dibatasi admin-only + beberapa
+policy sempit per-pemilik, lihat bagian "RLS `registration_codes` &
+`payment_requests`" di bawah.)
 
 Aman dijalankan kapan saja — kalau tabelnya belum ada, `loadAppBranding()`
 diam-diam gagal dan tetap pakai nilai default (persis sama seperti
@@ -594,6 +596,71 @@ Aman dijalankan kapan saja — kalau migrasi ini belum dijalankan,
 `nextKode()` otomatis balik ke cara lama (panjang array) supaya app tetap
 bisa dipakai, TAPI risiko nomor kembar di atas tetap ada sampai migrasi
 ini benar-benar dijalankan. Jalankan migrasi ini **sesegera mungkin**.
+
+## Email Auth Supabase (konfirmasi daftar & lupa password)
+
+Dua masalah nyata yang pernah terjadi di produksi, dan cara setelnya:
+
+### 1. Site URL / Redirect URLs (link di email mengarah ke `localhost:3000`)
+
+Supabase Dashboard → **Authentication → URL Configuration**:
+- **Site URL**: `https://laundryassist.netlify.app` (BUKAN `http://localhost:3000`
+  yang jadi default bawaan Supabase).
+- **Redirect URLs**: tambahkan `https://laundryassist.netlify.app/**`.
+
+Tanpa ini, link konfirmasi/reset password yang dikirim ke email user akan
+mencoba redirect ke `localhost:3000` dan gagal dibuka (`ERR_CONNECTION_REFUSED`)
+di perangkat user — meski proses konfirmasinya sendiri sebenarnya SUDAH
+berhasil di server Supabase sebelum redirect itu dicoba (Supabase memproses
+& menandai email terkonfirmasi SAAT link diklik, baru PALING AKHIR mencoba
+redirect ke Site URL). Jadi dampaknya murni UX membingungkan, bukan bug
+keamanan.
+
+### 2. Jatah kirim email bawaan Supabase cuma 2/jam SE-PROJECT
+
+Selama belum pasang Custom SMTP, Supabase membatasi **2 email per jam untuk
+SELURUH project** (bukan per user) untuk email konfirmasi/lupa password/dll
+— gampang kena "email rate limit exceeded" kalau lebih dari 2 user butuh
+email dalam jam yang sama. Ini SELALU harus diperbaiki sebelum serius
+dipakai banyak toko (komersil).
+
+**Solusi yang dipakai sekarang (cukup untuk skala saat ini, gratis, tanpa
+perlu domain sendiri)**: Custom SMTP lewat akun Gmail pribadi, limit naik
+jadi 500 email/24 jam. Setelannya di Supabase Dashboard →
+**Authentication → Emails → SMTP Settings**:
+
+| Field | Nilai |
+|---|---|
+| Sender email address | alamat Gmail yang dipakai (harus SAMA PERSIS dengan Username di bawah, tidak bisa alias) |
+| Sender name | `Dokter Laundry` (atau nama lain) |
+| Host | `smtp.gmail.com` |
+| Port number | `587` |
+| Username | alamat Gmail yang sama dengan Sender email |
+| Password | **App Password** 16 karakter (BUKAN password Gmail biasa) — dibuat di https://myaccount.google.com/apppasswords, setelah Verifikasi 2 Langkah diaktifkan di https://myaccount.google.com/security |
+
+Supabase akan menampilkan peringatan kuning ("designed for sending personal
+rather than transactional email messages") saat Host diisi `smtp.gmail.com`
+— ini cuma peringatan soal potensi deliverability (bisa lebih sering masuk
+folder Spam dibanding provider transaksional khusus), BUKAN error yang
+menghalangi Save. Sudah diuji nyata (7 Oktober 2026): email masuk Kotak
+Masuk Gmail, bukan Spam.
+
+**Kalau skala makin besar / mulai banyak komplain email masuk Spam**: upgrade
+ke Resend (sudah dipakai juga untuk notifikasi admin, lihat bagian
+"Notifikasi Email untuk Permintaan Baru" di bawah) sebagai Custom SMTP, limit
+naik ke 30+/jam dengan deliverability jauh lebih baik — TAPI mensyaratkan
+**domain terverifikasi sendiri** (SPF/DKIM via DNS, lihat dashboard Resend →
+Domains). `laundryassist.netlify.app` TIDAK BISA diverifikasi untuk ini
+karena itu subdomain milik Netlify, bukan domain yang DNS-nya dikuasai
+sendiri — perlu beli domain sendiri dulu (bisa langsung lewat menu "Domain
+management" di dashboard Netlify, atau registrar manapun).
+
+### 3. Template isi email masih default (Bahasa Inggris)
+
+Isi email konfirmasi/reset password masih pakai template bawaan Supabase
+dalam Bahasa Inggris, belum disesuaikan ke Bahasa Indonesia seperti app-nya.
+Bisa diedit di **Authentication → Emails → Templates** kapan saja — belum
+dikerjakan karena belum diminta.
 
 ## Integrasi Pembayaran Otomatis (Midtrans) — perpanjangan langganan
 
@@ -748,6 +815,64 @@ Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
 klik "Sudah Transfer Manual" di app — email harus masuk ke
 `ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
 
+## RLS `registration_codes` & `payment_requests`
+
+Ditemukan lewat audit (7 Oktober 2026): kedua tabel ini di Supabase ternyata
+sudah dibatasi admin-only (`using ((auth.jwt()->>'email') = 'mukhlispertama@gmail.com')`
+untuk SELECT/UPDATE `payment_requests` dan SELECT/UPDATE/INSERT/DELETE
+`registration_codes`) — **TIDAK ada policy INSERT untuk `payment_requests`
+sama sekali**, dan **TIDAK ada policy INSERT/SELECT untuk `registration_codes`
+selain milik admin**. Akibatnya 3 fitur ini diam-diam GAGAL total di
+produksi (dites langsung lewat REST API, bukan tebakan):
+
+1. **"Daftar baru" & "Ajukan Perpanjangan"** (insert manual ke
+   `payment_requests` dari browser, `js/02-init-data.js`/`js/03-langganan.js`)
+   — ditolak RLS (jalur "Bayar Otomatis" Midtrans AMAN, lewat Service Role
+   Key yang melewati RLS).
+2. **Generate kode referral milik sendiri** (`getOrCreateReferralCode()`,
+   `js/03-langganan.js`) — INSERT dan SELECT balik baris sendiri ditolak RLS.
+3. **Lookup `referrer_owner_id` saat signup pakai kode referral**
+   (`js/01-auth.js`) — SELECT langsung ke tabel ditolak RLS untuk user yang
+   belum login (anon), jadi atribusi referral diam-diam selalu gagal.
+
+Jalankan sekali di Supabase SQL Editor:
+
+```sql
+-- payment_requests: insert boleh dari siapa saja (anon maupun login) --
+-- cuma bikin baris "menunggu", SELECT tetap admin-only seperti sekarang.
+create policy "Siapa saja boleh mengajukan permintaan pembayaran baru" on payment_requests
+  for insert
+  with check (true);
+
+-- registration_codes: owner boleh INSERT+SELECT kode referral MILIKNYA
+-- SENDIRI saja (tidak bisa lihat/buat kode orang lain atau kode admin).
+create policy "Pemilik toko bisa baca kode referral miliknya sendiri" on registration_codes
+  for select
+  using (referrer_owner_id = auth.uid());
+
+create policy "Pemilik toko bisa buat kode referral miliknya sendiri" on registration_codes
+  for insert
+  with check (referrer_owner_id = auth.uid());
+
+-- Lookup referrer_owner_id saat signup (anon) TIDAK lewat SELECT langsung
+-- (supaya anon tidak bisa enumerasi semua kode termasuk kode admin yang
+-- belum terpakai) -- lewat function sempit ini saja, cuma balikin
+-- referrer_owner_id utk SATU kode yang cocok & masih aktif.
+create or replace function get_registration_code_referrer(p_code text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select referrer_owner_id from registration_codes where code = p_code and status = 'aktif';
+$$;
+
+grant execute on function get_registration_code_referrer(text) to anon, authenticated;
+```
+
+`js/01-auth.js` sudah diupdate memanggil `get_registration_code_referrer`
+(RPC) ini, bukan `select()` langsung ke `registration_codes`, lagi.
+
 ## Program Referral (bagikan & dapat bonus 15 hari)
 
 Tombol **"🎁 Bagikan dan Dapat Bonus"** — sengaja ditaruh sebagai bar
@@ -795,8 +920,10 @@ as $$
 declare
   v_referrer_id uuid;
   v_claimed boolean;
+  v_status text;
 begin
-  select referred_by_owner_id, referral_bonus_claimed into v_referrer_id, v_claimed
+  select referred_by_owner_id, referral_bonus_claimed, status
+    into v_referrer_id, v_claimed, v_status
   from app_subscriptions
   where owner_id = p_owner_id
   for update;
@@ -804,6 +931,24 @@ begin
   -- Bukan akun hasil referral, atau bonusnya sudah pernah diklaim
   -- sebelumnya (mis. perpanjangan kedua kalinya) -- diamkan, no-op.
   if v_referrer_id is null or v_claimed then
+    return;
+  end if;
+
+  -- Perbaikan keamanan (7 Okt 2026, ditemukan lewat audit): function ini
+  -- TIDAK percaya begitu saja ke pemanggil bahwa "pembayaran sudah
+  -- terjadi" -- diverifikasi sendiri lewat status='aktif' (cuma bisa
+  -- begini kalau approveRenewalRequest()/midtrans-webhook.js SUDAH
+  -- berhasil mengaktifkan baris ini LEBIH DULU, lihat urutan panggilan di
+  -- kode kedua file itu). Tanpa pengecekan ini, siapa pun yang login bisa
+  -- panggil RPC ini lewat console browser untuk owner_id mana pun yang
+  -- masih 'trial' dan dapat bonus 15 hari gratis tanpa pernah bayar
+  -- (berkali-kali lewat akun dummy pakai kode referral sendiri).
+  if v_status is distinct from 'aktif' then
+    return;
+  end if;
+
+  -- Cegah self-referral supaya tidak dobel +30 hari dari 1 pemanggilan.
+  if v_referrer_id = p_owner_id then
     return;
   end if;
 

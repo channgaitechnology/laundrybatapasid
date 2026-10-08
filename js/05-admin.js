@@ -237,15 +237,33 @@ async function approvePaymentRequest(id){
   const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code }).eq('id', id);
   if(e2){ showToast(t('Kode dibuat tapi gagal update status permintaan')); }
   await loadAdminData();
-  const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
+  const waNum = normalizePhone(req.wa);
   const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('pembayaranmu sudah diverifikasi')} ✅\n\n${t('Kode pendaftaran kamu:')} *${code}*\n\n${t('Masukkan kode ini saat mendaftar akun baru di aplikasi. Terima kasih!')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
 }
 async function approveRenewalRequest(id){
   const req = paymentReqCache.find(r=>r.id===id);
   if(!req || !req.owner_id) return;
-  const { data: existing } = await sb.from('app_subscriptions').select('*').eq('owner_id', req.owner_id).maybeSingle();
   const now = new Date();
+  /* KLAIM atomik -- UPDATE bersyarat status='menunggu' ini SEKALIGUS jadi
+     "kunci" baris ini supaya tidak ikut diproses lagi oleh pemanggil lain.
+     Mencegah race condition dengan netlify/functions/midtrans-webhook.js:
+     kalau pembayaran yang sama kebetulan baru saja diproses otomatis lewat
+     Midtrans (atau admin lain sudah klik "Setujui" duluan) SAAT tombol ini
+     diklik, update di sini akan mengenai 0 baris (status sudah bukan
+     'menunggu' lagi) -- berhenti di sini, SEBELUM sempat menyentuh
+     app_subscriptions sama sekali, supaya paid_until tidak diperpanjang
+     dobel dari 1 pembayaran. */
+  const { data: claimed, error: claimErr } = await sb.from('payment_requests')
+    .update({ status:'disetujui', paid_at: now.toISOString() })
+    .eq('id', id).eq('status','menunggu').select();
+  if(claimErr){ showToast(t('Gagal mengaktifkan langganan')); return; }
+  if(!claimed || claimed.length===0){
+    showToast(t('Permintaan ini sudah diproses sebelumnya (mungkin lewat Bayar Otomatis)'));
+    await loadAdminData();
+    return;
+  }
+  const { data: existing } = await sb.from('app_subscriptions').select('*').eq('owner_id', req.owner_id).maybeSingle();
   const base = (existing && existing.paid_until && new Date(existing.paid_until) > now) ? new Date(existing.paid_until) : now;
   const planDays = renewalPlanDaysFor(req);
   const newPaidUntil = new Date(base.getTime() + planDays*24*60*60*1000).toISOString();
@@ -262,10 +280,8 @@ async function approveRenewalRequest(id){
      ngapa-ngapain kalau baris app_subscriptions akun ini memang punya
      referred_by_owner_id & belum pernah diklaim; selain itu no-op. */
   try{ await sb.rpc('apply_referral_bonus_if_pending', { p_owner_id: req.owner_id }); }catch(e){}
-  const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui' }).eq('id', id);
-  if(e2){ showToast(t('Langganan aktif tapi gagal update status permintaan')); }
   await loadAdminData();
-  const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
+  const waNum = normalizePhone(req.wa);
   const masaAktifTxt = planDays >= LIFETIME_DAYS_THRESHOLD
     ? t('Langganan kamu aktif SEUMUR HIDUP, tidak pernah kedaluwarsa.')
     : `${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}.`;
@@ -322,7 +338,7 @@ async function initUserData(){
 async function loadSettingsFromDB(){
   const { data, error } = await sb.from('settings').select('*').eq('user_id', shopOwnerId).maybeSingle();
   if(data){
-    settings = { shopName:data.shop_name||'Toko Laundry Saya', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
+    settings = { shopName:data.shop_name||t('Toko Laundry Saya'), address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
   }
 }
 async function loadTransactionsFromDB(){

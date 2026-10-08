@@ -128,14 +128,14 @@ function downloadReportPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
   const monthInput = document.getElementById('reportMonth');
   const ym = monthInput.value || todayISO().slice(0,7);
-  const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
+  const list = sortByTanggalAsc(visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
   const totalOmzet = list.reduce((s,t)=>s+t.total,0);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
   const colX = { kode:14, tgl:44, nama:72, status:138, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
+  doc.text(settings.shopName || t('Toko Laundry Saya'), 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);

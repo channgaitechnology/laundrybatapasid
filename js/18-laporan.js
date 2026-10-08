@@ -20,7 +20,7 @@ function renderReport(){
      dipotong sesuai bulan yang sedang dipilih), sama seperti "Sisa Bayar"
      yang tampil di halaman detail pelanggan itu sendiri. */
   const totalBelumLangganan = visibleReportSubscriptions().reduce((sum,s)=>sum+subscriptionOutstanding(s), 0);
-  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+(t.total-trxCashReceived(t)),0) + totalBelumLangganan;
+  const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+Math.max(t.total-trxCashReceived(t),0),0) + totalBelumLangganan;
 
   document.getElementById('stTrx').textContent = totalTrx;
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
@@ -94,35 +94,6 @@ function renderOmzetTrend(ym){
   });
   bars.innerHTML = barsHTML;
   labels.innerHTML = labelsHTML;
-}
-function printReport(){
-  const monthInput = document.getElementById('reportMonth');
-  const ym = monthInput.value;
-  const list = sortByTanggalAsc(transactions.filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym));
-  const totalOmzet = list.reduce((s,t)=>s+t.total,0);
-  const rows = list.map(trx=>`
-    <tr>
-      <td>${trx.kode}</td><td>${fmtDate(trx.tanggal)}</td><td>${escapeHTML(trx.nama)}</td>
-      <td>${trx.status==='lunas'?t('Lunas'):t('Belum Lunas')}</td><td style="text-align:right;">${rupiah(trx.total)}</td>
-    </tr>`).join('');
-  document.getElementById('printArea').innerHTML = `
-    <div style="font-family:'Inter',sans-serif;padding:24px;max-width:700px;margin:0 auto;">
-      <h2 style="font-family:'Sora',sans-serif;margin-bottom:2px;">${escapeHTML(settings.shopName||'Toko Laundry Saya')}</h2>
-      <p style="color:#555;margin-top:0;">${t('Laporan Transaksi')} — ${ym}</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead><tr style="border-bottom:2px solid #333;text-align:left;">
-          <th style="padding:6px 4px;">${t('No. Nota')}</th><th style="padding:6px 4px;">${t('Tanggal')}</th>
-          <th style="padding:6px 4px;">${t('Pelanggan')}</th><th style="padding:6px 4px;">${t('Status')}</th>
-          <th style="padding:6px 4px;text-align:right;">${t('Total')}</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr style="border-top:2px solid #333;font-weight:700;">
-          <td colspan="4" style="padding:8px 4px;">${t('Total Omzet')}</td>
-          <td style="padding:8px 4px;text-align:right;">${rupiah(totalOmzet)}</td>
-        </tr></tfoot>
-      </table>
-    </div>`;
-  window.print();
 }
 document.getElementById('reportMonth').addEventListener('change', renderReport);
 
@@ -234,7 +205,7 @@ function renderPerPelangganReport(){
      diterima (termasuk DP dari transaksi yang masih "Belum Lunas"), bukan
      cuma total transaksi berstatus lunas -- lihat trxCashReceived(). */
   const totalLunas = list.reduce((s,t)=>s+trxCashReceived(t),0);
-  const totalBelum = belumTrxList.reduce((s,t)=>s+(t.total-trxCashReceived(t)),0) + subsOutstandingTotal;
+  const totalBelum = belumTrxList.reduce((s,t)=>s+Math.max(t.total-trxCashReceived(t),0),0) + subsOutstandingTotal;
 
   document.getElementById('perStTrx').textContent = totalTrx;
   document.getElementById('perStOmzet').textContent = rupiah(totalOmzet);
@@ -261,7 +232,7 @@ function renderPerPelangganReport(){
     const belumTrxHTML = belumTrxList.slice().reverse().map(trx=>`
       <div class="item-line" style="align-items:center;">
         <span>${fmtDate(trx.tanggal)} — ${trx.kode}</span>
-        <span>${rupiah(trx.total-trxCashReceived(trx))}</span>
+        <span>${rupiah(Math.max(trx.total-trxCashReceived(trx),0))}</span>
       </div>
     `).join('');
     const subsHTML = subsBreakdowns.map(x=>subsOutstandingBlockHTML(x.s, x.bd)).join('');
@@ -288,7 +259,7 @@ function downloadPerPelangganPDF(){
   const colX = { kode:14, tgl:50, status:130, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
+  doc.text(settings.shopName || t('Toko Laundry Saya'), 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
@@ -340,7 +311,7 @@ function downloadPerPelangganPDF(){
   sectionTitle(t('Belum Lunas'));
   colHeader();
   let anyBelum = false;
-  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), trx.total-trxCashReceived(trx)); });
+  belumTrxList.forEach(trx=>{ anyBelum = true; row(trx.kode, trx.tanggal, t('Belum Lunas'), Math.max(trx.total-trxCashReceived(trx),0)); });
   subsBreakdowns.forEach(({ s, bd })=>{
     bd.groups.forEach(g=>{
       anyBelum = true;
@@ -446,7 +417,7 @@ function downloadLabaRugiPDF(){
   const doc = new jsPDF({ unit:'mm', format:'a4' });
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
+  doc.text(settings.shopName || t('Toko Laundry Saya'), 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);
@@ -547,7 +518,7 @@ function downloadPeringkatPelangganPDF(){
   const colX = { no:14, nama:26, count:140, total:196 };
 
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text(settings.shopName || 'Toko Laundry Saya', 14, 16);
+  doc.text(settings.shopName || t('Toko Laundry Saya'), 14, 16);
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   if(settings.address) doc.text(settings.address, 14, 22);
   doc.setFontSize(11);

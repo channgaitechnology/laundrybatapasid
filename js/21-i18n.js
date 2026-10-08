@@ -25,6 +25,7 @@ const I18N_EN = {
   'Buka': 'Open',
   'File tidak ditemukan': 'File not found',
   'Bagikan': 'Share',
+  'Tutup': 'Close',
   'Berbagi file tidak didukung browser ini -- file diunduh ulang ke folder Download sebagai gantinya.': "Sharing isn't supported on this browser -- the file was downloaded to your Downloads folder instead.",
 
   /* ---------- Tab bar ---------- */
@@ -132,6 +133,7 @@ const I18N_EN = {
   'Kosongkan untuk trial 30 hari gratis': 'Leave blank for a free 30-day trial',
   'Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin?': 'Sign up now to start your free 30-day trial. Already paid and have a code from the admin?',
   'Lihat cara daftar & bayar': 'See how to sign up & pay',
+  'Pakai email aktif yang bisa kamu buka -- nanti ada link konfirmasi yang wajib diklik dulu sebelum bisa masuk.': "Use an active email you can access -- you'll get a confirmation link you must click before you can log in.",
   'nama@email.com': 'name@email.com',
   'Password': 'Password',
   'Minimal 6 karakter': 'At least 6 characters',
@@ -143,19 +145,22 @@ const I18N_EN = {
   'Atur Password Baru': 'Set New Password',
   'Masukkan password baru untuk akunmu.': 'Enter a new password for your account.',
   'Password Baru': 'New Password',
+  'Ulangi Password Baru': 'Confirm New Password',
+  'Ketik ulang password baru': 'Re-type your new password',
   'Simpan Password Baru': 'Save New Password',
   'Isi email dan password terlebih dahulu': 'Please fill in your email and password first',
   'Password minimal 6 karakter': 'Password must be at least 6 characters',
+  'Konfirmasi password tidak cocok, ketik ulang dengan benar': 'Password confirmation doesn\'t match — please re-type it',
   'Memproses...': 'Processing...',
   'Kode pendaftaran tidak valid atau sudah dipakai': 'Registration code is invalid or already used',
-  'Akun dibuat! Cek email untuk konfirmasi, lalu masuk.': 'Account created! Check your email to confirm, then log in.',
-  'Akun dibuat! Cek email untuk konfirmasi, lalu masuk. Trial 30 hari akan aktif otomatis.': 'Account created! Check your email to confirm, then log in. Your free 30-day trial will start automatically.',
+  'Akun dibuat! Cek email untuk konfirmasi (termasuk folder Spam/Promosi kalau tidak kelihatan), lalu masuk.': 'Account created! Check your email to confirm (including your Spam/Promotions folder if you don\'t see it), then log in.',
+  'Akun dibuat! Cek email untuk konfirmasi (termasuk folder Spam/Promosi kalau tidak kelihatan), lalu masuk. Trial 30 hari akan aktif otomatis.': 'Account created! Check your email to confirm (including your Spam/Promotions folder if you don\'t see it), then log in. Your free 30-day trial will start automatically.',
   'Email atau password salah': 'Incorrect email or password',
   'Email sudah terdaftar, coba menu Masuk': 'Email is already registered — try Log In instead',
   'Terlalu banyak percobaan, coba lagi beberapa saat': 'Too many attempts, please try again shortly',
   'Isi email terlebih dahulu': 'Please enter your email first',
   'Mengirim...': 'Sending...',
-  'Link reset password sudah dikirim, cek email kamu.': 'Password reset link sent — check your email.',
+  'Link reset password sudah dikirim -- cek email kamu (termasuk folder Spam/Promosi kalau tidak kelihatan).': 'Password reset link sent -- check your email (including your Spam/Promotions folder if you don\'t see it).',
   'Menyimpan...': 'Saving...',
   'Password berhasil diganti!': 'Password changed successfully!',
 
@@ -394,8 +399,6 @@ const I18N_EN = {
   'Laundry masuk tercatat': 'Laundry drop-off logged',
   'Isi nama layanan dulu': 'Please enter the service name first',
   'Isi qty dan harga layanan': 'Enter the service qty and price',
-  'Gagal menambah layanan': 'Failed to add service',
-  'Layanan tambahan dicatat': 'Extra service logged',
   'Tambahkan minimal 1 layanan dulu': 'Add at least 1 service first',
   'Gagal menyimpan salah satu layanan, coba lagi': 'Failed to save one of the services, please try again',
   'Layanan tercatat': 'Services logged',
@@ -614,6 +617,9 @@ const I18N_EN = {
   'Terima kasih telah menggunakan jasa laundry kami': 'Thank you for using our laundry service',
   'Simpan Pengaturan': 'Save Settings',
   'Pengaturan disimpan': 'Settings saved',
+  'Toko Laundry Saya': 'My Laundry Shop',
+  'Logo Toko': 'Shop Logo',
+  'Logo toko': 'Shop logo',
   'Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.':
     'When on, marking a job "Done" on the Task Board instantly opens WhatsApp with a ready-to-send message to the customer (you still tap "Send" in WhatsApp — browsers can\'t send automatically without that). When off, a "Send Notification" button appears manually on each Done card instead.',
   'Kirim notifikasi WA otomatis saat Selesai': 'Auto-send WhatsApp notification when Done',
@@ -758,7 +764,7 @@ const I18N_EN = {
   'Isi diskon kalau ada, isi': 'Enter a discount if there is one, and fill in',
   'kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang':
     'if the customer is only paying part now, then choose Paid/Unpaid — if the deposit is more than the total due, the extra is neatly recorded automatically, never lost',
-  '— nota langsung muncul, siap dikirim ke WhatsApp pelanggan atau diunduh sebagai gambar/PDF': '— the receipt appears instantly, ready to send to the customer on WhatsApp or download as an image/PDF',
+  '— nota langsung muncul, siap dikirim ke WhatsApp pelanggan, diunduh sebagai gambar/PDF, atau langsung dicetak ke printer thermal (Bluetooth atau AirPrint/printer lain, kalau sudah disambungkan lewat Pengaturan → Printer Bluetooth)': '— the receipt appears instantly, ready to send to the customer on WhatsApp, download as an image/PDF, or print directly to a thermal printer (Bluetooth or AirPrint/other printer, once connected via Settings → Bluetooth Printer)',
   '2️⃣ Riwayat & Edit Transaksi': '2️⃣ History & Editing Transactions',
   'untuk lihat semua transaksi, termasuk statistik lunas/belum hari ini': "tab to see every transaction, including today's paid/unpaid stats",
   'Ketuk kolom cari untuk temukan transaksi dari nama pelanggan atau nomor nota tertentu': 'Tap the search field to find a transaction by customer name or receipt number',
@@ -1031,7 +1037,6 @@ const I18N_EN = {
   'Kirim Rekap': 'Send Recap',
   'Unduh / Bagikan Rekap (JPG)': 'Download / Share Recap (JPG)',
   'Isi nama pelanggan dulu': 'Fill in the customer name first',
-  'Belum ada transaksi ditemukan untuk nama itu': 'No transactions found for that name yet',
   'REKAP TRANSAKSI PELANGGAN': 'CUSTOMER TRANSACTION RECAP',
   'Rekap transaksi': 'Transaction recap',
   'No. WhatsApp pelanggan belum diisi di transaksi manapun': "Customer's WhatsApp number isn't filled in on any of their transactions",
@@ -1079,7 +1084,7 @@ function translateStaticDOM(root){
     n.nodeValue = raw.slice(0, start) + translated + raw.slice(start + trimmed.length);
   });
 
-  const ATTRS = ['placeholder', 'aria-label', 'title', 'data-placeholder'];
+  const ATTRS = ['placeholder', 'aria-label', 'title', 'data-placeholder', 'alt'];
   const all = root.querySelectorAll('*');
   all.forEach(el=>{
     ATTRS.forEach(attr=>{

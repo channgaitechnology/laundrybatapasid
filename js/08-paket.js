@@ -290,7 +290,7 @@ async function refreshSubsDetail(){
   const sisaKg = Math.max(s.kuotaKg - terpakai, 0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   const extraList = currentUsageList.filter(u=>u.type==='layanan_tambahan');
   const extraTotal = extraList.reduce((sum,u)=>sum+u.subtotal,0);
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
@@ -356,7 +356,7 @@ function subscriptionOutstanding(s){
   const extraTotal = usage.filter(u=>u.type==='layanan_tambahan').reduce((sum,u)=>sum+u.subtotal,0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   const totalTagihan = s.hargaPaket + excessCost + extraTotal;
   return Math.max(totalTagihan - (s.dp||0), 0);
 }
@@ -370,7 +370,7 @@ function subscriptionOutstandingBreakdown(s){
   const terpakai = usage.filter(u=>u.type==='pemakaian').reduce((sum,u)=>sum+u.berat,0);
   const excessKg = Math.max(terpakai - s.kuotaKg, 0);
   const excessRate = s.hargaLebihKg>0 ? s.hargaLebihKg : (s.kuotaKg>0 ? s.hargaPaket/s.kuotaKg : 0);
-  const excessCost = excessKg * excessRate;
+  const excessCost = Math.round(excessKg * excessRate); // bulatkan ke rupiah -- excessRate (hargaPaket/kuotaKg) bisa desimal berulang, residu floating-point bisa bikin perbandingan/total meleset sedikit
   return { groups: groupExtrasIntoTransactions(extras), excessKg, excessCost, dp: s.dp||0, outstanding: subscriptionOutstanding(s) };
 }
 /* Kelompokkan baris layanan_tambahan (Tempo) yang dicatat SEKALIGUS dalam satu
@@ -700,13 +700,18 @@ async function markSubsLunas(){
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId, kode: await nextKode(), nama:s.nama, hp:s.hp, tanggal: today,
     estimasi:null, items, diskon:0, total: calc.totalTagihan, dp: calc.totalTagihan,
-    status:'lunas', catatan
+    status:'lunas', catatan,
+    // outlet_id harus ikut kebawa dari outlet pelanggan paket/tempo-nya SENDIRI
+    // (s.outletId), bukan cuma konteks operasional aktif saat ini (currentOutletId)
+    // -- supaya transaksi pelunasan ini tetap kelihatan di Riwayat/Papan/Laporan
+    // saat difilter ke outlet pelanggan itu, sama seperti submitTransaction().
+    ...(s.outletId ? { outlet_id: s.outletId } : (currentOutletId ? { outlet_id: currentOutletId } : {}))
   }).select().single();
   if(error){ showToast(t('Gagal membuat catatan pembayaran')); return; }
   transactions.push({
     id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
     items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-    status:data.status, catatan:data.catatan
+    status:data.status, catatan:data.catatan, outletId: data.outlet_id!=null ? String(data.outlet_id) : null
   });
   if(tempo){
     const carryOver = calc.lebihBayar||0;

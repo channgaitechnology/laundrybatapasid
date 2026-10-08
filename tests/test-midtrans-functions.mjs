@@ -74,11 +74,14 @@ await step('verifySignature() menerima signature yang benar dan menolak yang sal
   assert.strictEqual(verifySignature({ ...body, signature_key: validSignature }, ''), false, 'server key kosong harus ditolak, bukan lolos diam-diam');
 });
 
-await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan mengirim gross_amount+plan_days yang benar ke Midtrans+Supabase untuk plan yang valid', async () => {
+await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan mengirim gross_amount+plan_days yang benar ke Midtrans+Supabase untuk plan yang valid (dengan token login pemilik toko sendiri)', async () => {
   const calls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
     calls.push({ url: String(url), opts });
+    if (String(url).includes('/auth/v1/user')) {
+      return { ok: true, json: async () => ({ id: 'owner-1' }) };
+    }
     if (String(url).includes('/rest/v1/payment_requests')) {
       return { ok: true, json: async () => ([{ id: 1 }]) };
     }
@@ -88,6 +91,7 @@ await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan me
     throw new Error('unexpected fetch to ' + url);
   };
   try {
+    // Validasi plan terjadi SEBELUM cek token -- boleh ditolak 400 tanpa header Authorization sama sekali.
     const badRes = await createTransactionHandler({ httpMethod: 'POST', body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: 'paket-ngasal' }) });
     assert.strictEqual(badRes.statusCode, 400, 'plan tidak dikenal harus ditolak 400');
 
@@ -95,8 +99,8 @@ await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan me
     assert.strictEqual(badRes2.statusCode, 400, 'plan yang belum diatur env var harganya (6bulan) juga harus ditolak 400');
 
     calls.length = 0;
-    const okRes = await createTransactionHandler({ httpMethod: 'POST', body: JSON.stringify({ nama: 'Toko A', wa: '0812', owner_id: 'owner-1', plan: '1bulan' }) });
-    assert.strictEqual(okRes.statusCode, 200, 'plan valid dengan harga terisi harus sukses: ' + okRes.body);
+    const okRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-owner-1' }, body: JSON.stringify({ nama: 'Toko A', wa: '0812', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(okRes.statusCode, 200, 'plan valid + token milik owner_id sendiri harus sukses: ' + okRes.body);
     const okBody = JSON.parse(okRes.body);
     assert.ok(okBody.redirect_url, 'harus mengembalikan redirect_url dari Midtrans');
 
@@ -116,12 +120,101 @@ await step('midtrans-create-transaction: menolak plan yang tidak dikenal, dan me
   }
 });
 
+await step('midtrans-create-transaction: method selain POST ditolak 405', async () => {
+  const res = await createTransactionHandler({ httpMethod: 'GET', body: '{}' });
+  assert.strictEqual(res.statusCode, 405, 'method GET harus ditolak 405, got: ' + res.statusCode);
+});
+
+await step('midtrans-create-transaction: gagal insert payment_requests atau gagal panggil Midtrans Snap API harus balas 502 (bukan crash/500 polos)', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    // payment_requests insert gagal (mis. Supabase down/error) -- harus 502 dengan detail, TIDAK lanjut ke Midtrans sama sekali.
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'owner-1' }) };
+      if (String(url).includes('/rest/v1/payment_requests')) return { ok: false, status: 500, text: async () => 'db down' };
+      throw new Error('unexpected fetch to ' + url + ' -- Midtrans Snap TIDAK BOLEH dipanggil kalau insert payment_requests saja sudah gagal');
+    };
+    const insertFailRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-owner-1' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(insertFailRes.statusCode, 502, 'insert payment_requests gagal harus balas 502, got: ' + insertFailRes.statusCode + ' ' + insertFailRes.body);
+
+    // payment_requests insert sukses, tapi Midtrans Snap API gagal/balas tanpa redirect_url -- harus 502.
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'owner-1' }) };
+      if (String(url).includes('/rest/v1/payment_requests')) return { ok: true, json: async () => ([{ id: 1 }]) };
+      if (String(url).includes('sandbox.midtrans.com')) return { ok: false, json: async () => ({ error_messages: ['server key salah'] }) };
+      throw new Error('unexpected fetch to ' + url);
+    };
+    const snapFailRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-owner-1' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(snapFailRes.statusCode, 502, 'Midtrans Snap API gagal harus balas 502, got: ' + snapFailRes.statusCode + ' ' + snapFailRes.body);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+await step('midtrans-create-transaction: REGRESI keamanan -- menolak request tanpa token login, token tidak valid, atau token milik user yang bukan pemilik/kasir toko itu', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    // Tanpa header Authorization sama sekali -- harus 401, dan TIDAK PERNAH memanggil fetch apa pun
+    // (payment_requests/Midtrans tidak boleh tersentuh sebelum identitas pemanggil jelas).
+    let fetchCalledWithoutToken = false;
+    globalThis.fetch = async () => { fetchCalledWithoutToken = true; throw new Error('tidak boleh ada fetch sama sekali tanpa token'); };
+    const noTokenRes = await createTransactionHandler({ httpMethod: 'POST', body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(noTokenRes.statusCode, 401, 'tanpa token harus ditolak 401, got: ' + noTokenRes.body);
+    assert.strictEqual(fetchCalledWithoutToken, false, 'tanpa token, payment_requests/Midtrans TIDAK BOLEH ikut dipanggil');
+
+    // Token ada tapi Supabase bilang tidak valid/kedaluwarsa.
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: false, json: async () => ({ error: 'invalid token' }) };
+      throw new Error('unexpected fetch to ' + url);
+    };
+    const badTokenRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-palsu' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(badTokenRes.statusCode, 401, 'token tidak valid harus ditolak 401, got: ' + badTokenRes.body);
+
+    // Token VALID tapi untuk user LAIN yang bukan pemilik toko itu, dan bukan kasir aktifnya juga (team_members kosong).
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'orang-asing' }) };
+      if (String(url).includes('/rest/v1/team_members')) return { ok: true, json: async () => ([]) };
+      throw new Error('unexpected fetch to ' + url);
+    };
+    const forbiddenRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-orang-asing' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(forbiddenRes.statusCode, 403, 'REGRESI KEAMANAN: user yang bukan pemilik/kasir toko itu harus ditolak 403 (sebelumnya endpoint ini bisa dipanggil SIAPA SAJA tanpa login sama sekali), got: ' + forbiddenRes.body);
+
+    // Token valid untuk user yang BUKAN owner_id, TAPI dia kasir aktif toko itu (team_members cocok) -- harus boleh.
+    const calls2 = [];
+    globalThis.fetch = async (url, opts) => {
+      calls2.push(String(url));
+      if (String(url).includes('/auth/v1/user')) return { ok: true, json: async () => ({ id: 'kasir-budi' }) };
+      if (String(url).includes('/rest/v1/team_members')) return { ok: true, json: async () => ([{ id: 'tm1' }]) };
+      if (String(url).includes('/rest/v1/payment_requests')) return { ok: true, json: async () => ([{ id: 1 }]) };
+      if (String(url).includes('sandbox.midtrans.com')) return { ok: true, json: async () => ({ redirect_url: 'https://app.sandbox.midtrans.com/snap/v3/fake-token' }) };
+      throw new Error('unexpected fetch to ' + url);
+    };
+    const kasirRes = await createTransactionHandler({ httpMethod: 'POST', headers: { authorization: 'Bearer token-kasir-budi' }, body: JSON.stringify({ nama: 'Toko A', owner_id: 'owner-1', plan: '1bulan' }) });
+    assert.strictEqual(kasirRes.statusCode, 200, 'kasir aktif toko itu (team_members cocok) harus tetap boleh membuat tagihan: ' + kasirRes.body);
+    assert.ok(calls2.some(u => u.includes('team_members')), 'harus mengecek team_members untuk user yang bukan owner_id langsung');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanjang paid_until sesuai plan_days begitu status settlement diterima', async () => {
   const patches = [];
+  // claimedOnce mensimulasikan baris payment_requests di database sungguhan:
+  // begitu klaim atomik (PATCH bersyarat status=eq.menunggu) pertama "mengenai"
+  // baris ini, status-nya berubah jadi 'disetujui' -- klaim KEDUA untuk order_id
+  // yang sama (mis. Midtrans retry notifikasi) tidak akan menemukan baris
+  // berstatus 'menunggu' lagi, jadi harus balik array KOSONG, bukan baris yang sama.
+  let claimedOnce = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
     const u = String(url);
-    if (u.includes('payment_requests') && (!opts || !opts.method || opts.method === 'GET')) {
+    if (u.includes('payment_requests') && opts && opts.method === 'PATCH') {
+      if (claimedOnce) {
+        patches.push({ table: 'payment_requests_claim_noop', body: JSON.parse(opts.body) });
+        return { ok: true, json: async () => ([]) };
+      }
+      claimedOnce = true;
+      patches.push({ table: 'payment_requests_claim', body: JSON.parse(opts.body) });
       return { ok: true, json: async () => ([{ id: 42, owner_id: 'owner-99', plan_days: 90 }]) };
     }
     if (u.includes('app_subscriptions') && (!opts || !opts.method || opts.method === 'GET')) {
@@ -131,9 +224,9 @@ await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanja
       patches.push({ table: 'app_subscriptions_insert', body: JSON.parse(opts.body) });
       return { ok: true, json: async () => ([{}]) };
     }
-    if (u.includes('payment_requests') && opts && opts.method === 'PATCH') {
-      patches.push({ table: 'payment_requests_patch', body: JSON.parse(opts.body) });
-      return { ok: true, json: async () => ([{}]) };
+    if (u.includes('rpc/apply_referral_bonus_if_pending')) {
+      patches.push({ table: 'rpc_apply_referral_bonus', body: JSON.parse(opts.body) });
+      return { ok: true, json: async () => null };
     }
     throw new Error('unexpected fetch to ' + u + ' method=' + (opts && opts.method));
   };
@@ -161,9 +254,24 @@ await step('midtrans-webhook: mengabaikan signature tidak valid, dan memperpanja
     const daysGranted = Math.round((new Date(subInsert.body.paid_until) - new Date()) / (24*60*60*1000));
     assert.ok(daysGranted >= 89 && daysGranted <= 90, 'paid_until harus sekitar 90 hari dari sekarang (plan_days=90), got ' + daysGranted);
 
-    const reqPatch = patches.find(p => p.table === 'payment_requests_patch');
-    assert.ok(reqPatch, 'payment_requests harus ditandai disetujui');
-    assert.strictEqual(reqPatch.body.status, 'disetujui');
+    const reqClaim = patches.find(p => p.table === 'payment_requests_claim');
+    assert.ok(reqClaim, 'payment_requests harus diklaim (update bersyarat status=menunggu) jadi disetujui');
+    assert.strictEqual(reqClaim.body.status, 'disetujui');
+
+    const rpcCall = patches.find(p => p.table === 'rpc_apply_referral_bonus');
+    assert.ok(rpcCall, 'harus memanggil RPC apply_referral_bonus_if_pending setelah app_subscriptions diaktifkan (titik "pembayaran benar-benar terjadi" buat kredit bonus referral)');
+    assert.strictEqual(rpcCall.body.p_owner_id, 'owner-99', 'RPC harus dipanggil dengan owner_id yang sama dengan payment_requests yang baru diaktifkan');
+
+    // REGRESI race condition: Midtrans bisa kirim notifikasi SUKSES yang SAMA lebih
+    // dari sekali (retry jaringan normal di sisi mereka) -- panggilan KEDUA untuk
+    // order_id yang sama HARUS tidak melakukan apa pun ke app_subscriptions/RPC,
+    // karena baris payment_requests-nya sudah tidak berstatus 'menunggu' lagi.
+    patches.length = 0;
+    const dupRes = await webhookHandler({ httpMethod: 'POST', body: JSON.stringify({ order_id: orderId, status_code: statusCode, gross_amount: grossAmount, signature_key: validSig, transaction_status: 'settlement' }) });
+    assert.strictEqual(dupRes.statusCode, 200, dupRes.body);
+    assert.ok(!patches.find(p => p.table === 'app_subscriptions_insert' || p.table === 'app_subscriptions_patch'), 'REGRESI: notifikasi duplikat TIDAK BOLEH memperpanjang app_subscriptions lagi (double-crediting dari 1 pembayaran)');
+    assert.ok(!patches.find(p => p.table === 'rpc_apply_referral_bonus'), 'REGRESI: notifikasi duplikat TIDAK BOLEH memanggil RPC bonus referral lagi');
+    assert.ok(patches.find(p => p.table === 'payment_requests_claim_noop'), 'klaim kedua harus terdeteksi sebagai no-op (array kosong), bukan diam-diam di-skip tanpa alasan jelas');
 
     // Status "pending"/belum bayar -- tidak boleh memproses apa pun.
     patches.length = 0;

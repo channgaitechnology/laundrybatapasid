@@ -42,6 +42,11 @@ await page.addInitScript(() => {
         // possible regression guard for that whole class of "works in one script,
         // breaks once split across <script src> tags" bug.
         onAuthStateChange: (cb) => {
+          // Both the js/00-globals.js listener AND the final <script> listener (see
+          // index.html) call this -- track every one of them so a later test step can
+          // simulate a real PASSWORD_RECOVERY event firing to ALL subscribers at once,
+          // the way supabase-js actually broadcasts it.
+          (window.__authListeners = window.__authListeners || []).push(cb);
           Promise.resolve().then(() => cb('SIGNED_IN', { user: { id: 'init-load-test-user', email: 'init-load@test.com' } }));
           return { data: { subscription: { unsubscribe(){} } } };
         },
@@ -1347,6 +1352,52 @@ const result = await page.evaluate(async () => {
     if (getComputedStyle(document.getElementById('authTosField')).display !== 'none' || document.getElementById('authTosCheck').checked) throw new Error('balik ke mode Masuk harus menyembunyikan & mereset checkbox S&K');
   });
 
+  await step('setAuthMode(): info "pakai email aktif" di field Email cuma tampil di mode Daftar (bukan Masuk) -- mengingatkan user supaya bisa terima & klik link konfirmasi, tanpa bikin layar Masuk jadi berantakan', () => {
+    setAuthMode('masuk');
+    if (getComputedStyle(document.getElementById('authEmailHint')).display !== 'none') throw new Error('info email aktif seharusnya tersembunyi di mode Masuk (tidak relevan, user ini sudah terkonfirmasi)');
+    setAuthMode('daftar');
+    if (getComputedStyle(document.getElementById('authEmailHint')).display === 'none') throw new Error('info email aktif harus tampil di mode Daftar');
+    setAuthMode('masuk');
+  });
+
+  await step('submitNewPassword(): field konfirmasi wajib cocok dengan password baru sebelum updateUser() dipanggil -- mencegah salah ketik password tanpa sadar karena tidak ada tombol lihat password', async () => {
+    const originalAuth = { updateUser: sb.auth.updateUser };
+    let updateUserCalled = false;
+    sb.auth.updateUser = async (args) => { updateUserCalled = true; return { error: null }; };
+    try {
+      document.getElementById('newPasswordInput').value = 'rahasia123';
+      document.getElementById('newPasswordConfirmInput').value = 'rahasia999';
+      await submitNewPassword();
+      if (updateUserCalled) throw new Error('updateUser() TIDAK boleh dipanggil kalau konfirmasi password tidak cocok');
+      if (!document.getElementById('newPasswordMsg').textContent.includes('tidak cocok')) throw new Error('harus ada pesan error konfirmasi tidak cocok, got: ' + document.getElementById('newPasswordMsg').textContent);
+
+      document.getElementById('newPasswordConfirmInput').value = 'rahasia123';
+      await submitNewPassword();
+      if (!updateUserCalled) throw new Error('updateUser() harus dipanggil begitu password & konfirmasinya cocok');
+    } finally {
+      sb.auth.updateUser = originalAuth.updateUser;
+      document.getElementById('newPasswordInput').value = '';
+      document.getElementById('newPasswordConfirmInput').value = '';
+    }
+  });
+
+  await step('togglePasswordVisibility(inputId, eyeId) bisa dipakai untuk field password manapun (bukan cuma authPassword/eyeIcon hardcoded) -- dipakai newPasswordInput & newPasswordConfirmInput supaya user bisa cek ketikannya sebelum simpan', () => {
+    document.getElementById('newPasswordInput').value = 'cekvisibilitas';
+    togglePasswordVisibility('newPasswordInput', 'eyeIconNew');
+    if (document.getElementById('newPasswordInput').type !== 'text') throw new Error('toggle pertama harus mengubah type jadi text (password terlihat)');
+    togglePasswordVisibility('newPasswordInput', 'eyeIconNew');
+    if (document.getElementById('newPasswordInput').type !== 'password') throw new Error('toggle kedua harus mengembalikan type ke password (tersembunyi lagi)');
+    document.getElementById('newPasswordInput').value = '';
+  });
+
+  await step('Event PASSWORD_RECOVERY ditangkap oleh listener di js/00-globals.js (didaftarkan paling awal), bukan cuma listener utama di <script> paling akhir -- regresi bug nyata: link reset password yang diklik di HP dengan sesi lama masih aktif cuma login diam-diam, tidak pernah menampilkan form ganti password, karena listener lama ditunda ke akhir & keburu kelewat event + hash URL-nya', () => {
+    document.getElementById('newPasswordModal').classList.remove('show');
+    if (!window.__authListeners || window.__authListeners.length < 2) throw new Error('harus ada minimal 2 listener onAuthStateChange terdaftar (js/00-globals.js + <script> akhir index.html), got ' + (window.__authListeners || []).length);
+    window.__authListeners.forEach(cb => cb('PASSWORD_RECOVERY', { user: { id: 'recovery-test-user' } }));
+    if (!document.getElementById('newPasswordModal').classList.contains('show')) throw new Error('form ganti password harus langsung tampil begitu event PASSWORD_RECOVERY diterima, modal-nya tidak dapat class "show"');
+    document.getElementById('newPasswordModal').classList.remove('show');
+  });
+
   // --- Promo footer: "Tinggiran Tech Studio" across every nota surface ---
   await step('WA-text notas (tempo, bulanan, invoice, regular receipt) carry the new promo footer', () => {
     tempoSub.dp = 0;
@@ -2353,6 +2404,40 @@ const result = await page.evaluate(async () => {
     if (!html.includes(t('Sisa Tagihan Saat Ini'))) throw new Error('missing the "Sisa Tagihan Saat Ini" subtotal row for the running Tempo tab: ' + html);
   });
 
+  // Regresi (ditemukan lewat audit): renderReport()/renderPerPelangganReport() belum pakai
+  // Math.max(...,0) per transaksi untuk "Belum Lunas", beda dari rekapPelangganTotals() yang
+  // sudah benar -- data LAMA dari sebelum auto-promote lunas (PR#20) bisa saja status='belum'
+  // tapi dp>total (kelebihan bayar dititip). Tanpa clamp, kontribusi NEGATIF transaksi itu diam-diam
+  // "menutupi" piutang transaksi lain yang benar-benar belum dibayar -- pola masking yang sama
+  // seperti bug nyata PR#19, cuma lewat jalur lupa-clamp bukan pengurangan agregat.
+  await step('renderReport()/renderPerPelangganReport(): "Belum Lunas" memakai Math.max(total-dp,0) PER TRANSAKSI -- transaksi lama status=belum dengan dp>total (kelebihan bayar dititip) TIDAK BOLEH menutupi piutang transaksi lain', () => {
+    outlets = []; currentOutletId = null; reportOutletFilter = '';
+    transactions = [
+      { id:'overpaid-1', kode:'TX-OVERPAID', nama:'Dedi Lama', hp:'0813', tanggal:'2026-08-03', estimasi:null, items:[], diskon:0, total:100000, dp:150000, status:'belum', catatan:'', outletId:null },
+      { id:'unpaid-1', kode:'TX-UNPAID', nama:'Dedi Lama', hp:'0813', tanggal:'2026-08-10', estimasi:null, items:[], diskon:0, total:50000, dp:0, status:'belum', catatan:'', outletId:null },
+    ];
+    subscriptions = [];
+    allWorkUsage = [];
+
+    document.getElementById('reportMonth').value = '2026-08';
+    renderReport();
+    const stBelum = document.getElementById('stBelum').textContent;
+    if (stBelum.includes('0') && !stBelum.includes('50.000')) throw new Error('REGRESI MASKING: "Belum Lunas" harus tetap 50.000 (piutang TX-UNPAID), bukan ketutupan kelebihan bayar TX-OVERPAID: ' + stBelum);
+    if (!stBelum.includes('50.000')) throw new Error('"Belum Lunas" harus menampilkan 50.000 (piutang TX-UNPAID yang genuine): ' + stBelum);
+
+    populatePerNamaSelect();
+    document.getElementById('perNama').value = 'Dedi Lama';
+    document.getElementById('perPeriodeType').value = 'custom';
+    togglePerPeriodeFields();
+    document.getElementById('perDari').value = '2026-01-01';
+    document.getElementById('perSampai').value = '2026-12-31';
+    renderPerPelangganReport();
+    const perStBelum = document.getElementById('perStBelum').textContent;
+    if (!perStBelum.includes('50.000')) throw new Error('REGRESI MASKING (per pelanggan): "Belum Lunas" harus tetap 50.000, bukan ketutupan kelebihan bayar transaksi lain: ' + perStBelum);
+    const html = document.getElementById('perResultList').innerHTML;
+    if (html.includes('-50.000') || html.includes('Rp-')) throw new Error('baris rincian "Belum Lunas" tidak boleh menampilkan nilai negatif: ' + html);
+  });
+
   // Regression: reported live -- a partially-paid "Belum Lunas" transaction showed its per-line amount
   // in the itemized breakdown as the FULL total (trx.total) instead of the actual outstanding balance
   // (total-dp), so it visually disagreed with the correct "Belum Lunas" summary card right above it
@@ -2734,6 +2819,35 @@ const result = await page.evaluate(async () => {
     onReportOutletFilterChange();
   });
 
+  await step('downloadReportPDF(): REGRESI bocor outlet -- harus ikut reportOutletFilter (visibleReportTransactions()) seperti tampilan Laporan di layar, bukan daftar transactions[] mentah semua outlet', async () => {
+    const outletA = outlets[0].id;
+    const originalJspdf = window.jspdf;
+    const calls = { texts: [] };
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(){} setLineWidth(){} line(){} addPage(){}
+      text(str){ calls.texts.push(String(str)); }
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+      save(){}
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      document.getElementById('reportMonth').value = '2026-08';
+      document.getElementById('reportOutletFilterSelect').value = String(outletA);
+      onReportOutletFilterChange();
+
+      downloadReportPDF();
+
+      const joined = calls.texts.join(' | ');
+      if (joined.includes('Uji Tanpa Outlet')) throw new Error('REGRESI KEBOCORAN DATA: PDF Laporan yang dipersempit ke Outlet A tidak boleh ikut mencetak transaksi yang tidak terkait outlet manapun: ' + joined);
+      if (!joined.includes('Pelanggan Outlet A')) throw new Error('PDF Laporan Outlet A harus tetap mencetak transaksi Outlet A sendiri: ' + joined);
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+      document.getElementById('reportOutletFilterSelect').value = '';
+      onReportOutletFilterChange();
+    }
+  });
+
   await step('notaHeaderInfo()/nota builders (WA text, PDF lines, receipt HTML) use the outlet\'s own alamat/telp when the transaction has one, and fall back to the global toko settings otherwise', async () => {
     const outletA = outlets[0].id, outletB = outlets[1].id;
     // outletA (Cabang Fatmawati) punya alamat/telp sendiri; outletB (Cabang Kemang) tidak.
@@ -2953,7 +3067,11 @@ const result = await page.evaluate(async () => {
     fakeReferralCode = { code: 'REF-ABC123', referrer_owner_id: 'referrer-owner-1', status: 'aktif' };
     lastRegCodeUpdate = null;
     try {
-      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        return { data: null, error: null };
+      };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-1' }, session: { access_token: 'fake' } }, error: null });
       authMode = 'daftar';
       document.getElementById('authEmail').value = 'referred@example.com';
@@ -2987,7 +3105,11 @@ const result = await page.evaluate(async () => {
     fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
     lastRegCodeUpdate = null;
     try {
-      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        return { data: null, error: null };
+      };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
       authMode = 'daftar';
       document.getElementById('authEmail').value = 'paid@example.com';
@@ -3040,23 +3162,110 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('ensureAppSubscription(): REGRESI -- flag nk_paidSignup/nk_referredBy HARUS dibersihkan di SEMUA jalur keluar (bukan cuma jalur insert baru), supaya tidak "nyangkut" dan salah terbaca user lain di device yang sama', async () => {
+    const savedOriginalFrom = sb.from;
+    const savedAppSubscription = appSubscription; // ensureAppSubscription() mengubah global ini -- WAJIB dikembalikan, kalau tidak test-test lain yang bergantung ke isSubscriptionActive() ikut gagal (paywall).
+    try {
+      // Kasus 1: isSelf=false (jalur kasir, mengecek app_subscriptions milik OWNER,
+      // bukan milik user ini) DENGAN baris yang sudah ada -- flag milik signup
+      // user INI sendiri (bukan terkait owner yang dicek) harus tetap dibersihkan.
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'aktif' }, error: null }) };
+        return q;
+      };
+      try{ localStorage.setItem('nk_paidSignup', '1'); localStorage.setItem('nk_referredBy', 'leaked-owner-id'); }catch(e){}
+      await ensureAppSubscription('some-other-owner', false);
+      if (localStorage.getItem('nk_paidSignup') || localStorage.getItem('nk_referredBy')) throw new Error('REGRESI: flag harus dibersihkan walau isSelf=false & baris sudah ada (kalau tidak, bisa salah terbaca signup user LAIN di device yang sama)');
+
+      // Kasus 2: isSelf=true tapi baris SUDAH ADA sebelumnya (mis. owner login ulang) -- juga harus bersih.
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'trial' }, error: null }) };
+        return q;
+      };
+      try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
+      await ensureAppSubscription('existing-owner', true);
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: flag harus dibersihkan juga saat isSelf=true tapi baris app_subscriptions sudah ada sebelumnya');
+    } finally {
+      sb.from = savedOriginalFrom;
+      appSubscription = savedAppSubscription;
+      try{ localStorage.removeItem('nk_paidSignup'); localStorage.removeItem('nk_referredBy'); }catch(e){}
+    }
+  });
+
   await step('approveRenewalRequest(): setelah mengaktifkan langganan, memanggil RPC apply_referral_bonus_if_pending(p_owner_id) -- titik "pembayaran benar-benar terjadi" buat kredit bonus referral', async () => {
-    // Tidak perlu override sb.from sama sekali -- app_subscriptions/payment_requests
-    // sudah jatuh ke fakeQuery([]) bawaan dispatcher suite (select/eq/order/update/
-    // insert/maybeSingle/then semua ada), cukup buat approveRenewalRequest() lolos
-    // tanpa error sampai ke titik yang mau diuji: panggilan RPC-nya.
+    // app_subscriptions jatuh ke fakeQuery([]) bawaan dispatcher suite. payment_requests
+    // HARUS di-override khusus: approveRenewalRequest() sekarang melakukan klaim atomik
+    // (update bersyarat status='menunggu' -> 'disetujui', lalu .select()) SEBELUM
+    // menyentuh app_subscriptions sama sekali -- kalau hasilnya array kosong (seperti
+    // fakeQuery([] default), fungsi berhenti lebih awal (anggap sudah diproses pihak
+    // lain) dan RPC referral TIDAK akan pernah terpanggil. Array non-kosong di sini
+    // mewakili klaim yang berhasil.
     const originalRpc = sb.rpc;
+    const originalFrom = sb.from;
     const savedCache = paymentReqCache.slice();
     try {
       paymentReqCache = [{ id: 'req1', type: 'perpanjangan', owner_id: 'paying-owner-1', wa: '081200000000', nama: 'Toko Uji', plan_days: 30 }];
       let capturedRpcCall = null;
       sb.rpc = async (name, params) => { capturedRpcCall = { name, params }; return { data: null, error: null }; };
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q,
+            single: () => Promise.resolve({ data: { id: 'req1' }, error: null }),
+            maybeSingle: () => Promise.resolve({ data: { id: 'req1' }, error: null }),
+            then: (resolve) => resolve({ data: [{ id: 'req1' }], error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
 
       await approveRenewalRequest('req1');
 
       if (!capturedRpcCall || capturedRpcCall.name !== 'apply_referral_bonus_if_pending') throw new Error('expected approveRenewalRequest() to call apply_referral_bonus_if_pending, got: ' + JSON.stringify(capturedRpcCall));
       if (capturedRpcCall.params.p_owner_id !== 'paying-owner-1') throw new Error('RPC should be called with the paying owner\'s id: ' + JSON.stringify(capturedRpcCall.params));
     } finally {
+      sb.rpc = originalRpc;
+      sb.from = originalFrom;
+      paymentReqCache = savedCache;
+    }
+  });
+
+  await step('approveRenewalRequest(): klaim payment_requests yang gagal (status sudah bukan "menunggu", mis. sudah diproses lebih dulu oleh midtrans-webhook.js) HARUS berhenti SEBELUM menyentuh app_subscriptions -- mencegah race condition memperpanjang paid_until dobel dari 1 pembayaran', async () => {
+    const originalFrom = sb.from;
+    const originalRpc = sb.rpc;
+    const savedCache = paymentReqCache.slice();
+    try {
+      paymentReqCache = [{ id: 'req-race', type: 'perpanjangan', owner_id: 'owner-race', wa: '081200000000', nama: 'Toko Race', plan_days: 30 }];
+      let appSubscriptionsTouched = false;
+      let rpcCalled = false;
+      sb.rpc = async () => { rpcCalled = true; return { data: null, error: null }; };
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          // klaim GAGAL (array kosong) -- tapi chain lain (dipakai loadAdminData() yang
+          // ikut terpanggil di akhir approveRenewalRequest()) tetap harus lengkap.
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, update: () => q,
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: [], error: null }) };
+          return q;
+        }
+        if (table === 'app_subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: () => { appSubscriptionsTouched = true; return q; }, insert: () => { appSubscriptionsTouched = true; return q; },
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }), then: (resolve) => resolve({ data: null, error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      await approveRenewalRequest('req-race');
+
+      if (appSubscriptionsTouched) throw new Error('REGRESI race condition: app_subscriptions TIDAK BOLEH disentuh kalau klaim payment_requests gagal (sudah diproses pihak lain)');
+      if (rpcCalled) throw new Error('RPC bonus referral TIDAK BOLEH dipanggil kalau klaim payment_requests gagal');
+    } finally {
+      sb.from = originalFrom;
       sb.rpc = originalRpc;
       paymentReqCache = savedCache;
     }
@@ -3420,7 +3629,12 @@ const result = await page.evaluate(async () => {
         const q = {
           select: () => q, eq: () => q, order: () => q, limit: () => q, in: () => q,
           update: (payload) => { reqUpdatePayload = payload; return q; },
-          then: (resolve) => resolve({ data: [], error: null }),
+          // Array TIDAK kosong -- mewakili klaim atomik (update bersyarat
+          // status='menunggu') yang "berhasil mengenai 1 baris". approveRenewalRequest()
+          // sekarang berhenti lebih awal (tanpa menyentuh app_subscriptions) kalau array
+          // ini kosong, sebagai pertahanan race condition dengan midtrans-webhook.js --
+          // lihat README/komentar di js/05-admin.js.
+          then: (resolve) => resolve({ data: [{ id: 1 }], error: null }),
         };
         return q;
       }
