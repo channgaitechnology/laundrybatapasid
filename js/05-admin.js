@@ -237,7 +237,7 @@ async function approvePaymentRequest(id){
   const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code }).eq('id', id);
   if(e2){ showToast(t('Kode dibuat tapi gagal update status permintaan')); }
   await loadAdminData();
-  const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
+  const waNum = normalizePhone(req.wa);
   const text = encodeURIComponent(`${t('Halo')} ${req.nama}, ${t('pembayaranmu sudah diverifikasi')} ✅\n\n${t('Kode pendaftaran kamu:')} *${code}*\n\n${t('Masukkan kode ini saat mendaftar akun baru di aplikasi. Terima kasih!')}`);
   window.open(`https://wa.me/${waNum}?text=${text}`, '_blank');
 }
@@ -281,7 +281,7 @@ async function approveRenewalRequest(id){
      referred_by_owner_id & belum pernah diklaim; selain itu no-op. */
   try{ await sb.rpc('apply_referral_bonus_if_pending', { p_owner_id: req.owner_id }); }catch(e){}
   await loadAdminData();
-  const waNum = req.wa.replace(/[^0-9]/g,'').replace(/^0/,'62');
+  const waNum = normalizePhone(req.wa);
   const masaAktifTxt = planDays >= LIFETIME_DAYS_THRESHOLD
     ? t('Langganan kamu aktif SEUMUR HIDUP, tidak pernah kedaluwarsa.')
     : `${t('Langganan kamu aktif sampai')} ${newPaidUntil.slice(0,10)}.`;
@@ -338,7 +338,7 @@ async function initUserData(){
 async function loadSettingsFromDB(){
   const { data, error } = await sb.from('settings').select('*').eq('user_id', shopOwnerId).maybeSingle();
   if(data){
-    settings = { shopName:data.shop_name||'Toko Laundry Saya', address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
+    settings = { shopName:data.shop_name||t('Toko Laundry Saya'), address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
   }
 }
 async function loadTransactionsFromDB(){

@@ -700,13 +700,18 @@ async function markSubsLunas(){
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId, kode: await nextKode(), nama:s.nama, hp:s.hp, tanggal: today,
     estimasi:null, items, diskon:0, total: calc.totalTagihan, dp: calc.totalTagihan,
-    status:'lunas', catatan
+    status:'lunas', catatan,
+    // outlet_id harus ikut kebawa dari outlet pelanggan paket/tempo-nya SENDIRI
+    // (s.outletId), bukan cuma konteks operasional aktif saat ini (currentOutletId)
+    // -- supaya transaksi pelunasan ini tetap kelihatan di Riwayat/Papan/Laporan
+    // saat difilter ke outlet pelanggan itu, sama seperti submitTransaction().
+    ...(s.outletId ? { outlet_id: s.outletId } : (currentOutletId ? { outlet_id: currentOutletId } : {}))
   }).select().single();
   if(error){ showToast(t('Gagal membuat catatan pembayaran')); return; }
   transactions.push({
     id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
     items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-    status:data.status, catatan:data.catatan
+    status:data.status, catatan:data.catatan, outletId: data.outlet_id!=null ? String(data.outlet_id) : null
   });
   if(tempo){
     const carryOver = calc.lebihBayar||0;

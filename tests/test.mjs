@@ -2404,6 +2404,40 @@ const result = await page.evaluate(async () => {
     if (!html.includes(t('Sisa Tagihan Saat Ini'))) throw new Error('missing the "Sisa Tagihan Saat Ini" subtotal row for the running Tempo tab: ' + html);
   });
 
+  // Regresi (ditemukan lewat audit): renderReport()/renderPerPelangganReport() belum pakai
+  // Math.max(...,0) per transaksi untuk "Belum Lunas", beda dari rekapPelangganTotals() yang
+  // sudah benar -- data LAMA dari sebelum auto-promote lunas (PR#20) bisa saja status='belum'
+  // tapi dp>total (kelebihan bayar dititip). Tanpa clamp, kontribusi NEGATIF transaksi itu diam-diam
+  // "menutupi" piutang transaksi lain yang benar-benar belum dibayar -- pola masking yang sama
+  // seperti bug nyata PR#19, cuma lewat jalur lupa-clamp bukan pengurangan agregat.
+  await step('renderReport()/renderPerPelangganReport(): "Belum Lunas" memakai Math.max(total-dp,0) PER TRANSAKSI -- transaksi lama status=belum dengan dp>total (kelebihan bayar dititip) TIDAK BOLEH menutupi piutang transaksi lain', () => {
+    outlets = []; currentOutletId = null; reportOutletFilter = '';
+    transactions = [
+      { id:'overpaid-1', kode:'TX-OVERPAID', nama:'Dedi Lama', hp:'0813', tanggal:'2026-08-03', estimasi:null, items:[], diskon:0, total:100000, dp:150000, status:'belum', catatan:'', outletId:null },
+      { id:'unpaid-1', kode:'TX-UNPAID', nama:'Dedi Lama', hp:'0813', tanggal:'2026-08-10', estimasi:null, items:[], diskon:0, total:50000, dp:0, status:'belum', catatan:'', outletId:null },
+    ];
+    subscriptions = [];
+    allWorkUsage = [];
+
+    document.getElementById('reportMonth').value = '2026-08';
+    renderReport();
+    const stBelum = document.getElementById('stBelum').textContent;
+    if (stBelum.includes('0') && !stBelum.includes('50.000')) throw new Error('REGRESI MASKING: "Belum Lunas" harus tetap 50.000 (piutang TX-UNPAID), bukan ketutupan kelebihan bayar TX-OVERPAID: ' + stBelum);
+    if (!stBelum.includes('50.000')) throw new Error('"Belum Lunas" harus menampilkan 50.000 (piutang TX-UNPAID yang genuine): ' + stBelum);
+
+    populatePerNamaSelect();
+    document.getElementById('perNama').value = 'Dedi Lama';
+    document.getElementById('perPeriodeType').value = 'custom';
+    togglePerPeriodeFields();
+    document.getElementById('perDari').value = '2026-01-01';
+    document.getElementById('perSampai').value = '2026-12-31';
+    renderPerPelangganReport();
+    const perStBelum = document.getElementById('perStBelum').textContent;
+    if (!perStBelum.includes('50.000')) throw new Error('REGRESI MASKING (per pelanggan): "Belum Lunas" harus tetap 50.000, bukan ketutupan kelebihan bayar transaksi lain: ' + perStBelum);
+    const html = document.getElementById('perResultList').innerHTML;
+    if (html.includes('-50.000') || html.includes('Rp-')) throw new Error('baris rincian "Belum Lunas" tidak boleh menampilkan nilai negatif: ' + html);
+  });
+
   // Regression: reported live -- a partially-paid "Belum Lunas" transaction showed its per-line amount
   // in the itemized breakdown as the FULL total (trx.total) instead of the actual outstanding balance
   // (total-dp), so it visually disagreed with the correct "Belum Lunas" summary card right above it

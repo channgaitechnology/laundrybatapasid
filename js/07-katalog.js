@@ -34,14 +34,6 @@ function selectLayananSuggest(id){
   document.getElementById('itSatuan').value = match.satuan;
   document.getElementById('layananSuggestBox').classList.remove('show');
 }
-function fillFromCatalog(){
-  const val = document.getElementById('itNama').value.trim().toLowerCase();
-  const match = serviceCatalog.find(s => s.type!=='paket' && s.nama.toLowerCase() === val);
-  if(match){
-    document.getElementById('itHarga').value = match.harga;
-    document.getElementById('itSatuan').value = match.satuan;
-  }
-}
 function toggleCatalogFields(){
   const isPaket = document.getElementById('catType').value === 'paket';
   document.getElementById('catRegulerFields').style.display = isPaket ? 'none' : 'grid';

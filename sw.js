@@ -17,7 +17,7 @@
  * auth/login & panggilan API selalu langsung ke jaringan, tidak pernah
  * lewat cache ini.
  */
-const CACHE_NAME = 'laundry-batapas-v7';
+const CACHE_NAME = 'laundry-batapas-v8';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -48,8 +48,13 @@ self.addEventListener('fetch', (event) => {
        kalau tab/app-nya tidak pernah benar-benar ditutup+dibuka ulang. */
     fetch(req, { cache: 'reload' })
       .then((res) => {
-        const resClone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        // Cuma simpan respons SUKSES ke cache -- respons error (404/500 dkk)
+        // yang ikut ter-cache bisa jadi fallback offline keliru sampai fetch
+        // sukses berikutnya menimpanya.
+        if (res.ok) {
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        }
         return res;
       })
       .catch(() => caches.match(req))

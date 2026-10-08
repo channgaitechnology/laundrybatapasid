@@ -115,6 +115,7 @@ function openForgotPassword(){
   document.getElementById('forgotModal').classList.add('show');
 }
 function closeForgotPassword(){ document.getElementById('forgotModal').classList.remove('show'); }
+function closeNewPasswordModal(){ document.getElementById('newPasswordModal').classList.remove('show'); }
 async function sendResetPasswordEmail(){
   const email = document.getElementById('forgotEmail').value.trim();
   const msgEl = document.getElementById('forgotMsg');

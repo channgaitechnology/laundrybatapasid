@@ -38,7 +38,7 @@
     --success-bg:#E4F5EC;
     --warn:#D9822B;
     --warn-bg:#FBEBD8;
-    --danger:#D6483F;
+    --danger:#C23B32;
     --radius:16px;
     --shadow:0 6px 20px rgba(13,79,104,0.10);
   }
@@ -879,7 +879,7 @@
 <!-- New Subscription modal -->
 <div class="modal-bg" id="subsModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeNewSubscription()">✕</button>
+    <button class="modal-close" onclick="closeNewSubscription()" aria-label="Tutup">✕</button>
     <h3 id="subsModalTitle">Pelanggan Paket Baru</h3>
     <label for="subsNama">Nama Pelanggan</label>
     <div style="position:relative;">
@@ -910,7 +910,7 @@
 <!-- Subscription detail modal -->
 <div class="modal-bg" id="subsDetailModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeSubsDetail()">✕</button>
+    <button class="modal-close" onclick="closeSubsDetail()" aria-label="Tutup">✕</button>
     <h3 id="subsDetailTitle">Detail Paket</h3>
     <p id="subsDetailPeriode" style="font-size:12.5px;color:var(--ink-soft);margin-top:-10px;margin-bottom:10px;">-</p>
     <div class="btn-row owner-only" style="margin-bottom:14px;">
@@ -1035,7 +1035,7 @@
      supaya tidak jadi satu halaman super panjang berisi SEMUA pengaturan sekaligus. -->
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeSettings()">✕</button>
+    <button class="modal-close" onclick="closeSettings()" aria-label="Tutup">✕</button>
 
     <div id="settingsHome">
       <h3>Pengaturan Toko</h3>
@@ -1242,7 +1242,7 @@
 <!-- Unduhan: galeri lokal nota/laporan yang pernah diunduh (lihat js/23-unduhan.js) -->
 <div class="modal-bg" id="unduhanModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeUnduhanModal()">✕</button>
+    <button class="modal-close" onclick="closeUnduhanModal()" aria-label="Tutup">✕</button>
     <h3>📥 Unduhan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Salinan nota/laporan yang pernah diunduh dari app ini, tersimpan di sini juga (di perangkat ini saja) supaya gampang dibuka lagi tanpa perlu keluar dari app.</p>
     <div id="unduhanList"></div>
@@ -1251,7 +1251,7 @@
 
 <div class="modal-bg" id="catatanModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeCatatan()">✕</button>
+    <button class="modal-close" onclick="closeCatatan()" aria-label="Tutup">✕</button>
 
     <div id="catatanHome">
       <h3>📔 Catatan</h3>
@@ -1298,7 +1298,7 @@
 <!-- Pilih outlet yang sedang dikerjakan -->
 <div class="modal-bg" id="outletPickerModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeOutletPicker()">✕</button>
+    <button class="modal-close" onclick="closeOutletPicker()" aria-label="Tutup">✕</button>
     <h3>Pilih Outlet</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Transaksi, Paket, Pengeluaran, dan Daftar Tugas baru akan tercatat & tampil sesuai outlet yang dipilih.</p>
     <div id="outletPickerList"></div>
@@ -1308,7 +1308,7 @@
 <!-- Hapus Tugas dari Papan (bulk) modal -->
 <div class="modal-bg" id="papanHapusModal">
   <div class="modal">
-    <button class="modal-close" onclick="closePapanHapusModal()">✕</button>
+    <button class="modal-close" onclick="closePapanHapusModal()" aria-label="Tutup">✕</button>
     <h3>🗑️ Hapus Tugas dari Papan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Menandai tugas yang dipilih sebagai "Sudah Diambil" sekaligus — kartunya langsung hilang dari papan, sama seperti tombol "Sudah Diambil" satu-satu. Nota/transaksinya TIDAK ikut terhapus, jadi tetap aman untuk Riwayat & Laporan.</p>
     <label for="papanHapusMode">Hapus tugas yang mana?</label>
@@ -1332,7 +1332,7 @@
 <!-- Tutorial modal -->
 <div class="modal-bg" id="tutorialModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeTutorial()">✕</button>
+    <button class="modal-close" onclick="closeTutorial()" aria-label="Tutup">✕</button>
     <h3>📖 Tutorial Penggunaan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Panduan singkat memakai aplikasi ini. Ketuk tiap judul untuk buka langkahnya.</p>
     <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 8px;">🚪 <b>Keluar dari akun:</b> Pemilik lewat Pengaturan → Keamanan Akun. Kasir lewat tombol <b>Keluar</b> di pojok kanan atas (menu Pengaturan khusus pemilik, jadi kasir punya tombol Keluar sendiri di sana).</p>
@@ -1498,7 +1498,7 @@
 <!-- Catalog modal -->
 <div class="modal-bg" id="catalogModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeCatalog()">✕</button>
+    <button class="modal-close" onclick="closeCatalog()" aria-label="Tutup">✕</button>
     <h3>Katalog Layanan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:14px;">Layanan Reguler muncul sebagai saran otomatis saat input transaksi. Paket Bulanan dipakai untuk pelanggan langganan kg per bulan.</p>
 
@@ -1537,7 +1537,7 @@
 <!-- Expense catalog modal -->
 <div class="modal-bg" id="expenseCatalogModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeExpenseCatalog()">✕</button>
+    <button class="modal-close" onclick="closeExpenseCatalog()" aria-label="Tutup">✕</button>
     <h3>Katalog Barang/Jasa Pengeluaran</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:14px;">Muncul sebagai saran otomatis saat mencatat pengeluaran.</p>
     <label for="expCatNama">Nama Barang / Jasa</label>
@@ -1619,7 +1619,7 @@
 <!-- Forgot password modal -->
 <div class="modal-bg" id="forgotModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeForgotPassword()">✕</button>
+    <button class="modal-close" onclick="closeForgotPassword()" aria-label="Tutup">✕</button>
     <h3>Lupa Password</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Masukkan email akunmu. Kami akan kirim link untuk atur ulang password.</p>
     <label for="forgotEmail">Email</label>
@@ -1632,6 +1632,7 @@
 <!-- Set new password modal (dibuka otomatis dari link email reset) -->
 <div class="modal-bg" id="newPasswordModal">
   <div class="modal">
+    <button class="modal-close" onclick="closeNewPasswordModal()" aria-label="Tutup">✕</button>
     <h3>Atur Password Baru</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Masukkan password baru untuk akunmu.</p>
     <label for="newPasswordInput">Password Baru</label>
@@ -1662,7 +1663,7 @@
 <!-- Paywall: muncul saat trial habis atau langganan tidak aktif -->
 <div class="modal-bg" id="paywallModal" style="z-index:106;">
   <div class="modal">
-    <button class="modal-close" onclick="closePaywallModal()">✕</button>
+    <button class="modal-close" onclick="closePaywallModal()" aria-label="Tutup">✕</button>
     <h3>Aktifkan Langganan</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;" id="paywallDesc">Aktifkan atau perpanjang langganan untuk lanjut melakukan transaksi dan mengunduh laporan.</p>
     <label for="paywallPlan">Pilih Paket</label>
@@ -1686,7 +1687,7 @@
 <!-- Pilihan kirim nota timbangan: WA / WA Business / JPG -->
 <div class="modal-bg" id="usageNotaModal" style="z-index:107;">
   <div class="modal">
-    <button class="modal-close" onclick="closeUsageNotaOptions()">✕</button>
+    <button class="modal-close" onclick="closeUsageNotaOptions()" aria-label="Tutup">✕</button>
     <h3 id="usageNotaTitle">Kirim Nota Timbangan</h3>
     <p id="usageNotaHint" style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
@@ -1702,7 +1703,7 @@
 <!-- Pilihan kirim nota transaksi biasa: WA / WA Business / JPG -->
 <div class="modal-bg" id="receiptShareModal" style="z-index:107;">
   <div class="modal">
-    <button class="modal-close" onclick="closeReceiptShareOptions()">✕</button>
+    <button class="modal-close" onclick="closeReceiptShareOptions()" aria-label="Tutup">✕</button>
     <h3>Kirim Nota</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wab')">Kirim via WhatsApp Business</button>
@@ -1719,7 +1720,7 @@
      tidak didaftarkan sebagai paket/tempo) -->
 <div class="modal-bg" id="rekapPelangganModal" style="z-index:107;">
   <div class="modal">
-    <button class="modal-close" onclick="closeRekapPelanggan()">✕</button>
+    <button class="modal-close" onclick="closeRekapPelanggan()" aria-label="Tutup">✕</button>
     <h3>🧮 Rekap Transaksi Pelanggan</h3>
 
     <div id="rekapSearchStep">
@@ -1763,7 +1764,7 @@
 <!-- Pilihan kirim/cetak Rekap Transaksi Pelanggan: WA / WA Business / JPG / Bluetooth / AirPrint -->
 <div class="modal-bg" id="rekapShareModal" style="z-index:108;">
   <div class="modal">
-    <button class="modal-close" onclick="closeRekapPelangganShare()">✕</button>
+    <button class="modal-close" onclick="closeRekapPelangganShare()" aria-label="Tutup">✕</button>
     <h3>Kirim Rekap</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wab')">Kirim via WhatsApp Business</button>
@@ -1776,7 +1777,7 @@
 <!-- Riwayat perubahan (transaksi/pelanggan paket) — siapa mengedit apa, kapan -->
 <div class="modal-bg" id="editHistoryModal" style="z-index:107;">
   <div class="modal">
-    <button class="modal-close" onclick="closeEditHistory()">✕</button>
+    <button class="modal-close" onclick="closeEditHistory()" aria-label="Tutup">✕</button>
     <h3 id="editHistoryModalTitle">🕘 Riwayat Edit</h3>
     <div id="editHistoryList" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
@@ -1785,7 +1786,7 @@
 <!-- Pilihan kirim nota tagihan paket bulanan: WA / WA Business / JPG -->
 <div class="modal-bg" id="subsInvoiceShareModal" style="z-index:107;">
   <div class="modal">
-    <button class="modal-close" onclick="closeSubsInvoiceShare()">✕</button>
+    <button class="modal-close" onclick="closeSubsInvoiceShare()" aria-label="Tutup">✕</button>
     <h3>Kirim Nota Tagihan</h3>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wa')">Kirim via WhatsApp</button>
     <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wab')">Kirim via WhatsApp Business</button>
@@ -1798,7 +1799,7 @@
 <!-- Info Pembayaran & Form Permintaan Kode (publik, sebelum login) -->
 <div class="modal-bg" id="paymentInfoModal" style="z-index:105;">
   <div class="modal">
-    <button class="modal-close" onclick="closePaymentInfo()">✕</button>
+    <button class="modal-close" onclick="closePaymentInfo()" aria-label="Tutup">✕</button>
     <h3>Daftar &amp; Aktivasi Akun</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Bayar biaya langganan, lalu isi form di bawah. Kode pendaftaran akan dikirim ke WhatsApp kamu setelah pembayaran diverifikasi.</p>
 

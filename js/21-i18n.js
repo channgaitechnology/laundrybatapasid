@@ -25,6 +25,7 @@ const I18N_EN = {
   'Buka': 'Open',
   'File tidak ditemukan': 'File not found',
   'Bagikan': 'Share',
+  'Tutup': 'Close',
   'Berbagi file tidak didukung browser ini -- file diunduh ulang ke folder Download sebagai gantinya.': "Sharing isn't supported on this browser -- the file was downloaded to your Downloads folder instead.",
 
   /* ---------- Tab bar ---------- */
@@ -618,6 +619,7 @@ const I18N_EN = {
   'Terima kasih telah menggunakan jasa laundry kami': 'Thank you for using our laundry service',
   'Simpan Pengaturan': 'Save Settings',
   'Pengaturan disimpan': 'Settings saved',
+  'Toko Laundry Saya': 'My Laundry Shop',
   'Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.':
     'When on, marking a job "Done" on the Task Board instantly opens WhatsApp with a ready-to-send message to the customer (you still tap "Send" in WhatsApp — browsers can\'t send automatically without that). When off, a "Send Notification" button appears manually on each Done card instead.',
   'Kirim notifikasi WA otomatis saat Selesai': 'Auto-send WhatsApp notification when Done',

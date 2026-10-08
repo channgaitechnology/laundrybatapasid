@@ -137,7 +137,7 @@ function onReportOutletFilterChange(){
 function notaHeaderInfo(outletId){
   const o = outletId ? outlets.find(x=>String(x.id)===String(outletId)) : null;
   return {
-    nama: settings.shopName || 'Toko Laundry Saya',
+    nama: settings.shopName || t('Toko Laundry Saya'),
     subtitle: o ? o.nama : '',
     alamat: (o && o.alamat) ? o.alamat : (settings.address||''),
     telp: (o && o.telp) ? o.telp : (settings.phone||'')
