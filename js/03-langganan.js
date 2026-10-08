@@ -117,9 +117,17 @@ async function payViaMidtrans(){
   const wa = (settings && settings.phone) ? settings.phone : '';
   if(btn){ btn.disabled = true; btn.textContent = t('Memproses...'); }
   try{
+    /* Function ini sekarang WAJIB cek token login (lihat komentar di
+       netlify/functions/midtrans-create-transaction.js) -- tanpa header
+       Authorization ini, request akan ditolak 401. */
+    const { data: sessionData } = await sb.auth.getSession();
+    const accessToken = sessionData && sessionData.session ? sessionData.session.access_token : null;
     const res = await fetch('/.netlify/functions/midtrans-create-transaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+      },
       body: JSON.stringify({ nama, wa, owner_id: shopOwnerId, plan })
     });
     const data = await res.json().catch(()=>null);
