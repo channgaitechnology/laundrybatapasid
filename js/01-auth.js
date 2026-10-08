@@ -70,8 +70,14 @@ async function handleAuthSubmit(){
           card.classList.remove('auth-loading');
           return;
         }
-        const { data: codeRow } = await sb.from('registration_codes').select('referrer_owner_id').eq('code', regCode).maybeSingle();
-        referrerOwnerId = codeRow ? codeRow.referrer_owner_id : null;
+        /* Pakai RPC (security definer), BUKAN SELECT langsung ke tabel --
+           di titik ini user belum login (anon), dan registration_codes
+           sengaja tidak dibuka SELECT ke anon (supaya tidak bisa dipakai
+           enumerasi semua kode termasuk kode admin yang belum terpakai).
+           RPC ini cuma mengembalikan referrer_owner_id untuk SATU kode
+           yang persis cocok & masih aktif, lihat README. */
+        const { data: refOwnerId } = await sb.rpc('get_registration_code_referrer', { p_code: regCode });
+        referrerOwnerId = refOwnerId || null;
       }
       const { data, error } = await sb.auth.signUp({ email, password });
       if(error) throw error;

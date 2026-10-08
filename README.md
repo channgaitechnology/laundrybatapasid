@@ -491,11 +491,13 @@ with check (auth.role() = 'authenticated');
 
 ⚠️ RLS di atas sengaja permisif (siapa saja yang login bisa ubah lewat
 API langsung) — proteksinya murni di level UI (form "Footer Nota" cuma
-tampil untuk `ADMIN_EMAIL`), sama seperti model kepercayaan yang sudah
-dipakai `registration_codes`/`payment_requests` di app ini. Risikonya
-rendah (satu baris teks footer, bukan data keuangan), tapi kalau mau
-lebih ketat, tulis ulang policy `for all` di atas supaya cuma mengizinkan
-`auth.uid()` milik akun admin tertentu.
+tampil untuk `ADMIN_EMAIL`). Risikonya rendah (satu baris teks footer,
+bukan data keuangan), tapi kalau mau lebih ketat, tulis ulang policy
+`for all` di atas supaya cuma mengizinkan `auth.uid()` milik akun admin
+tertentu. (Catatan: `registration_codes`/`payment_requests` TIDAK pakai
+model permisif seperti ini — keduanya dibatasi admin-only + beberapa
+policy sempit per-pemilik, lihat bagian "RLS `registration_codes` &
+`payment_requests`" di bawah.)
 
 Aman dijalankan kapan saja — kalau tabelnya belum ada, `loadAppBranding()`
 diam-diam gagal dan tetap pakai nilai default (persis sama seperti
@@ -812,6 +814,64 @@ webhook**:
 Simpan. Coba tes dengan isi form pendaftaran (`paymentInfoModal`) atau
 klik "Sudah Transfer Manual" di app — email harus masuk ke
 `ADMIN_NOTIFY_EMAIL` dalam beberapa detik.
+
+## RLS `registration_codes` & `payment_requests`
+
+Ditemukan lewat audit (7 Oktober 2026): kedua tabel ini di Supabase ternyata
+sudah dibatasi admin-only (`using ((auth.jwt()->>'email') = 'mukhlispertama@gmail.com')`
+untuk SELECT/UPDATE `payment_requests` dan SELECT/UPDATE/INSERT/DELETE
+`registration_codes`) — **TIDAK ada policy INSERT untuk `payment_requests`
+sama sekali**, dan **TIDAK ada policy INSERT/SELECT untuk `registration_codes`
+selain milik admin**. Akibatnya 3 fitur ini diam-diam GAGAL total di
+produksi (dites langsung lewat REST API, bukan tebakan):
+
+1. **"Daftar baru" & "Ajukan Perpanjangan"** (insert manual ke
+   `payment_requests` dari browser, `js/02-init-data.js`/`js/03-langganan.js`)
+   — ditolak RLS (jalur "Bayar Otomatis" Midtrans AMAN, lewat Service Role
+   Key yang melewati RLS).
+2. **Generate kode referral milik sendiri** (`getOrCreateReferralCode()`,
+   `js/03-langganan.js`) — INSERT dan SELECT balik baris sendiri ditolak RLS.
+3. **Lookup `referrer_owner_id` saat signup pakai kode referral**
+   (`js/01-auth.js`) — SELECT langsung ke tabel ditolak RLS untuk user yang
+   belum login (anon), jadi atribusi referral diam-diam selalu gagal.
+
+Jalankan sekali di Supabase SQL Editor:
+
+```sql
+-- payment_requests: insert boleh dari siapa saja (anon maupun login) --
+-- cuma bikin baris "menunggu", SELECT tetap admin-only seperti sekarang.
+create policy "Siapa saja boleh mengajukan permintaan pembayaran baru" on payment_requests
+  for insert
+  with check (true);
+
+-- registration_codes: owner boleh INSERT+SELECT kode referral MILIKNYA
+-- SENDIRI saja (tidak bisa lihat/buat kode orang lain atau kode admin).
+create policy "Pemilik toko bisa baca kode referral miliknya sendiri" on registration_codes
+  for select
+  using (referrer_owner_id = auth.uid());
+
+create policy "Pemilik toko bisa buat kode referral miliknya sendiri" on registration_codes
+  for insert
+  with check (referrer_owner_id = auth.uid());
+
+-- Lookup referrer_owner_id saat signup (anon) TIDAK lewat SELECT langsung
+-- (supaya anon tidak bisa enumerasi semua kode termasuk kode admin yang
+-- belum terpakai) -- lewat function sempit ini saja, cuma balikin
+-- referrer_owner_id utk SATU kode yang cocok & masih aktif.
+create or replace function get_registration_code_referrer(p_code text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select referrer_owner_id from registration_codes where code = p_code and status = 'aktif';
+$$;
+
+grant execute on function get_registration_code_referrer(text) to anon, authenticated;
+```
+
+`js/01-auth.js` sudah diupdate memanggil `get_registration_code_referrer`
+(RPC) ini, bukan `select()` langsung ke `registration_codes`, lagi.
 
 ## Program Referral (bagikan & dapat bonus 15 hari)
 

@@ -3067,7 +3067,11 @@ const result = await page.evaluate(async () => {
     fakeReferralCode = { code: 'REF-ABC123', referrer_owner_id: 'referrer-owner-1', status: 'aktif' };
     lastRegCodeUpdate = null;
     try {
-      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        return { data: null, error: null };
+      };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-1' }, session: { access_token: 'fake' } }, error: null });
       authMode = 'daftar';
       document.getElementById('authEmail').value = 'referred@example.com';
@@ -3101,7 +3105,11 @@ const result = await page.evaluate(async () => {
     fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
     lastRegCodeUpdate = null;
     try {
-      sb.rpc = async (name) => name === 'check_registration_code' ? { data: true, error: null } : { data: null, error: null };
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        return { data: null, error: null };
+      };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
       authMode = 'daftar';
       document.getElementById('authEmail').value = 'paid@example.com';
