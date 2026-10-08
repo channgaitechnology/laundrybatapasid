@@ -79,7 +79,7 @@ async function handleAuthSubmit(){
           if(regCode) localStorage.setItem('nk_pendingRegCode', regCode);
           if(referrerOwnerId) localStorage.setItem('nk_pendingReferrer', referrerOwnerId);
         }catch(e){}
-        setAuthMsg(regCode ? t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk.') : t('Akun dibuat! Cek email untuk konfirmasi, lalu masuk. Trial 30 hari akan aktif otomatis.'), 'ok');
+        setAuthMsg(regCode ? t('Akun dibuat! Cek email untuk konfirmasi (termasuk folder Spam/Promosi kalau tidak kelihatan), lalu masuk.') : t('Akun dibuat! Cek email untuk konfirmasi (termasuk folder Spam/Promosi kalau tidak kelihatan), lalu masuk. Trial 30 hari akan aktif otomatis.'), 'ok');
         card.classList.remove('auth-loading');
         return;
       }
@@ -121,7 +121,7 @@ async function sendResetPasswordEmail(){
   msgEl.className='auth-msg'; msgEl.textContent=t('Mengirim...');
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
   if(error){ msgEl.className='auth-msg error'; msgEl.textContent=error.message; return; }
-  msgEl.className='auth-msg ok'; msgEl.textContent=t('Link reset password sudah dikirim, cek email kamu.');
+  msgEl.className='auth-msg ok'; msgEl.textContent=t('Link reset password sudah dikirim -- cek email kamu (termasuk folder Spam/Promosi kalau tidak kelihatan).');
 }
 async function submitNewPassword(){
   const password = document.getElementById('newPasswordInput').value;
