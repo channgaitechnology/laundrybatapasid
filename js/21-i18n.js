@@ -764,7 +764,7 @@ const I18N_EN = {
   'Isi diskon kalau ada, isi': 'Enter a discount if there is one, and fill in',
   'kalau pelanggan baru bayar sebagian, lalu pilih status Lunas/Belum — kalau DP-nya lebih besar dari total tagihan, kelebihannya otomatis tercatat rapi, tidak hilang':
     'if the customer is only paying part now, then choose Paid/Unpaid — if the deposit is more than the total due, the extra is neatly recorded automatically, never lost',
-  '— nota langsung muncul, siap dikirim ke WhatsApp pelanggan atau diunduh sebagai gambar/PDF': '— the receipt appears instantly, ready to send to the customer on WhatsApp or download as an image/PDF',
+  '— nota langsung muncul, siap dikirim ke WhatsApp pelanggan, diunduh sebagai gambar/PDF, atau langsung dicetak ke printer thermal (Bluetooth atau AirPrint/printer lain, kalau sudah disambungkan lewat Pengaturan → Printer Bluetooth)': '— the receipt appears instantly, ready to send to the customer on WhatsApp, download as an image/PDF, or print directly to a thermal printer (Bluetooth or AirPrint/other printer, once connected via Settings → Bluetooth Printer)',
   '2️⃣ Riwayat & Edit Transaksi': '2️⃣ History & Editing Transactions',
   'untuk lihat semua transaksi, termasuk statistik lunas/belum hari ini': "tab to see every transaction, including today's paid/unpaid stats",
   'Ketuk kolom cari untuk temukan transaksi dari nama pelanggan atau nomor nota tertentu': 'Tap the search field to find a transaction by customer name or receipt number',

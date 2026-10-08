@@ -3154,6 +3154,38 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('ensureAppSubscription(): REGRESI -- flag nk_paidSignup/nk_referredBy HARUS dibersihkan di SEMUA jalur keluar (bukan cuma jalur insert baru), supaya tidak "nyangkut" dan salah terbaca user lain di device yang sama', async () => {
+    const savedOriginalFrom = sb.from;
+    const savedAppSubscription = appSubscription; // ensureAppSubscription() mengubah global ini -- WAJIB dikembalikan, kalau tidak test-test lain yang bergantung ke isSubscriptionActive() ikut gagal (paywall).
+    try {
+      // Kasus 1: isSelf=false (jalur kasir, mengecek app_subscriptions milik OWNER,
+      // bukan milik user ini) DENGAN baris yang sudah ada -- flag milik signup
+      // user INI sendiri (bukan terkait owner yang dicek) harus tetap dibersihkan.
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'aktif' }, error: null }) };
+        return q;
+      };
+      try{ localStorage.setItem('nk_paidSignup', '1'); localStorage.setItem('nk_referredBy', 'leaked-owner-id'); }catch(e){}
+      await ensureAppSubscription('some-other-owner', false);
+      if (localStorage.getItem('nk_paidSignup') || localStorage.getItem('nk_referredBy')) throw new Error('REGRESI: flag harus dibersihkan walau isSelf=false & baris sudah ada (kalau tidak, bisa salah terbaca signup user LAIN di device yang sama)');
+
+      // Kasus 2: isSelf=true tapi baris SUDAH ADA sebelumnya (mis. owner login ulang) -- juga harus bersih.
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'trial' }, error: null }) };
+        return q;
+      };
+      try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
+      await ensureAppSubscription('existing-owner', true);
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: flag harus dibersihkan juga saat isSelf=true tapi baris app_subscriptions sudah ada sebelumnya');
+    } finally {
+      sb.from = savedOriginalFrom;
+      appSubscription = savedAppSubscription;
+      try{ localStorage.removeItem('nk_paidSignup'); localStorage.removeItem('nk_referredBy'); }catch(e){}
+    }
+  });
+
   await step('approveRenewalRequest(): setelah mengaktifkan langganan, memanggil RPC apply_referral_bonus_if_pending(p_owner_id) -- titik "pembayaran benar-benar terjadi" buat kredit bonus referral', async () => {
     // app_subscriptions jatuh ke fakeQuery([]) bawaan dispatcher suite. payment_requests
     // HARUS di-override khusus: approveRenewalRequest() sekarang melakukan klaim atomik

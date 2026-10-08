@@ -1,14 +1,31 @@
 /* ===================== TRIAL & LANGGANAN APLIKASI ===================== */
 async function ensureAppSubscription(ownerId, isSelf){
+  /* nk_paidSignup/nk_referredBy cuma dibaca & dipakai di jalur insert baru
+     (isSelf===true, belum ada baris app_subscriptions sama sekali) -- TAPI
+     harus dibersihkan dari localStorage di SETIAP jalur keluar fungsi ini
+     (termasuk isSelf===false/kasir, dan ketika baris sudah ada sebelumnya),
+     bukan cuma jalur insert sukses. Dulu cuma dibersihkan di jalur itu --
+     kalau 1 device dipakai bergantian (mis. user A daftar pakai kode lalu
+     ternyata join sebagai kasir [isSelf=false, baris ownerId yang dicek
+     BUKAN milik dia], lalu user B daftar baru di device yang sama), flag
+     milik user A bisa "nyangkut" dan salah terbaca saat ensureAppSubscription()
+     dipanggil untuk user B -- bisa salah mengaktifkan status/atribusi
+     referral ke akun yang salah. Pada titik fungsi ini dipanggil (dari
+     SEMUA pemanggil di js/02-init-data.js), resolusi peran user SAAT INI
+     sudah final, jadi flag-nya sudah tidak relevan lagi apa pun hasilnya. */
+  let paidSignup = false, referredBy = null;
+  try{
+    paidSignup = localStorage.getItem('nk_paidSignup') === '1';
+    referredBy = localStorage.getItem('nk_referredBy') || null;
+  }catch(e){}
+  const clearFlags = () => {
+    try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+    try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
+  };
   try{
     const { data, error } = await sb.from('app_subscriptions').select('*').eq('owner_id', ownerId).maybeSingle();
-    if(data){ appSubscription = data; renderSubscriptionBadge(); return; }
-    if(error || !isSelf){ appSubscription = null; renderSubscriptionBadge(); return; }
-    let paidSignup = false, referredBy = null;
-    try{
-      paidSignup = localStorage.getItem('nk_paidSignup') === '1';
-      referredBy = localStorage.getItem('nk_referredBy') || null;
-    }catch(e){}
+    if(data){ appSubscription = data; renderSubscriptionBadge(); clearFlags(); return; }
+    if(error || !isSelf){ appSubscription = null; renderSubscriptionBadge(); clearFlags(); return; }
     const now = new Date();
     const trialEnds = new Date(now.getTime() + 30*24*60*60*1000).toISOString();
     const insertRow = paidSignup
@@ -21,13 +38,13 @@ async function ensureAppSubscription(ownerId, isSelf){
        (lihat apply_referral_bonus_if_pending() di README). */
     if(referredBy) insertRow.referred_by_owner_id = referredBy;
     const { data: created, error: insErr } = await sb.from('app_subscriptions').insert(insertRow).select().single();
-    if(paidSignup){ try{ localStorage.removeItem('nk_paidSignup'); }catch(e){} }
-    if(referredBy){ try{ localStorage.removeItem('nk_referredBy'); }catch(e){} }
+    clearFlags();
     appSubscription = insErr ? null : created;
     renderSubscriptionBadge();
   }catch(e){
     appSubscription = null;
     renderSubscriptionBadge();
+    clearFlags();
   }
 }
 function isSubscriptionActive(){
