@@ -8,7 +8,7 @@ function addOneMonthClamped(dateStr){
   const daysInTargetMonth = new Date(targetYear, targetMonth+1, 0).getDate();
   const finalDay = Math.min(day, daysInTargetMonth);
   const result = new Date(targetYear, targetMonth, finalDay);
-  return result.toISOString().slice(0,10);
+  return toISODateLocal(result);
 }
 function updateSubsEndPreview(){
   const start = document.getElementById('subsTanggalMulai').value;
@@ -62,7 +62,10 @@ var allWorkUsage = [];
    "belum berhasil" -- bukan logic groupUsageRowsByBatch()-nya yang salah,
    tapi data batchId-nya yang tidak pernah sampai ke sana lagi setelah reload. */
 async function loadAllWorkUsage(){
-  const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
+  // fetchAllRows() (js/09-utils.js) WAJIB di sini -- ini query subscription_usage
+  // PALING CEPAT tumbuh di app (tiap pemakaian Paket Bulanan/Tempo nambah baris),
+  // paling cepat kena potongan ~1000 baris default Supabase dibanding tabel lain.
+  const { data, error } = await fetchAllRows(() => sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId).order('id', { ascending:true }));
   if(error){ allWorkUsage = []; return; }
   allWorkUsage = (data||[]).map(r=>({
     id:r.id, subscriptionId:r.subscription_id, tanggal:r.tanggal, estimasi:r.estimasi||null,

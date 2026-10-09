@@ -2,11 +2,14 @@
    Satu tabel generik edit_log (entity_type + entity_id) dipakai bareng oleh
    semua entitas yang bisa diedit & butuh akuntabilitas siapa-ubah-apa-kapan,
    supaya tidak perlu bikin tabel+RLS terpisah tiap kali ada entitas baru.
-   Pengeluaran TIDAK punya riwayat edit karena memang tidak ada fitur edit
-   pengeluaran (cuma tambah/hapus). Katalog (layanan & pengeluaran) juga
-   sengaja tidak dilacak — itu daftar harga/template, bukan catatan
-   keuangan per pelanggan, jadi nilai akuntabilitasnya jauh lebih rendah
-   dibanding transaksi & pelanggan paket. */
+   Pengeluaran TIDAK punya riwayat EDIT karena memang tidak ada fitur edit
+   pengeluaran (cuma tambah/hapus) -- tapi PENGHAPUSANNYA tetap dicatat di
+   edit_log (entity_type 'expense', lihat deleteExpense() di
+   js/14-pengeluaran.js) supaya hapus pengeluaran besar untuk mengecilkan
+   biaya di Laporan/Laba Rugi tidak lolos tanpa jejak. Katalog (layanan &
+   pengeluaran) juga sengaja tidak dilacak — itu daftar harga/template,
+   bukan catatan keuangan per pelanggan, jadi nilai akuntabilitasnya jauh
+   lebih rendah dibanding transaksi & pelanggan paket. */
 function diffTransactionFields(oldT, newT){
   const fields = [
     { key:'nama', label:t('Nama Pelanggan') },

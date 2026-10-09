@@ -290,7 +290,7 @@ function papanHapusDateThreshold(mode){
   else if(mode==='2-hari') d.setDate(d.getDate()-2);
   else if(mode==='3-hari') d.setDate(d.getDate()-3);
   else return null;
-  return d.toISOString().slice(0,10);
+  return toISODateLocal(d);
 }
 function papanHapusMatchingItems(){
   const mode = document.getElementById('papanHapusMode').value;

@@ -19,7 +19,7 @@ page.on('console', msg => { if (msg.type() === 'error') errors.push('CONSOLE: ' 
 await page.addInitScript(() => {
   function fakeQuery(data) {
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
       update: () => q, insert: () => q, delete: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
@@ -93,7 +93,7 @@ const result = await page.evaluate(async () => {
   // Fake chainable supabase query builder that resolves to given data.
   function fakeQuery(data) {
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
       update: () => q, insert: () => q, delete: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
@@ -127,7 +127,7 @@ const result = await page.evaluate(async () => {
     const q = {
       select: () => q,
       eq: (col, val) => { eqFilters[col] = val; return q; },
-      in: () => q, order: () => q, update: () => q,
+      in: () => q, order: () => q, range: () => q, update: () => q,
       insert: (row) => { mode = 'insert'; insertRow = row; return q; },
       delete: () => { mode = 'delete'; return q; },
       single: () => {
@@ -432,6 +432,41 @@ const result = await page.evaluate(async () => {
   await step('isTempo() detects tempo vs bulanan', () => {
     if (!isTempo(tempoSub)) throw new Error('expected tempoSub to be tempo');
     if (isTempo(bulananSub)) throw new Error('expected bulananSub to NOT be tempo');
+  });
+
+  await step('toISODateLocal()/todayISO() membangun tanggal dari komponen LOKAL, bukan toISOString() (REGRESI -- dulu UTC, menggeser mundur 1 hari pagi-pagi di semua zona waktu Indonesia)', () => {
+    const d = new Date(2026, 9, 9); // 9 Oktober 2026, lokal
+    if (toISODateLocal(d) !== '2026-10-09') throw new Error('expected 2026-10-09, got ' + toISODateLocal(d));
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    if (todayISO() !== expected) throw new Error('todayISO() should match local Y-M-D components, got ' + todayISO() + ' expected ' + expected);
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): addOneMonthClamped() tidak boleh menggeser mundur 1 hari (dulu toISOString() setelah new Date(y,m,d) lokal menggeser ke UTC)', () => {
+    const result = addOneMonthClamped('2026-01-15');
+    if (result !== '2026-02-15') throw new Error('expected 2026-02-15, got ' + result);
+    const clamped = addOneMonthClamped('2026-01-31'); // Februari 2026 bukan tahun kabisat -> clamp ke 28
+    if (clamped !== '2026-02-28') throw new Error('expected clamp to 2026-02-28, got ' + clamped);
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): papanHapusDateThreshold() tidak boleh menggeser mundur 1 hari EKSTRA (bug independen -- threshold "2 hari" dulu jadi mundur 3 hari di semua zona waktu Indonesia)', () => {
+    const today = new Date();
+    const expected2 = new Date(today); expected2.setDate(expected2.getDate() - 2);
+    const expected2Str = `${expected2.getFullYear()}-${String(expected2.getMonth()+1).padStart(2,'0')}-${String(expected2.getDate()).padStart(2,'0')}`;
+    const got = papanHapusDateThreshold('2-hari');
+    if (got !== expected2Str) throw new Error(`expected threshold 2 hari lalu = ${expected2Str}, got ${got}`);
+  });
+
+  await step('fetchAllRows() mengumpulkan SEMUA halaman lewat .range() berulang, bukan cuma 1000 baris pertama (REGRESI -- query tanpa paginasi diam-diam kepotong di batas default Supabase)', async () => {
+    const totalRows = 2500; // > 2x SUPABASE_PAGE_SIZE, memaksa 3 halaman
+    const allFakeRows = Array.from({ length: totalRows }, (_, i) => ({ id: i }));
+    function pagedQuery() {
+      return { range: (from, to) => Promise.resolve({ data: allFakeRows.slice(from, to + 1), error: null }) };
+    }
+    const { data, error } = await fetchAllRows(pagedQuery);
+    if (error) throw new Error('unexpected error: ' + JSON.stringify(error));
+    if (data.length !== totalRows) throw new Error(`expected all ${totalRows} rows across pages, got ${data.length}`);
+    if (data[0].id !== 0 || data[totalRows - 1].id !== totalRows - 1) throw new Error('rows out of order/incomplete: ' + JSON.stringify([data[0], data[data.length - 1]]));
   });
 
   await step('renderSubscriptions() renders both card types', () => {
@@ -2313,6 +2348,30 @@ const result = await page.evaluate(async () => {
     if (restored.nama !== 'Gaji' || restored.qty !== 1) throw new Error('undo should restore full itemized row, got ' + JSON.stringify(restored));
   });
 
+  await step('REGRESI (audit 9 Okt 2026): deleteExpense() HARUS tercatat di edit_log (dulu penghapusan pengeluaran tidak meninggalkan jejak sama sekali), termasuk saat "Urungkan" dipakai', async () => {
+    const before = fakeEditLogRows.length;
+    expenses.push({ id: 'exp-log-test', tanggal: '2026-08-01', nama: 'Deterjen', qty: 2, satuan: 'pak', harga: 25000, jumlah: 50000, kategori: 'Deterjen & Perlengkapan', catatan: '' });
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await deleteExpense('exp-log-test');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'expense' && r.entity_id === 'exp-log-test');
+      if (!deleteLog) throw new Error('REGRESI: deleteExpense() harus memanggil logEditHistory(\'expense\', id, ...) sebelum hapus, tidak ada baris edit_log untuk exp-log-test');
+      if (!deleteLog.changes || !deleteLog.changes[0] || !deleteLog.changes[0].from.includes('Deterjen')) throw new Error('log penghapusan harus menyertakan snapshot nama/jumlah yang dihapus: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 150));
+      const restoredId = expenses.find(e => e.nama === 'Deterjen' && e.jumlah === 50000).id;
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'expense' && r.entity_id === restoredId && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: "Urungkan" pengeluaran juga harus tercatat di edit_log (entity_id baris baru), supaya undo tidak jadi cara diam-diam menghapus jejak hapus di atas');
+    } finally {
+      window.confirm = originalConfirm;
+      expenses = expenses.filter(e => e.id !== 'exp-log-test');
+    }
+  });
+
   // --- Laba Rugi: per bulan & per tahun, dengan rincian per kategori ---
   await step('renderLabaRugi() (Bulanan) computes Pendapatan Bersih = pemasukan (omzet) - pengeluaran, with a kategori breakdown', () => {
     transactions = [
@@ -3060,6 +3119,62 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('claimInviteCode(): klaim lewat RPC claim_invite_code (bukan select+update langsung lagi -- lihat README soal race condition & RLS team_members yang tidak terdokumentasi)', async () => {
+    const originalRpc = sb.rpc;
+    const originalEnsureApp = ensureAppSubscription;
+    const originalInitUserData = initUserData;
+    const savedRole = currentRole, savedOwner = shopOwnerId, savedEmployeeName = employeeName, savedKasirOutletId = kasirOutletId;
+    let capturedCode = null;
+    try {
+      ensureAppSubscription = async () => {};
+      initUserData = async () => {};
+      sb.rpc = async (name, params) => {
+        if (name === 'claim_invite_code') { capturedCode = params && params.p_code; return { data: [{ owner_id: 'owner-xyz', nama: 'Siti', outlet_id: null }], error: null }; }
+        return { data: null, error: null };
+      };
+      document.getElementById('onboardingScreen').classList.add('show');
+      document.getElementById('inviteCodeInput').value = 'abc123';
+      document.getElementById('inviteMsg').textContent = '';
+
+      await claimInviteCode();
+
+      if (capturedCode !== 'ABC123') throw new Error('expected claimInviteCode() to call claim_invite_code RPC with the uppercased code, got: ' + capturedCode);
+      if (currentRole !== 'kasir' || shopOwnerId !== 'owner-xyz' || employeeName !== 'Siti') throw new Error('expected role/shopOwnerId/employeeName to be set from the RPC result row, got role=' + currentRole + ' owner=' + shopOwnerId + ' nama=' + employeeName);
+      if (document.getElementById('onboardingScreen').classList.contains('show')) throw new Error('onboarding screen should close after a successful claim');
+    } finally {
+      sb.rpc = originalRpc;
+      ensureAppSubscription = originalEnsureApp;
+      initUserData = originalInitUserData;
+      currentRole = savedRole; shopOwnerId = savedOwner; employeeName = savedEmployeeName; kasirOutletId = savedKasirOutletId;
+      document.getElementById('inviteCodeInput').value = '';
+      document.getElementById('onboardingScreen').classList.remove('show');
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): claimInviteCode() menampilkan error kalau RPC claim_invite_code gagal klaim (kode sudah dipakai/salah, baris kosong) -- tidak boleh lanjut set role/panggil ensureAppSubscription', async () => {
+    const originalRpc = sb.rpc;
+    const originalEnsureApp = ensureAppSubscription;
+    const originalInitUserData = initUserData;
+    const savedRole = currentRole, savedOwner = shopOwnerId;
+    try {
+      ensureAppSubscription = async () => { throw new Error('should not be called when the claim fails'); };
+      initUserData = async () => { throw new Error('should not be called when the claim fails'); };
+      sb.rpc = async (name) => name === 'claim_invite_code' ? { data: [], error: null } : { data: null, error: null };
+      document.getElementById('inviteCodeInput').value = 'USEDUP';
+      document.getElementById('inviteMsg').textContent = '';
+
+      await claimInviteCode();
+
+      if (!document.getElementById('inviteMsg').textContent) throw new Error('expected an error message to be shown when the claim fails');
+    } finally {
+      sb.rpc = originalRpc;
+      ensureAppSubscription = originalEnsureApp;
+      initUserData = originalInitUserData;
+      currentRole = savedRole; shopOwnerId = savedOwner;
+      document.getElementById('inviteCodeInput').value = '';
+    }
+  });
+
   await step('handleAuthSubmit(): signup dengan kode REFERRAL (referrer_owner_id terisi) cuma mencatat nk_referredBy di localStorage -- TIDAK menandai kode "terpakai" (boleh dipakai ulang) dan TIDAK mengkreditkan bonus saat itu juga (baru nanti saat bayar, lihat apply_referral_bonus_if_pending)', async () => {
     const originalAuth = { signUp: sb.auth.signUp };
     const originalRpc = sb.rpc;
@@ -3098,16 +3213,18 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) tetap berperilaku sekali-pakai seperti sebelumnya -- update() status "terpakai" + nk_paidSignup, BUKAN nk_referredBy', async () => {
+  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) berhasil klaim lewat RPC claim_registration_code (BUKAN update() langsung lagi -- lihat README, RLS registration_codes admin-only) -- set nk_paidSignup, BUKAN nk_referredBy', async () => {
     const originalAuth = { signUp: sb.auth.signUp };
     const originalRpc = sb.rpc;
     const savedAuthMode = authMode;
     fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
     lastRegCodeUpdate = null;
+    let capturedClaimCode = null;
     try {
-      sb.rpc = async (name) => {
+      sb.rpc = async (name, params) => {
         if (name === 'check_registration_code') return { data: true, error: null };
         if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        if (name === 'claim_registration_code') { capturedClaimCode = params && params.p_code; return { data: true, error: null }; }
         return { data: null, error: null };
       };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
@@ -3120,9 +3237,10 @@ const result = await page.evaluate(async () => {
 
       await handleAuthSubmit();
 
-      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup should set nk_paidSignup=1 (unchanged legacy behavior)');
+      if (capturedClaimCode !== 'ADMIN123') throw new Error('expected handleAuthSubmit() to call claim_registration_code RPC with the admin code, got: ' + capturedClaimCode);
+      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup whose claim RPC succeeds should set nk_paidSignup=1');
       if (localStorage.getItem('nk_referredBy')) throw new Error('an admin-code signup should NOT set nk_referredBy');
-      if (!lastRegCodeUpdate || lastRegCodeUpdate.status !== 'terpakai' || lastRegCodeUpdate.used_by !== 'new-user-2') throw new Error('an admin code should still be marked terpakai/used_by via update(), got: ' + JSON.stringify(lastRegCodeUpdate));
+      if (lastRegCodeUpdate !== null) throw new Error('registration_codes should NOT be update()-d directly from the browser anymore (RLS is admin-only) -- claiming must go through the RPC, got update payload: ' + JSON.stringify(lastRegCodeUpdate));
     } finally {
       sb.auth.signUp = originalAuth.signUp;
       sb.rpc = originalRpc;
@@ -3133,6 +3251,41 @@ const result = await page.evaluate(async () => {
       try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
       fakeReferralCode = null;
       lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): handleAuthSubmit() -- kalau RPC claim_registration_code gagal klaim (kode sudah dipakai orang lain, data:false), nk_paidSignup TIDAK BOLEH diset -- dulu diset tanpa syarat sebelum RPC ini ada, membuat satu kode admin bisa dipakai berkali-kali', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'ADMIN999', status: 'aktif' };
+    try {
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: null, error: null };
+        if (name === 'claim_registration_code') return { data: false, error: null }; // sudah diklaim orang lain lebih dulu
+        return { data: null, error: null };
+      };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-reused' }, session: { access_token: 'fake' } }, error: null });
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'reused@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'ADMIN999';
+      document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await handleAuthSubmit();
+
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: nk_paidSignup tidak boleh diset kalau klaim RPC gagal (kode sudah dipakai), got: ' + localStorage.getItem('nk_paidSignup'));
+    } finally {
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
     }
   });
 
@@ -3268,6 +3421,63 @@ const result = await page.evaluate(async () => {
       sb.from = originalFrom;
       sb.rpc = originalRpc;
       paymentReqCache = savedCache;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): approvePaymentRequest()/approveRenewalRequest()/rejectPaymentRequest() HARUS menyimpan processed_by_email (admin mana yang bertindak) -- dulu tidak ada kolom ini, tidak bisa dilacak kalau ada perselisihan approve/tolak dengan >1 admin', async () => {
+    const originalFrom = sb.from;
+    const originalRpc = sb.rpc;
+    const savedUser = currentUser;
+    const savedPaymentReqCache = paymentReqCache.slice();
+    const savedRegCodeCache = regCodeCache.slice();
+    const originalConfirm = window.confirm;
+    try {
+      currentUser = { email: ADMIN_EMAILS[1] };
+      window.confirm = () => true; // rejectPaymentRequest() asks for confirmation first
+      sb.rpc = async () => ({ data: null, error: null });
+      const capturedUpdates = [];
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: (row) => { capturedUpdates.push(row); return q; },
+            single: () => Promise.resolve({ data: { id: 'preq-admin-trace' }, error: null }),
+            maybeSingle: () => Promise.resolve({ data: { id: 'preq-admin-trace' }, error: null }),
+            then: (resolve) => resolve({ data: [{ id: 'preq-admin-trace' }], error: null }) };
+          return q;
+        }
+        if (table === 'registration_codes') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
+            insert: () => q,
+            then: (resolve) => resolve({ data: [], error: null }) };
+          return q;
+        }
+        if (table === 'app_subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: () => q, insert: () => q,
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }), then: (resolve) => resolve({ data: null, error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      paymentReqCache = [{ id: 'preq-admin-trace', type: 'daftar', wa: '081200000000', nama: 'Toko Trace' }];
+      await approvePaymentRequest('preq-admin-trace');
+      paymentReqCache = [{ id: 'preq-admin-trace', type: 'perpanjangan', owner_id: 'owner-trace', wa: '081200000000', nama: 'Toko Trace', plan_days: 30 }];
+      await approveRenewalRequest('preq-admin-trace');
+      await rejectPaymentRequest('preq-admin-trace');
+
+      if (capturedUpdates.length !== 3) throw new Error('expected 3 update() calls (approve biasa, approve perpanjangan, tolak), got ' + capturedUpdates.length);
+      capturedUpdates.forEach((row, i) => {
+        if (row.processed_by_email !== ADMIN_EMAILS[1]) throw new Error(`update #${i} harus menyertakan processed_by_email admin yang login, got: ` + JSON.stringify(row));
+      });
+    } finally {
+      sb.from = originalFrom;
+      sb.rpc = originalRpc;
+      currentUser = savedUser;
+      window.confirm = originalConfirm;
+      paymentReqCache = savedPaymentReqCache;
+      regCodeCache = savedRegCodeCache;
     }
   });
 
