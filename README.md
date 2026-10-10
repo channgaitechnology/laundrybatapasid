@@ -1122,6 +1122,45 @@ dipanggil di dalam `try/catch`, jadi kalau function-nya belum ada,
 gagalnya diam-diam saja, tidak menggagalkan proses aktivasi langganan
 itu sendiri.
 
+### Race condition kode referral — unique index
+
+Ditemukan lewat audit (9 Oktober 2026): `getOrCreateReferralCode()`
+(`js/03-langganan.js`) melakukan SELECT cek kode sudah ada, baru INSERT
+kalau belum — dua langkah terpisah, TIDAK atomik. Klik ganda tombol
+"Bagikan dan Dapat Bonus" atau 2 tab terbuka bersamaan bisa membuat
+**dua** baris kode referral untuk 1 toko, karena tidak ada constraint
+yang mencegahnya. Jalankan sekali (partial index — kode ADMIN yang
+`referrer_owner_id`-nya `null` TIDAK ikut dibatasi, boleh banyak):
+
+```sql
+create unique index if not exists registration_codes_referrer_owner_unique
+  on registration_codes(referrer_owner_id) where referrer_owner_id is not null;
+```
+
+`getOrCreateReferralCode()` sudah diupdate: kalau `insert()` ditolak index
+ini (race), fungsi ini SELECT ulang dan mengembalikan kode yang sudah
+dibuat panggilan lain, bukan `null`.
+
+### Transaksi tidak menyimpan siapa pembuatnya — kolom `created_by`/`created_by_nama`
+
+Ditemukan lewat audit (9 Oktober 2026): `edit_log` cuma mencatat nama
+editor untuk jalur EDIT transaksi (`submitTransaction()` mode edit) —
+baris transaksi ASLI (insert pertama, belum pernah diedit) tidak pernah
+menyimpan siapa yang membuatnya sama sekali. Toko dengan lebih dari 1
+kasir tidak bisa tahu siapa input nota tertentu kalau belum pernah
+diedit. Jalankan sekali:
+
+```sql
+alter table transactions add column if not exists created_by uuid references auth.users(id);
+alter table transactions add column if not exists created_by_nama text;
+```
+
+Aman dijalankan kapan saja — kolom nullable, transaksi lama tetap tampil
+seperti biasa (cuma `created_by`-nya kosong). `submitTransaction()`
+(`js/12-transaksi.js`) sekarang mengisi keduanya saat insert transaksi
+baru, dari user yang sedang login (`currentUser.id`) + nama editor yang
+sama persis dengan yang dipakai `logEditHistory()`.
+
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 
 Halaman **terpisah** dari `index.html` (bukan bagian aplikasi kasir yang

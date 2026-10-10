@@ -348,6 +348,7 @@ const result = await page.evaluate(async () => {
           return resolve({ data: [withId], error: null });
         }
         let rows = fakeEditLogRows;
+        if (eqFilters.owner_id !== undefined) rows = rows.filter(r => r.owner_id === eqFilters.owner_id);
         if (eqFilters.entity_type !== undefined) rows = rows.filter(r => r.entity_type === eqFilters.entity_type);
         if (eqFilters.entity_id !== undefined) rows = rows.filter(r => r.entity_id === eqFilters.entity_id);
         return resolve({ data: rows, error: null });
@@ -869,6 +870,161 @@ const result = await page.evaluate(async () => {
     closeSubsDetail();
   });
 
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Tempo) tidak boleh mengubah state lokal kalau subscription_usage.delete() gagal -- dulu delete() ini TIDAK diperiksa error sama sekali', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedDp = tempoSub.dp, savedLunasAt = tempoSub.lunasAt, savedUsageList = currentUsageList.slice();
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-tempo-1';
+    tempoSub._calc = { excessKg:0, excessCost:0, excessRate:0, extraTotal:40000, totalTagihan:40000, sisaBayar:40000, lebihBayar:0, lunasNow:false };
+    tempoSub.dp = 999; tempoSub.lunasAt = null;
+    currentUsageList = [{ id:'u-fail-1', tanggal:'2026-08-20', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Cuci', qty:1, satuan:'kg', harga:40000, subtotal:40000 }];
+    try {
+      sb.from = (table) => {
+        if (table === 'subscription_usage') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, delete: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (tempoSub.dp !== 999) throw new Error('REGRESI: dp tidak boleh berubah jadi carryOver kalau subscription_usage.delete() gagal, got: ' + tempoSub.dp);
+      if (tempoSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau subscription_usage.delete() gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      tempoSub.dp = savedDp; tempoSub.lunasAt = savedLunasAt; currentUsageList = savedUsageList;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Tempo) tidak boleh mengubah state lokal kalau update() subscriptions gagal setelah subscription_usage berhasil dihapus', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedDp = tempoSub.dp, savedLunasAt = tempoSub.lunasAt, savedUsageList = currentUsageList.slice();
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-tempo-1';
+    tempoSub._calc = { excessKg:0, excessCost:0, excessRate:0, extraTotal:40000, totalTagihan:40000, sisaBayar:40000, lebihBayar:0, lunasNow:false };
+    tempoSub.dp = 888; tempoSub.lunasAt = null;
+    currentUsageList = [{ id:'u-fail-2', tanggal:'2026-08-20', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Cuci', qty:1, satuan:'kg', harga:40000, subtotal:40000 }];
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (tempoSub.dp !== 888) throw new Error('REGRESI: dp tidak boleh berubah jadi carryOver kalau update() subscriptions gagal, got: ' + tempoSub.dp);
+      if (tempoSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau update() subscriptions gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      tempoSub.dp = savedDp; tempoSub.lunasAt = savedLunasAt; currentUsageList = savedUsageList;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Paket Bulanan non-Tempo) tidak boleh mengubah statusBayar/dp lokal kalau update() subscriptions gagal', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedStatusBayar = bulananSub.statusBayar, savedDp = bulananSub.dp, savedLunasAt = bulananSub.lunasAt;
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-bulanan-1';
+    bulananSub._calc = { excessKg:0, excessCost:0, excessRate:0, totalTagihan: bulananSub.hargaPaket, sisaBayar: bulananSub.hargaPaket, lebihBayar:0, lunasNow:false };
+    bulananSub.statusBayar = 'belum'; bulananSub.dp = 777; bulananSub.lunasAt = null;
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (bulananSub.statusBayar !== 'belum') throw new Error('REGRESI: statusBayar tidak boleh berubah jadi lunas kalau update() subscriptions gagal, got: ' + bulananSub.statusBayar);
+      if (bulananSub.dp !== 777) throw new Error('REGRESI: dp tidak boleh berubah kalau update() gagal, got: ' + bulananSub.dp);
+      if (bulananSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau update() gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      bulananSub.statusBayar = savedStatusBayar; bulananSub.dp = savedDp; bulananSub.lunasAt = savedLunasAt;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): deleteSubscription() HARUS tercatat di edit_log DAN punya Undo (dulu TIDAK ADA keduanya sama sekali -- penghapusan permanen senyap paling parah di app, bisa sembunyikan pendapatan paket lunas dari Laporan tanpa jejak)', async () => {
+    const originalFrom = sb.from;
+    const originalConfirm = window.confirm;
+    const savedSubscriptions = subscriptions.slice();
+    const savedCurrentUsageList = currentUsageList.slice();
+    const savedCurrentSubscriptionId = currentSubscriptionId;
+    window.confirm = () => true;
+    const delSub = { id:'sub-del-1', nama:'Pelanggan Hapus', hp:'0811', paketNama:'Paket 50kg', hargaPaket:150000, hargaLebihKg:8000, kuotaKg:50, tanggalMulai:'2026-08-01', tanggalSelesai:'2026-09-01', status:'aktif', statusBayar:'lunas', dp:150000, lunasAt:'2026-08-05', transactionId:'tx-old', terpakai:0, outletId:null };
+    subscriptions.push(delSub);
+    currentSubscriptionId = 'sub-del-1';
+    currentUsageList = [{ id:'u-del-1', tanggal:'2026-08-10', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Setrika', qty:1, satuan:'pcs', harga:5000, subtotal:5000 }];
+    let subCounter = 0, usageCounter = 0;
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          let mode = 'delete', insertRow = null;
+          const q = {
+            select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            insert: (row) => { mode = 'insert'; insertRow = row; return q; },
+            delete: () => { mode = 'delete'; return q; },
+            single: () => mode === 'insert' && insertRow
+              ? Promise.resolve({ data: { id: 'fake-sub-restored-' + (++subCounter), ...insertRow }, error: null })
+              : Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: null, error: null }),
+          };
+          return q;
+        }
+        if (table === 'subscription_usage') {
+          let mode = 'delete', insertRow = null;
+          const q = {
+            select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            insert: (row) => { mode = 'insert'; insertRow = row; return q; },
+            delete: () => { mode = 'delete'; return q; },
+            single: () => mode === 'insert' && insertRow
+              ? Promise.resolve({ data: { id: 'fake-usage-restored-' + (++usageCounter), ...insertRow }, error: null })
+              : Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: null, error: null }),
+          };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      const before = fakeEditLogRows.length;
+      await deleteSubscription();
+
+      if (subscriptions.some(s => s.id === 'sub-del-1')) throw new Error('subscription should be removed after confirmed delete');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'subscription' && r.entity_id === 'sub-del-1');
+      if (!deleteLog) throw new Error('REGRESI: deleteSubscription() harus memanggil logEditHistory sebelum hapus, tidak ada baris edit_log untuk sub-del-1');
+      if (!deleteLog.changes[0].from.includes('Pelanggan Hapus')) throw new Error('log penghapusan harus menyertakan snapshot nama pelanggan: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      if (!btn || btn.textContent !== 'Urungkan') throw new Error('REGRESI: deleteSubscription() dulu TIDAK PUNYA tombol Urungkan sama sekali -- harus ada sekarang');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 200));
+
+      const restored = subscriptions.find(s => s.nama === 'Pelanggan Hapus');
+      if (!restored) throw new Error('Urungkan harus mengembalikan pelanggan paket ke subscriptions[]: ' + JSON.stringify(subscriptions));
+      if (restored.hargaPaket !== 150000 || restored.paketNama !== 'Paket 50kg') throw new Error('data pelanggan yang dikembalikan harus sama persis: ' + JSON.stringify(restored));
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'subscription' && r.entity_id === restored.id && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: Urungkan juga harus tercatat di edit_log');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      subscriptions = savedSubscriptions;
+      currentUsageList = savedCurrentUsageList;
+      currentSubscriptionId = savedCurrentSubscriptionId;
+    }
+  });
+
   // --- Regression: regular (non-Tempo) walk-in transaction, DP > total while status=Lunas ---
   // Reproduces the reported bug: DP Rp100.000 typed in, bill only Rp13.000, status set to
   // Lunas -> the app used to silently overwrite dp with `total`, discarding the 100.000.
@@ -933,6 +1089,45 @@ const result = await page.evaluate(async () => {
       if (document.getElementById('inDP').value != 0) throw new Error('BUG: form Edit seharusnya menampilkan dp=0 (nilai asli tersimpan), got ' + document.getElementById('inDP').value);
     } finally {
       editingTransactionId = savedEditingId;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): submitTransaction() HARUS mengirim created_by (id user login) dan created_by_nama (Pemilik/nama kasir) saat insert transaksi baru -- dulu baris transaksi ASLI tidak pernah menyimpan siapa yang membuatnya sama sekali', async () => {
+    const originalFrom = sb.from;
+    const savedEditingId = editingTransactionId;
+    const savedRole = currentRole, savedEmployeeName = employeeName, savedUser = currentUser;
+    let capturedInsert = null;
+    try {
+      editingTransactionId = null;
+      currentRole = 'kasir';
+      employeeName = 'Dedi';
+      currentUser = { id: 'user-dedi-1', email: 'dedi@test.com' };
+      draftItems = [{ nama:'cuci setrika', qty:1, satuan:'kg', harga:10000, subtotal:10000 }];
+      document.getElementById('inNama').value = 'Pelanggan CreatedBy';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-22';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '0';
+      document.getElementById('inStatus').value = 'belum';
+      document.getElementById('inCatatan').value = '';
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q,
+          insert: (row) => { capturedInsert = row; q._inserted = { id: 'fake-tx-createdby', kode: 'TX-CB-1', ...row }; return q; },
+          single: () => Promise.resolve({ data: q._inserted, error: null }),
+          then: (resolve) => resolve({ data: q._inserted ? [q._inserted] : [], error: null }) };
+        return q;
+      };
+      await submitTransaction();
+      if (!capturedInsert) throw new Error('expected an insert() call to transactions');
+      if (capturedInsert.created_by !== 'user-dedi-1') throw new Error('REGRESI: created_by harus diisi dari currentUser.id, got: ' + capturedInsert.created_by);
+      if (capturedInsert.created_by_nama !== 'Dedi') throw new Error('REGRESI: created_by_nama harus diisi dari employeeName kasir, got: ' + capturedInsert.created_by_nama);
+    } finally {
+      sb.from = originalFrom;
+      editingTransactionId = savedEditingId;
+      currentRole = savedRole; employeeName = savedEmployeeName; currentUser = savedUser;
+      transactions = transactions.filter(t => t.id !== 'fake-tx-createdby');
     }
   });
 
@@ -1288,6 +1483,30 @@ const result = await page.evaluate(async () => {
     const restored = transactions.find(t => t.kode === 'DEL-1');
     if (!restored || restored.nama !== 'Budi Uji' || restored.total !== 9000) {
       throw new Error('undo should have restored the deleted transaction: ' + JSON.stringify(restored));
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): deleteTransaction() HARUS tercatat di edit_log (dulu penghapusan transaksi tidak meninggalkan jejak sama sekali), termasuk saat "Urungkan" dipakai', async () => {
+    const before = fakeEditLogRows.length;
+    transactions.push({ id:'del-tx-log', kode:'DEL-LOG-1', nama:'Rina Log', hp:'', tanggal:'2026-08-27', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:15000,subtotal:15000}], diskon:0, total:15000, dp:15000, status:'lunas', catatan:'' });
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await deleteTransaction('del-tx-log');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'transaction' && r.entity_id === 'del-tx-log');
+      if (!deleteLog) throw new Error('REGRESI: deleteTransaction() harus memanggil logEditHistory(\'transaction\', id, ...) sebelum hapus, tidak ada baris edit_log untuk del-tx-log');
+      if (!deleteLog.changes[0].from.includes('Rina Log')) throw new Error('log penghapusan harus menyertakan snapshot nama/total yang dihapus: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 150));
+      const restoredId = transactions.find(t => t.kode === 'DEL-LOG-1').id;
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'transaction' && r.entity_id === restoredId && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: "Urungkan" transaksi juga harus tercatat di edit_log, supaya undo tidak jadi cara diam-diam menghapus jejak hapus di atas');
+    } finally {
+      window.confirm = originalConfirm;
+      transactions = transactions.filter(t => t.kode !== 'DEL-LOG-1');
     }
   });
 
@@ -3091,6 +3310,27 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('REGRESI (audit 9 Okt 2026): getOrCreateReferralCode() -- kalau insert() gagal karena race condition (unique index registration_codes_referrer_owner_unique, lihat README; klik ganda/2 tab), ambil balik kode yang SUDAH dibuat panggilan lain, bukan return null', async () => {
+    const originalFrom = sb.from;
+    let maybeSingleCallCount = 0;
+    try {
+      sb.from = (table) => {
+        if (table !== 'registration_codes') return originalFrom(table);
+        const q = {
+          select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'duplicate key value violates unique constraint "registration_codes_referrer_owner_unique"' } }) }) }),
+          maybeSingle: () => { maybeSingleCallCount++; return Promise.resolve({ data: maybeSingleCallCount > 1 ? { code: 'REF-WONRACE' } : null, error: null }); },
+          then: (resolve) => resolve({ data: [], error: null }),
+        };
+        return q;
+      };
+      const code = await getOrCreateReferralCode();
+      if (code !== 'REF-WONRACE') throw new Error('REGRESI: expected getOrCreateReferralCode() to fall back to re-selecting the race winner\'s code instead of returning null, got: ' + code);
+    } finally {
+      sb.from = originalFrom;
+    }
+  });
+
   await step('shareReferral(): memakai navigator.share() berisi kode referral kalau didukung, dan fallback ke link share WhatsApp (wa.me/?text=...) kalau tidak', async () => {
     fakeReferralCode = null;
     const originalShare = navigator.share;
@@ -3587,6 +3827,20 @@ const result = await page.evaluate(async () => {
     } finally {
       currentRole = savedRole;
       employeeName = savedEmployeeName;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): openEditHistory() HARUS filter owner_id (defense-in-depth) -- dulu cuma filter entity_type+entity_id, dan ID transaksi/pelanggan paket global bisa ditebak/diiterasi lintas toko', async () => {
+    const savedOwner = shopOwnerId;
+    try {
+      await logEditHistory('transaction', 'trx-cross-tenant-1', [{ field:'nama', label:'Nama Pelanggan', from:'Toko A Lama', to:'Toko A Baru' }]);
+      shopOwnerId = 'other-shop-owner';
+      await openEditHistory('transaction', 'trx-cross-tenant-1', 'Riwayat Transaksi');
+      const html = document.getElementById('editHistoryList').innerHTML;
+      if (html.includes('Toko A Lama') || html.includes('Toko A Baru')) throw new Error('REGRESI kebocoran lintas-toko: openEditHistory() menampilkan riwayat edit milik owner lain: ' + html);
+      if (!html.includes('Belum ada riwayat edit')) throw new Error('expected the empty-state message when the entity_id matches but owner_id does not: ' + html);
+    } finally {
+      shopOwnerId = savedOwner;
     }
   });
 

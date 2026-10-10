@@ -204,7 +204,16 @@ async function getOrCreateReferralCode(){
   if(existing && existing.code) return existing.code;
   const code = 'REF-' + genRegCode();
   const { data, error } = await sb.from('registration_codes').insert({ code, status:'aktif', referrer_owner_id: shopOwnerId, note:'Kode referral' }).select().single();
-  return error ? null : data.code;
+  if(!error) return data.code;
+  /* REGRESI race condition (audit) -- SELECT lalu INSERT terpisah di atas
+     TIDAK atomik: klik ganda tombol "Bagikan"/2 tab terbuka bisa membuat
+     DUA baris kode referral untuk 1 toko kalau insert() di sini tidak
+     ditolak. Index UNIQUE partial `registration_codes_referrer_owner_unique`
+     (lihat README) sekarang menolak insert KEDUA yang datang hampir
+     bersamaan -- kalau insert kita gagal karena itu, jangan anggap gagal
+     total, ambil balik kode yang SUDAH berhasil dibuat panggilan lain. */
+  const { data: afterRace } = await sb.from('registration_codes').select('code').eq('referrer_owner_id', shopOwnerId).limit(1).maybeSingle();
+  return (afterRace && afterRace.code) || null;
 }
 async function loadReferralCode(){
   const el = document.getElementById('referralCodeDisplay');

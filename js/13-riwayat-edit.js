@@ -84,7 +84,13 @@ async function openEditHistory(entityType, entityId, title){
   if(titleEl) titleEl.textContent = title || t('🕘 Riwayat Edit');
   list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">${t('Memuat...')}</div>`;
   modal.classList.add('show');
-  const { data, error } = await sb.from('edit_log').select('*').eq('entity_type', entityType).eq('entity_id', String(entityId)).order('edited_at', { ascending:false });
+  // .eq('owner_id', shopOwnerId) di sini SENGAJA ditambah sebagai lapis
+  // kedua (defense-in-depth) -- entity_id tabel transactions/subscriptions
+  // adalah bigint identity GLOBAL (bukan per-toko) yang mudah ditebak/
+  // diiterasi, jadi query ini TIDAK BOLEH cuma mengandalkan RLS live
+  // (yang desainnya memang sudah benar per README, tapi belum pernah
+  // diverifikasi langsung lewat pg_policies) untuk menolak baris toko lain.
+  const { data, error } = await sb.from('edit_log').select('*').eq('owner_id', shopOwnerId).eq('entity_type', entityType).eq('entity_id', String(entityId)).order('edited_at', { ascending:false });
   if(error){
     list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-soft);">${t('Riwayat edit belum tersedia — tabel edit_log mungkin belum dimigrasi (lihat README).')}</div>`;
     return;
@@ -111,6 +117,12 @@ async function deleteTransaction(id){
   if(error){ showToast(t('Gagal menghapus transaksi')); return; }
   transactions = transactions.filter(t=>t.id!==id);
   renderHistory();
+  // Tercatat di edit_log (entity_type 'transaction') -- dulu deleteTransaction()
+  // TIDAK PERNAH memanggil logEditHistory() sama sekali, jadi kasir bisa input
+  // nota fiktif/salah lalu hapus sebelum shift selesai tanpa jejak apa pun.
+  // Dicatat SEBELUM delete() di atas kelihatan aneh urutannya, tapi logEditHistory()
+  // hanya butuh snapshot trx (sudah ada di memori) -- tidak perlu row DB lagi.
+  await logEditHistory('transaction', id, [{ field:'_deleted', label:t('Dihapus'), from:`${trx.nama} — ${rupiah(trx.total)}`, to:t('dihapus') }]);
   showToast(t('Transaksi dihapus'), {
     label: t('Urungkan'),
     onClick: async ()=>{
@@ -128,6 +140,10 @@ async function deleteTransaction(id){
         outletId: data.outlet_id!=null ? String(data.outlet_id) : null
       });
       renderHistory();
+      // Undo juga dicatat -- kalau tidak, ini jadi cara diam-diam menghapus
+      // jejak _deleted di atas (baris baru dapat id baru, tidak tersambung
+      // lagi ke entitas lama, tapi minimal ada jejak kalau mau ditelusuri).
+      await logEditHistory('transaction', data.id, [{ field:'_restored', label:t('Dikembalikan'), from:t('terhapus'), to:`${data.nama} — ${rupiah(Number(data.total)||0)}` }]);
       showToast(t('Transaksi dikembalikan'));
     }
   });
