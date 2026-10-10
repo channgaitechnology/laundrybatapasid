@@ -5,9 +5,29 @@ function genRegCode(){
   for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
   return code;
 }
+/* Khusus kode ADMIN (bukan kode referral -- itu tetap genRegCode() 6
+   karakter via getOrCreateReferralCode() di js/03-langganan.js, format
+   REF-XXXXXX sengaja pendek supaya mudah dibagikan/diketik, dan nilai
+   risikonya rendah karena TIDAK melewati trial, cuma menandai siapa
+   mereferensikan siapa). Kode admin 10 karakter (bukan 6) -- kode ini
+   merepresentasikan pembayaran yang SUDAH diverifikasi admin (nilai uang
+   nyata, melewati trial langsung ke aktif). 6 karakter dari 33 simbol
+   (~1,07 miliar kombinasi) ketahuan lewat audit bisa diterobos
+   brute-force lewat RPC check_registration_code berulang kali tanpa
+   rate-limit yang kelihatan; 10 karakter (33^10, puluhan triliun
+   kombinasi) membuatnya praktis mustahil ditebak tanpa perlu
+   infrastruktur rate-limit baru. Kode ADMIN LAMA yang sudah dibagikan (6
+   karakter) tetap valid seperti biasa -- pencocokannya exact-match,
+   panjang beda tidak masalah. */
+function genAdminRegCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<10;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
 async function createManualCode(){
   const note = prompt(t('Catatan kode ini (opsional, misal nama pembeli):')) || '';
-  const code = genRegCode();
+  const code = genAdminRegCode();
   const { error } = await sb.from('registration_codes').insert({ code, status:'aktif', note });
   if(error){ showToast(t('Gagal membuat kode')); return; }
   await loadAdminData();
@@ -231,10 +251,12 @@ function renderPaymentReqList(){
 async function approvePaymentRequest(id){
   const req = paymentReqCache.find(r=>r.id===id);
   if(!req) return;
-  const code = genRegCode();
+  const code = genAdminRegCode();
   const { error: e1 } = await sb.from('registration_codes').insert({ code, status:'aktif', note: req.nama });
   if(e1){ showToast(t('Gagal membuat kode')); return; }
-  const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code }).eq('id', id);
+  // processed_by_email -- siapa admin yang approve (lihat README). Berguna
+  // kalau nanti ada perselisihan approve/tolak dan ADMIN_EMAILS lebih dari 1.
+  const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code, processed_by_email: currentUser ? currentUser.email : null }).eq('id', id);
   if(e2){ showToast(t('Kode dibuat tapi gagal update status permintaan')); }
   await loadAdminData();
   const waNum = normalizePhone(req.wa);
@@ -255,7 +277,7 @@ async function approveRenewalRequest(id){
      app_subscriptions sama sekali, supaya paid_until tidak diperpanjang
      dobel dari 1 pembayaran. */
   const { data: claimed, error: claimErr } = await sb.from('payment_requests')
-    .update({ status:'disetujui', paid_at: now.toISOString() })
+    .update({ status:'disetujui', paid_at: now.toISOString(), processed_by_email: currentUser ? currentUser.email : null })
     .eq('id', id).eq('status','menunggu').select();
   if(claimErr){ showToast(t('Gagal mengaktifkan langganan')); return; }
   if(!claimed || claimed.length===0){
@@ -290,7 +312,7 @@ async function approveRenewalRequest(id){
 }
 async function rejectPaymentRequest(id){
   if(!confirm(t('Tolak permintaan ini?'))) return;
-  const { error } = await sb.from('payment_requests').update({ status:'ditolak' }).eq('id', id);
+  const { error } = await sb.from('payment_requests').update({ status:'ditolak', processed_by_email: currentUser ? currentUser.email : null }).eq('id', id);
   if(error){ showToast(t('Gagal menolak')); return; }
   await loadAdminData();
 }

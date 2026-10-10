@@ -48,8 +48,11 @@ async function resolveRoleAndInit(){
         localStorage.setItem('nk_referredBy', pendingReferrer);
         localStorage.removeItem('nk_pendingReferrer');
       } else {
-        await sb.from('registration_codes').update({ status:'terpakai', used_by: currentUser.id }).eq('code', pending).eq('status','aktif');
-        localStorage.setItem('nk_paidSignup', '1');
+        // Sama seperti jalur signup langsung (handleAuthSubmit, js/01-auth.js) --
+        // lewat RPC security definer claim_registration_code, BUKAN update()
+        // langsung (lihat komentar lengkap di js/01-auth.js soal kenapa).
+        const { data: claimed } = await sb.rpc('claim_registration_code', { p_code: pending });
+        if(claimed) localStorage.setItem('nk_paidSignup', '1');
       }
       localStorage.removeItem('nk_pendingRegCode');
     }
@@ -98,10 +101,18 @@ async function claimInviteCode(){
   const msgEl = document.getElementById('inviteMsg');
   if(!code){ msgEl.className='auth-msg error'; msgEl.textContent=t('Masukkan kode undangan dulu'); return; }
   msgEl.className='auth-msg'; msgEl.textContent=t('Memeriksa kode...');
-  const { data: row, error: findErr } = await sb.from('team_members').select('*').eq('invite_code', code).eq('status','pending').maybeSingle();
-  if(findErr || !row){ msgEl.className='auth-msg error'; msgEl.textContent=t('Kode tidak ditemukan atau sudah dipakai'); return; }
-  const { error } = await sb.from('team_members').update({ member_id: currentUser.id, status:'aktif' }).eq('id', row.id);
-  if(error){ msgEl.className='auth-msg error'; msgEl.textContent=t('Gagal bergabung, coba lagi'); return; }
+  /* RPC security definer claim_invite_code (lihat README) -- BUKAN select+update
+     langsung ke team_members dari browser. Dulu 2 langkah terpisah: race
+     condition nyata (2 orang submit kode yang sama hampir bersamaan bisa
+     berdua lolos SELECT 'pending' sebelum salah satunya UPDATE), dan UPDATE-nya
+     sendiri bergantung ke RLS team_members yang kebijakannya tidak
+     terdokumentasi (berisiko kasir bisa menulis owner_id asing). RPC ini
+     menyatukan SELECT+UPDATE jadi satu UPDATE atomik bersyarat
+     status='pending' (pola sama seperti klaim payment_requests), dan tidak
+     bisa diajak menulis owner_id selain milik baris undangan itu sendiri. */
+  const { data: rows, error } = await sb.rpc('claim_invite_code', { p_code: code });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if(error || !row){ msgEl.className='auth-msg error'; msgEl.textContent=t('Kode tidak ditemukan atau sudah dipakai'); return; }
   currentRole = 'kasir';
   shopOwnerId = row.owner_id;
   employeeName = row.nama;

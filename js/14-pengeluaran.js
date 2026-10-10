@@ -149,6 +149,11 @@ async function deleteExpense(id){
   if(error){ showToast(t('Gagal menghapus pengeluaran')); return; }
   expenses = expenses.filter(e=>e.id!==id);
   renderExpenseList();
+  // Tercatat di edit_log (entity_type 'expense') -- lihat komentar di
+  // js/13-riwayat-edit.js kenapa ini perlu walau pengeluaran tidak punya
+  // fitur EDIT: tanpa ini, penghapusan pengeluaran (mis. buat mengecilkan
+  // biaya di Laporan/Laba Rugi) tidak meninggalkan jejak apa pun.
+  await logEditHistory('expense', id, [{ field:'_deleted', label:t('Dihapus'), from:`${exp.nama} (${rupiah(exp.jumlah)})`, to:t('dihapus') }]);
   showToast(t('Pengeluaran dihapus'), {
     label: t('Urungkan'),
     onClick: async ()=>{
@@ -160,6 +165,10 @@ async function deleteExpense(id){
       if(err2){ showToast(t('Gagal mengembalikan pengeluaran')); return; }
       expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
       renderExpenseList();
+      // Undo juga dicatat -- kalau tidak, "Urungkan" jadi cara diam-diam
+      // menghapus jejak penghapusan di atas (baris baru dapat id baru, tidak
+      // tersambung lagi ke entri _deleted di atas, tapi minimal ada jejaknya).
+      await logEditHistory('expense', data.id, [{ field:'_restored', label:t('Dikembalikan'), from:t('terhapus'), to:`${data.nama} (${rupiah(Number(data.jumlah)||0)})` }]);
       showToast(t('Pengeluaran dikembalikan'));
     }
   });

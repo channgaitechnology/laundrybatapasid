@@ -19,7 +19,7 @@ page.on('console', msg => { if (msg.type() === 'error') errors.push('CONSOLE: ' 
 await page.addInitScript(() => {
   function fakeQuery(data) {
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
       update: () => q, insert: () => q, delete: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
@@ -93,7 +93,7 @@ const result = await page.evaluate(async () => {
   // Fake chainable supabase query builder that resolves to given data.
   function fakeQuery(data) {
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
       update: () => q, insert: () => q, delete: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
@@ -127,7 +127,7 @@ const result = await page.evaluate(async () => {
     const q = {
       select: () => q,
       eq: (col, val) => { eqFilters[col] = val; return q; },
-      in: () => q, order: () => q, update: () => q,
+      in: () => q, order: () => q, range: () => q, update: () => q,
       insert: (row) => { mode = 'insert'; insertRow = row; return q; },
       delete: () => { mode = 'delete'; return q; },
       single: () => {
@@ -348,6 +348,7 @@ const result = await page.evaluate(async () => {
           return resolve({ data: [withId], error: null });
         }
         let rows = fakeEditLogRows;
+        if (eqFilters.owner_id !== undefined) rows = rows.filter(r => r.owner_id === eqFilters.owner_id);
         if (eqFilters.entity_type !== undefined) rows = rows.filter(r => r.entity_type === eqFilters.entity_type);
         if (eqFilters.entity_id !== undefined) rows = rows.filter(r => r.entity_id === eqFilters.entity_id);
         return resolve({ data: rows, error: null });
@@ -432,6 +433,41 @@ const result = await page.evaluate(async () => {
   await step('isTempo() detects tempo vs bulanan', () => {
     if (!isTempo(tempoSub)) throw new Error('expected tempoSub to be tempo');
     if (isTempo(bulananSub)) throw new Error('expected bulananSub to NOT be tempo');
+  });
+
+  await step('toISODateLocal()/todayISO() membangun tanggal dari komponen LOKAL, bukan toISOString() (REGRESI -- dulu UTC, menggeser mundur 1 hari pagi-pagi di semua zona waktu Indonesia)', () => {
+    const d = new Date(2026, 9, 9); // 9 Oktober 2026, lokal
+    if (toISODateLocal(d) !== '2026-10-09') throw new Error('expected 2026-10-09, got ' + toISODateLocal(d));
+    const now = new Date();
+    const expected = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    if (todayISO() !== expected) throw new Error('todayISO() should match local Y-M-D components, got ' + todayISO() + ' expected ' + expected);
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): addOneMonthClamped() tidak boleh menggeser mundur 1 hari (dulu toISOString() setelah new Date(y,m,d) lokal menggeser ke UTC)', () => {
+    const result = addOneMonthClamped('2026-01-15');
+    if (result !== '2026-02-15') throw new Error('expected 2026-02-15, got ' + result);
+    const clamped = addOneMonthClamped('2026-01-31'); // Februari 2026 bukan tahun kabisat -> clamp ke 28
+    if (clamped !== '2026-02-28') throw new Error('expected clamp to 2026-02-28, got ' + clamped);
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): papanHapusDateThreshold() tidak boleh menggeser mundur 1 hari EKSTRA (bug independen -- threshold "2 hari" dulu jadi mundur 3 hari di semua zona waktu Indonesia)', () => {
+    const today = new Date();
+    const expected2 = new Date(today); expected2.setDate(expected2.getDate() - 2);
+    const expected2Str = `${expected2.getFullYear()}-${String(expected2.getMonth()+1).padStart(2,'0')}-${String(expected2.getDate()).padStart(2,'0')}`;
+    const got = papanHapusDateThreshold('2-hari');
+    if (got !== expected2Str) throw new Error(`expected threshold 2 hari lalu = ${expected2Str}, got ${got}`);
+  });
+
+  await step('fetchAllRows() mengumpulkan SEMUA halaman lewat .range() berulang, bukan cuma 1000 baris pertama (REGRESI -- query tanpa paginasi diam-diam kepotong di batas default Supabase)', async () => {
+    const totalRows = 2500; // > 2x SUPABASE_PAGE_SIZE, memaksa 3 halaman
+    const allFakeRows = Array.from({ length: totalRows }, (_, i) => ({ id: i }));
+    function pagedQuery() {
+      return { range: (from, to) => Promise.resolve({ data: allFakeRows.slice(from, to + 1), error: null }) };
+    }
+    const { data, error } = await fetchAllRows(pagedQuery);
+    if (error) throw new Error('unexpected error: ' + JSON.stringify(error));
+    if (data.length !== totalRows) throw new Error(`expected all ${totalRows} rows across pages, got ${data.length}`);
+    if (data[0].id !== 0 || data[totalRows - 1].id !== totalRows - 1) throw new Error('rows out of order/incomplete: ' + JSON.stringify([data[0], data[data.length - 1]]));
   });
 
   await step('renderSubscriptions() renders both card types', () => {
@@ -834,6 +870,161 @@ const result = await page.evaluate(async () => {
     closeSubsDetail();
   });
 
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Tempo) tidak boleh mengubah state lokal kalau subscription_usage.delete() gagal -- dulu delete() ini TIDAK diperiksa error sama sekali', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedDp = tempoSub.dp, savedLunasAt = tempoSub.lunasAt, savedUsageList = currentUsageList.slice();
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-tempo-1';
+    tempoSub._calc = { excessKg:0, excessCost:0, excessRate:0, extraTotal:40000, totalTagihan:40000, sisaBayar:40000, lebihBayar:0, lunasNow:false };
+    tempoSub.dp = 999; tempoSub.lunasAt = null;
+    currentUsageList = [{ id:'u-fail-1', tanggal:'2026-08-20', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Cuci', qty:1, satuan:'kg', harga:40000, subtotal:40000 }];
+    try {
+      sb.from = (table) => {
+        if (table === 'subscription_usage') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, delete: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (tempoSub.dp !== 999) throw new Error('REGRESI: dp tidak boleh berubah jadi carryOver kalau subscription_usage.delete() gagal, got: ' + tempoSub.dp);
+      if (tempoSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau subscription_usage.delete() gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      tempoSub.dp = savedDp; tempoSub.lunasAt = savedLunasAt; currentUsageList = savedUsageList;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Tempo) tidak boleh mengubah state lokal kalau update() subscriptions gagal setelah subscription_usage berhasil dihapus', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedDp = tempoSub.dp, savedLunasAt = tempoSub.lunasAt, savedUsageList = currentUsageList.slice();
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-tempo-1';
+    tempoSub._calc = { excessKg:0, excessCost:0, excessRate:0, extraTotal:40000, totalTagihan:40000, sisaBayar:40000, lebihBayar:0, lunasNow:false };
+    tempoSub.dp = 888; tempoSub.lunasAt = null;
+    currentUsageList = [{ id:'u-fail-2', tanggal:'2026-08-20', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Cuci', qty:1, satuan:'kg', harga:40000, subtotal:40000 }];
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (tempoSub.dp !== 888) throw new Error('REGRESI: dp tidak boleh berubah jadi carryOver kalau update() subscriptions gagal, got: ' + tempoSub.dp);
+      if (tempoSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau update() subscriptions gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      tempoSub.dp = savedDp; tempoSub.lunasAt = savedLunasAt; currentUsageList = savedUsageList;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): markSubsLunas() (Paket Bulanan non-Tempo) tidak boleh mengubah statusBayar/dp lokal kalau update() subscriptions gagal', async () => {
+    const originalConfirm = window.confirm;
+    const originalFrom = sb.from;
+    const savedStatusBayar = bulananSub.statusBayar, savedDp = bulananSub.dp, savedLunasAt = bulananSub.lunasAt;
+    window.confirm = () => true;
+    currentSubscriptionId = 'sub-bulanan-1';
+    bulananSub._calc = { excessKg:0, excessCost:0, excessRate:0, totalTagihan: bulananSub.hargaPaket, sisaBayar: bulananSub.hargaPaket, lebihBayar:0, lunasNow:false };
+    bulananSub.statusBayar = 'belum'; bulananSub.dp = 777; bulananSub.lunasAt = null;
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            then: (resolve) => resolve({ data: null, error: { message: 'boom' } }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+      await markSubsLunas();
+      if (bulananSub.statusBayar !== 'belum') throw new Error('REGRESI: statusBayar tidak boleh berubah jadi lunas kalau update() subscriptions gagal, got: ' + bulananSub.statusBayar);
+      if (bulananSub.dp !== 777) throw new Error('REGRESI: dp tidak boleh berubah kalau update() gagal, got: ' + bulananSub.dp);
+      if (bulananSub.lunasAt !== null) throw new Error('REGRESI: lunasAt tidak boleh diisi kalau update() gagal');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      bulananSub.statusBayar = savedStatusBayar; bulananSub.dp = savedDp; bulananSub.lunasAt = savedLunasAt;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): deleteSubscription() HARUS tercatat di edit_log DAN punya Undo (dulu TIDAK ADA keduanya sama sekali -- penghapusan permanen senyap paling parah di app, bisa sembunyikan pendapatan paket lunas dari Laporan tanpa jejak)', async () => {
+    const originalFrom = sb.from;
+    const originalConfirm = window.confirm;
+    const savedSubscriptions = subscriptions.slice();
+    const savedCurrentUsageList = currentUsageList.slice();
+    const savedCurrentSubscriptionId = currentSubscriptionId;
+    window.confirm = () => true;
+    const delSub = { id:'sub-del-1', nama:'Pelanggan Hapus', hp:'0811', paketNama:'Paket 50kg', hargaPaket:150000, hargaLebihKg:8000, kuotaKg:50, tanggalMulai:'2026-08-01', tanggalSelesai:'2026-09-01', status:'aktif', statusBayar:'lunas', dp:150000, lunasAt:'2026-08-05', transactionId:'tx-old', terpakai:0, outletId:null };
+    subscriptions.push(delSub);
+    currentSubscriptionId = 'sub-del-1';
+    currentUsageList = [{ id:'u-del-1', tanggal:'2026-08-10', berat:0, catatan:'', type:'layanan_tambahan', layananNama:'Setrika', qty:1, satuan:'pcs', harga:5000, subtotal:5000 }];
+    let subCounter = 0, usageCounter = 0;
+    try {
+      sb.from = (table) => {
+        if (table === 'subscriptions') {
+          let mode = 'delete', insertRow = null;
+          const q = {
+            select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            insert: (row) => { mode = 'insert'; insertRow = row; return q; },
+            delete: () => { mode = 'delete'; return q; },
+            single: () => mode === 'insert' && insertRow
+              ? Promise.resolve({ data: { id: 'fake-sub-restored-' + (++subCounter), ...insertRow }, error: null })
+              : Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: null, error: null }),
+          };
+          return q;
+        }
+        if (table === 'subscription_usage') {
+          let mode = 'delete', insertRow = null;
+          const q = {
+            select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q,
+            insert: (row) => { mode = 'insert'; insertRow = row; return q; },
+            delete: () => { mode = 'delete'; return q; },
+            single: () => mode === 'insert' && insertRow
+              ? Promise.resolve({ data: { id: 'fake-usage-restored-' + (++usageCounter), ...insertRow }, error: null })
+              : Promise.resolve({ data: null, error: null }),
+            then: (resolve) => resolve({ data: null, error: null }),
+          };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      const before = fakeEditLogRows.length;
+      await deleteSubscription();
+
+      if (subscriptions.some(s => s.id === 'sub-del-1')) throw new Error('subscription should be removed after confirmed delete');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'subscription' && r.entity_id === 'sub-del-1');
+      if (!deleteLog) throw new Error('REGRESI: deleteSubscription() harus memanggil logEditHistory sebelum hapus, tidak ada baris edit_log untuk sub-del-1');
+      if (!deleteLog.changes[0].from.includes('Pelanggan Hapus')) throw new Error('log penghapusan harus menyertakan snapshot nama pelanggan: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      if (!btn || btn.textContent !== 'Urungkan') throw new Error('REGRESI: deleteSubscription() dulu TIDAK PUNYA tombol Urungkan sama sekali -- harus ada sekarang');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 200));
+
+      const restored = subscriptions.find(s => s.nama === 'Pelanggan Hapus');
+      if (!restored) throw new Error('Urungkan harus mengembalikan pelanggan paket ke subscriptions[]: ' + JSON.stringify(subscriptions));
+      if (restored.hargaPaket !== 150000 || restored.paketNama !== 'Paket 50kg') throw new Error('data pelanggan yang dikembalikan harus sama persis: ' + JSON.stringify(restored));
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'subscription' && r.entity_id === restored.id && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: Urungkan juga harus tercatat di edit_log');
+    } finally {
+      sb.from = originalFrom;
+      window.confirm = originalConfirm;
+      subscriptions = savedSubscriptions;
+      currentUsageList = savedCurrentUsageList;
+      currentSubscriptionId = savedCurrentSubscriptionId;
+    }
+  });
+
   // --- Regression: regular (non-Tempo) walk-in transaction, DP > total while status=Lunas ---
   // Reproduces the reported bug: DP Rp100.000 typed in, bill only Rp13.000, status set to
   // Lunas -> the app used to silently overwrite dp with `total`, discarding the 100.000.
@@ -898,6 +1089,45 @@ const result = await page.evaluate(async () => {
       if (document.getElementById('inDP').value != 0) throw new Error('BUG: form Edit seharusnya menampilkan dp=0 (nilai asli tersimpan), got ' + document.getElementById('inDP').value);
     } finally {
       editingTransactionId = savedEditingId;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): submitTransaction() HARUS mengirim created_by (id user login) dan created_by_nama (Pemilik/nama kasir) saat insert transaksi baru -- dulu baris transaksi ASLI tidak pernah menyimpan siapa yang membuatnya sama sekali', async () => {
+    const originalFrom = sb.from;
+    const savedEditingId = editingTransactionId;
+    const savedRole = currentRole, savedEmployeeName = employeeName, savedUser = currentUser;
+    let capturedInsert = null;
+    try {
+      editingTransactionId = null;
+      currentRole = 'kasir';
+      employeeName = 'Dedi';
+      currentUser = { id: 'user-dedi-1', email: 'dedi@test.com' };
+      draftItems = [{ nama:'cuci setrika', qty:1, satuan:'kg', harga:10000, subtotal:10000 }];
+      document.getElementById('inNama').value = 'Pelanggan CreatedBy';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-22';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '0';
+      document.getElementById('inStatus').value = 'belum';
+      document.getElementById('inCatatan').value = '';
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q,
+          insert: (row) => { capturedInsert = row; q._inserted = { id: 'fake-tx-createdby', kode: 'TX-CB-1', ...row }; return q; },
+          single: () => Promise.resolve({ data: q._inserted, error: null }),
+          then: (resolve) => resolve({ data: q._inserted ? [q._inserted] : [], error: null }) };
+        return q;
+      };
+      await submitTransaction();
+      if (!capturedInsert) throw new Error('expected an insert() call to transactions');
+      if (capturedInsert.created_by !== 'user-dedi-1') throw new Error('REGRESI: created_by harus diisi dari currentUser.id, got: ' + capturedInsert.created_by);
+      if (capturedInsert.created_by_nama !== 'Dedi') throw new Error('REGRESI: created_by_nama harus diisi dari employeeName kasir, got: ' + capturedInsert.created_by_nama);
+    } finally {
+      sb.from = originalFrom;
+      editingTransactionId = savedEditingId;
+      currentRole = savedRole; employeeName = savedEmployeeName; currentUser = savedUser;
+      transactions = transactions.filter(t => t.id !== 'fake-tx-createdby');
     }
   });
 
@@ -1253,6 +1483,30 @@ const result = await page.evaluate(async () => {
     const restored = transactions.find(t => t.kode === 'DEL-1');
     if (!restored || restored.nama !== 'Budi Uji' || restored.total !== 9000) {
       throw new Error('undo should have restored the deleted transaction: ' + JSON.stringify(restored));
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): deleteTransaction() HARUS tercatat di edit_log (dulu penghapusan transaksi tidak meninggalkan jejak sama sekali), termasuk saat "Urungkan" dipakai', async () => {
+    const before = fakeEditLogRows.length;
+    transactions.push({ id:'del-tx-log', kode:'DEL-LOG-1', nama:'Rina Log', hp:'', tanggal:'2026-08-27', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:15000,subtotal:15000}], diskon:0, total:15000, dp:15000, status:'lunas', catatan:'' });
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await deleteTransaction('del-tx-log');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'transaction' && r.entity_id === 'del-tx-log');
+      if (!deleteLog) throw new Error('REGRESI: deleteTransaction() harus memanggil logEditHistory(\'transaction\', id, ...) sebelum hapus, tidak ada baris edit_log untuk del-tx-log');
+      if (!deleteLog.changes[0].from.includes('Rina Log')) throw new Error('log penghapusan harus menyertakan snapshot nama/total yang dihapus: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 150));
+      const restoredId = transactions.find(t => t.kode === 'DEL-LOG-1').id;
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'transaction' && r.entity_id === restoredId && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: "Urungkan" transaksi juga harus tercatat di edit_log, supaya undo tidak jadi cara diam-diam menghapus jejak hapus di atas');
+    } finally {
+      window.confirm = originalConfirm;
+      transactions = transactions.filter(t => t.kode !== 'DEL-LOG-1');
     }
   });
 
@@ -2313,6 +2567,30 @@ const result = await page.evaluate(async () => {
     if (restored.nama !== 'Gaji' || restored.qty !== 1) throw new Error('undo should restore full itemized row, got ' + JSON.stringify(restored));
   });
 
+  await step('REGRESI (audit 9 Okt 2026): deleteExpense() HARUS tercatat di edit_log (dulu penghapusan pengeluaran tidak meninggalkan jejak sama sekali), termasuk saat "Urungkan" dipakai', async () => {
+    const before = fakeEditLogRows.length;
+    expenses.push({ id: 'exp-log-test', tanggal: '2026-08-01', nama: 'Deterjen', qty: 2, satuan: 'pak', harga: 25000, jumlah: 50000, kategori: 'Deterjen & Perlengkapan', catatan: '' });
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await deleteExpense('exp-log-test');
+      const deleteLog = fakeEditLogRows.slice(before).find(r => r.entity_type === 'expense' && r.entity_id === 'exp-log-test');
+      if (!deleteLog) throw new Error('REGRESI: deleteExpense() harus memanggil logEditHistory(\'expense\', id, ...) sebelum hapus, tidak ada baris edit_log untuk exp-log-test');
+      if (!deleteLog.changes || !deleteLog.changes[0] || !deleteLog.changes[0].from.includes('Deterjen')) throw new Error('log penghapusan harus menyertakan snapshot nama/jumlah yang dihapus: ' + JSON.stringify(deleteLog));
+
+      const toast = document.getElementById('toast');
+      const btn = toast.querySelector('.toast-action');
+      btn.onclick();
+      await new Promise(r => setTimeout(r, 150));
+      const restoredId = expenses.find(e => e.nama === 'Deterjen' && e.jumlah === 50000).id;
+      const restoreLog = fakeEditLogRows.find(r => r.entity_type === 'expense' && r.entity_id === restoredId && r.changes[0].field === '_restored');
+      if (!restoreLog) throw new Error('REGRESI: "Urungkan" pengeluaran juga harus tercatat di edit_log (entity_id baris baru), supaya undo tidak jadi cara diam-diam menghapus jejak hapus di atas');
+    } finally {
+      window.confirm = originalConfirm;
+      expenses = expenses.filter(e => e.id !== 'exp-log-test');
+    }
+  });
+
   // --- Laba Rugi: per bulan & per tahun, dengan rincian per kategori ---
   await step('renderLabaRugi() (Bulanan) computes Pendapatan Bersih = pemasukan (omzet) - pengeluaran, with a kategori breakdown', () => {
     transactions = [
@@ -3032,6 +3310,27 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('REGRESI (audit 9 Okt 2026): getOrCreateReferralCode() -- kalau insert() gagal karena race condition (unique index registration_codes_referrer_owner_unique, lihat README; klik ganda/2 tab), ambil balik kode yang SUDAH dibuat panggilan lain, bukan return null', async () => {
+    const originalFrom = sb.from;
+    let maybeSingleCallCount = 0;
+    try {
+      sb.from = (table) => {
+        if (table !== 'registration_codes') return originalFrom(table);
+        const q = {
+          select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'duplicate key value violates unique constraint "registration_codes_referrer_owner_unique"' } }) }) }),
+          maybeSingle: () => { maybeSingleCallCount++; return Promise.resolve({ data: maybeSingleCallCount > 1 ? { code: 'REF-WONRACE' } : null, error: null }); },
+          then: (resolve) => resolve({ data: [], error: null }),
+        };
+        return q;
+      };
+      const code = await getOrCreateReferralCode();
+      if (code !== 'REF-WONRACE') throw new Error('REGRESI: expected getOrCreateReferralCode() to fall back to re-selecting the race winner\'s code instead of returning null, got: ' + code);
+    } finally {
+      sb.from = originalFrom;
+    }
+  });
+
   await step('shareReferral(): memakai navigator.share() berisi kode referral kalau didukung, dan fallback ke link share WhatsApp (wa.me/?text=...) kalau tidak', async () => {
     fakeReferralCode = null;
     const originalShare = navigator.share;
@@ -3057,6 +3356,62 @@ const result = await page.evaluate(async () => {
       window.open = originalOpen;
       displayEl.textContent = savedDisplay;
       fakeReferralCode = null;
+    }
+  });
+
+  await step('claimInviteCode(): klaim lewat RPC claim_invite_code (bukan select+update langsung lagi -- lihat README soal race condition & RLS team_members yang tidak terdokumentasi)', async () => {
+    const originalRpc = sb.rpc;
+    const originalEnsureApp = ensureAppSubscription;
+    const originalInitUserData = initUserData;
+    const savedRole = currentRole, savedOwner = shopOwnerId, savedEmployeeName = employeeName, savedKasirOutletId = kasirOutletId;
+    let capturedCode = null;
+    try {
+      ensureAppSubscription = async () => {};
+      initUserData = async () => {};
+      sb.rpc = async (name, params) => {
+        if (name === 'claim_invite_code') { capturedCode = params && params.p_code; return { data: [{ owner_id: 'owner-xyz', nama: 'Siti', outlet_id: null }], error: null }; }
+        return { data: null, error: null };
+      };
+      document.getElementById('onboardingScreen').classList.add('show');
+      document.getElementById('inviteCodeInput').value = 'abc123';
+      document.getElementById('inviteMsg').textContent = '';
+
+      await claimInviteCode();
+
+      if (capturedCode !== 'ABC123') throw new Error('expected claimInviteCode() to call claim_invite_code RPC with the uppercased code, got: ' + capturedCode);
+      if (currentRole !== 'kasir' || shopOwnerId !== 'owner-xyz' || employeeName !== 'Siti') throw new Error('expected role/shopOwnerId/employeeName to be set from the RPC result row, got role=' + currentRole + ' owner=' + shopOwnerId + ' nama=' + employeeName);
+      if (document.getElementById('onboardingScreen').classList.contains('show')) throw new Error('onboarding screen should close after a successful claim');
+    } finally {
+      sb.rpc = originalRpc;
+      ensureAppSubscription = originalEnsureApp;
+      initUserData = originalInitUserData;
+      currentRole = savedRole; shopOwnerId = savedOwner; employeeName = savedEmployeeName; kasirOutletId = savedKasirOutletId;
+      document.getElementById('inviteCodeInput').value = '';
+      document.getElementById('onboardingScreen').classList.remove('show');
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): claimInviteCode() menampilkan error kalau RPC claim_invite_code gagal klaim (kode sudah dipakai/salah, baris kosong) -- tidak boleh lanjut set role/panggil ensureAppSubscription', async () => {
+    const originalRpc = sb.rpc;
+    const originalEnsureApp = ensureAppSubscription;
+    const originalInitUserData = initUserData;
+    const savedRole = currentRole, savedOwner = shopOwnerId;
+    try {
+      ensureAppSubscription = async () => { throw new Error('should not be called when the claim fails'); };
+      initUserData = async () => { throw new Error('should not be called when the claim fails'); };
+      sb.rpc = async (name) => name === 'claim_invite_code' ? { data: [], error: null } : { data: null, error: null };
+      document.getElementById('inviteCodeInput').value = 'USEDUP';
+      document.getElementById('inviteMsg').textContent = '';
+
+      await claimInviteCode();
+
+      if (!document.getElementById('inviteMsg').textContent) throw new Error('expected an error message to be shown when the claim fails');
+    } finally {
+      sb.rpc = originalRpc;
+      ensureAppSubscription = originalEnsureApp;
+      initUserData = originalInitUserData;
+      currentRole = savedRole; shopOwnerId = savedOwner;
+      document.getElementById('inviteCodeInput').value = '';
     }
   });
 
@@ -3098,16 +3453,18 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) tetap berperilaku sekali-pakai seperti sebelumnya -- update() status "terpakai" + nk_paidSignup, BUKAN nk_referredBy', async () => {
+  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) berhasil klaim lewat RPC claim_registration_code (BUKAN update() langsung lagi -- lihat README, RLS registration_codes admin-only) -- set nk_paidSignup, BUKAN nk_referredBy', async () => {
     const originalAuth = { signUp: sb.auth.signUp };
     const originalRpc = sb.rpc;
     const savedAuthMode = authMode;
     fakeReferralCode = { code: 'ADMIN123', status: 'aktif' }; // tanpa referrer_owner_id
     lastRegCodeUpdate = null;
+    let capturedClaimCode = null;
     try {
-      sb.rpc = async (name) => {
+      sb.rpc = async (name, params) => {
         if (name === 'check_registration_code') return { data: true, error: null };
         if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
+        if (name === 'claim_registration_code') { capturedClaimCode = params && params.p_code; return { data: true, error: null }; }
         return { data: null, error: null };
       };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
@@ -3120,9 +3477,10 @@ const result = await page.evaluate(async () => {
 
       await handleAuthSubmit();
 
-      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup should set nk_paidSignup=1 (unchanged legacy behavior)');
+      if (capturedClaimCode !== 'ADMIN123') throw new Error('expected handleAuthSubmit() to call claim_registration_code RPC with the admin code, got: ' + capturedClaimCode);
+      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup whose claim RPC succeeds should set nk_paidSignup=1');
       if (localStorage.getItem('nk_referredBy')) throw new Error('an admin-code signup should NOT set nk_referredBy');
-      if (!lastRegCodeUpdate || lastRegCodeUpdate.status !== 'terpakai' || lastRegCodeUpdate.used_by !== 'new-user-2') throw new Error('an admin code should still be marked terpakai/used_by via update(), got: ' + JSON.stringify(lastRegCodeUpdate));
+      if (lastRegCodeUpdate !== null) throw new Error('registration_codes should NOT be update()-d directly from the browser anymore (RLS is admin-only) -- claiming must go through the RPC, got update payload: ' + JSON.stringify(lastRegCodeUpdate));
     } finally {
       sb.auth.signUp = originalAuth.signUp;
       sb.rpc = originalRpc;
@@ -3133,6 +3491,41 @@ const result = await page.evaluate(async () => {
       try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
       fakeReferralCode = null;
       lastRegCodeUpdate = null;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): handleAuthSubmit() -- kalau RPC claim_registration_code gagal klaim (kode sudah dipakai orang lain, data:false), nk_paidSignup TIDAK BOLEH diset -- dulu diset tanpa syarat sebelum RPC ini ada, membuat satu kode admin bisa dipakai berkali-kali', async () => {
+    const originalAuth = { signUp: sb.auth.signUp };
+    const originalRpc = sb.rpc;
+    const savedAuthMode = authMode;
+    fakeReferralCode = { code: 'ADMIN999', status: 'aktif' };
+    try {
+      sb.rpc = async (name) => {
+        if (name === 'check_registration_code') return { data: true, error: null };
+        if (name === 'get_registration_code_referrer') return { data: null, error: null };
+        if (name === 'claim_registration_code') return { data: false, error: null }; // sudah diklaim orang lain lebih dulu
+        return { data: null, error: null };
+      };
+      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-reused' }, session: { access_token: 'fake' } }, error: null });
+      authMode = 'daftar';
+      document.getElementById('authEmail').value = 'reused@example.com';
+      document.getElementById('authPassword').value = 'password123';
+      document.getElementById('regCodeInput').value = 'ADMIN999';
+      document.getElementById('authTosCheck').checked = true;
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+
+      await handleAuthSubmit();
+
+      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: nk_paidSignup tidak boleh diset kalau klaim RPC gagal (kode sudah dipakai), got: ' + localStorage.getItem('nk_paidSignup'));
+    } finally {
+      sb.auth.signUp = originalAuth.signUp;
+      sb.rpc = originalRpc;
+      authMode = savedAuthMode;
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('regCodeInput').value = '';
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      fakeReferralCode = null;
     }
   });
 
@@ -3271,6 +3664,63 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('REGRESI (audit 9 Okt 2026): approvePaymentRequest()/approveRenewalRequest()/rejectPaymentRequest() HARUS menyimpan processed_by_email (admin mana yang bertindak) -- dulu tidak ada kolom ini, tidak bisa dilacak kalau ada perselisihan approve/tolak dengan >1 admin', async () => {
+    const originalFrom = sb.from;
+    const originalRpc = sb.rpc;
+    const savedUser = currentUser;
+    const savedPaymentReqCache = paymentReqCache.slice();
+    const savedRegCodeCache = regCodeCache.slice();
+    const originalConfirm = window.confirm;
+    try {
+      currentUser = { email: ADMIN_EMAILS[1] };
+      window.confirm = () => true; // rejectPaymentRequest() asks for confirmation first
+      sb.rpc = async () => ({ data: null, error: null });
+      const capturedUpdates = [];
+      sb.from = (table) => {
+        if (table === 'payment_requests') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: (row) => { capturedUpdates.push(row); return q; },
+            single: () => Promise.resolve({ data: { id: 'preq-admin-trace' }, error: null }),
+            maybeSingle: () => Promise.resolve({ data: { id: 'preq-admin-trace' }, error: null }),
+            then: (resolve) => resolve({ data: [{ id: 'preq-admin-trace' }], error: null }) };
+          return q;
+        }
+        if (table === 'registration_codes') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, delete: () => q,
+            insert: () => q,
+            then: (resolve) => resolve({ data: [], error: null }) };
+          return q;
+        }
+        if (table === 'app_subscriptions') {
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q,
+            update: () => q, insert: () => q,
+            single: () => Promise.resolve({ data: null, error: null }),
+            maybeSingle: () => Promise.resolve({ data: null, error: null }), then: (resolve) => resolve({ data: null, error: null }) };
+          return q;
+        }
+        return originalFrom(table);
+      };
+
+      paymentReqCache = [{ id: 'preq-admin-trace', type: 'daftar', wa: '081200000000', nama: 'Toko Trace' }];
+      await approvePaymentRequest('preq-admin-trace');
+      paymentReqCache = [{ id: 'preq-admin-trace', type: 'perpanjangan', owner_id: 'owner-trace', wa: '081200000000', nama: 'Toko Trace', plan_days: 30 }];
+      await approveRenewalRequest('preq-admin-trace');
+      await rejectPaymentRequest('preq-admin-trace');
+
+      if (capturedUpdates.length !== 3) throw new Error('expected 3 update() calls (approve biasa, approve perpanjangan, tolak), got ' + capturedUpdates.length);
+      capturedUpdates.forEach((row, i) => {
+        if (row.processed_by_email !== ADMIN_EMAILS[1]) throw new Error(`update #${i} harus menyertakan processed_by_email admin yang login, got: ` + JSON.stringify(row));
+      });
+    } finally {
+      sb.from = originalFrom;
+      sb.rpc = originalRpc;
+      currentUser = savedUser;
+      window.confirm = originalConfirm;
+      paymentReqCache = savedPaymentReqCache;
+      regCodeCache = savedRegCodeCache;
+    }
+  });
+
   await step('diffTransactionFields() only reports fields that actually changed (scalars, items array, and derived total), leaving unchanged fields out entirely', async () => {
     const before = { nama:'Budi', hp:'0812', tanggal:'2026-08-01', estimasi:'2026-08-02', diskon:0, dp:0, status:'belum', catatan:'', items:[{nama:'Cuci',qty:1,satuan:'kg',harga:7000,subtotal:7000}], total:7000 };
     const after = { ...before, nama:'Budi Santoso', diskon:1000, total:6000, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:7000,subtotal:7000}] };
@@ -3377,6 +3827,20 @@ const result = await page.evaluate(async () => {
     } finally {
       currentRole = savedRole;
       employeeName = savedEmployeeName;
+    }
+  });
+
+  await step('REGRESI (audit 9 Okt 2026): openEditHistory() HARUS filter owner_id (defense-in-depth) -- dulu cuma filter entity_type+entity_id, dan ID transaksi/pelanggan paket global bisa ditebak/diiterasi lintas toko', async () => {
+    const savedOwner = shopOwnerId;
+    try {
+      await logEditHistory('transaction', 'trx-cross-tenant-1', [{ field:'nama', label:'Nama Pelanggan', from:'Toko A Lama', to:'Toko A Baru' }]);
+      shopOwnerId = 'other-shop-owner';
+      await openEditHistory('transaction', 'trx-cross-tenant-1', 'Riwayat Transaksi');
+      const html = document.getElementById('editHistoryList').innerHTML;
+      if (html.includes('Toko A Lama') || html.includes('Toko A Baru')) throw new Error('REGRESI kebocoran lintas-toko: openEditHistory() menampilkan riwayat edit milik owner lain: ' + html);
+      if (!html.includes('Belum ada riwayat edit')) throw new Error('expected the empty-state message when the entity_id matches but owner_id does not: ' + html);
+    } finally {
+      shopOwnerId = savedOwner;
     }
   });
 

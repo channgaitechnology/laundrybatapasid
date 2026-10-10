@@ -94,8 +94,21 @@ async function handleAuthSubmit(){
         if(referrerOwnerId){
           try{ localStorage.setItem('nk_referredBy', referrerOwnerId); }catch(e){}
         } else {
-          try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
-          await sb.from('registration_codes').update({ status:'terpakai', used_by: data.user.id }).eq('code', regCode).eq('status','aktif');
+          /* RPC security definer claim_registration_code (lihat README) --
+             BUKAN update() langsung ke registration_codes dari browser. RLS
+             tabel ini admin-only untuk UPDATE (lihat README bagian RLS
+             registration_codes), jadi update() langsung dari user biasa
+             sebenarnya SELALU kena 0 baris (RLS diam-diam menolak, bukan
+             error) -- kode jadi TIDAK PERNAH benar-benar ditandai 'terpakai',
+             dan satu kode bisa dipakai berkali-kali oleh siapa saja yang
+             tahu kodenya. RPC ini atomik (UPDATE bersyarat status='aktif')
+             DAN bisa menembus RLS (security definer) untuk menandai kode
+             admin biasa (bukan kode referral) jadi 'terpakai' dengan benar.
+             nk_paidSignup HANYA diset kalau klaimnya benar-benar berhasil. */
+          const { data: claimed } = await sb.rpc('claim_registration_code', { p_code: regCode });
+          if(claimed){
+            try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
+          }
         }
       }
     }

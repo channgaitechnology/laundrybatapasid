@@ -155,6 +155,12 @@ async function submitTransaction(){
     return;
   }
 
+  /* created_by/created_by_nama (lihat README) -- dulu baris transaksi ASLI
+     (insert pertama) tidak pernah menyimpan siapa yang membuatnya sama
+     sekali; edit_log cuma mencatat editor untuk jalur EDIT, jadi pemilik
+     toko dengan >1 kasir tidak bisa tahu siapa input nota tertentu kalau
+     belum pernah diedit. Sama seperti editorNama di logEditHistory(). */
+  const createdByNama = currentRole==='owner' ? t('Pemilik') : (employeeName || t('Kasir'));
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId,
     kode: await nextKode(),
@@ -163,6 +169,8 @@ async function submitTransaction(){
     items: draftItems.slice(),
     diskon, total, dp,
     status, catatan,
+    created_by: currentUser ? currentUser.id : null,
+    created_by_nama: createdByNama,
     /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
        tertentu (currentOutletId terisi) — supaya toko yang belum pernah
        bikin outlet sama sekali (fitur ini opt-in) tetap kirim payload

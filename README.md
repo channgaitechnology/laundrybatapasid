@@ -302,6 +302,53 @@ langsung. Kalau dibutuhkan proteksi yang lebih kuat, RLS `transactions`/
 `subscriptions`/`expenses` perlu ditulis ulang supaya ikut memeriksa
 `team_members.outlet_id` — belum dikerjakan di iterasi ini.
 
+### Klaim kode undangan kasir — RPC `claim_invite_code`
+
+Ditemukan lewat audit (9 Oktober 2026): `claimInviteCode()` (`js/02-init-data.js`)
+dulu melakukan `select()` cari baris `status='pending'`, lalu `update()`
+terpisah — ada 2 masalah: (1) **race condition** nyata, 2 kasir submit
+kode undangan yang sama hampir bersamaan bisa berdua lolos SELECT sebelum
+salah satunya UPDATE; (2) `update()`-nya sendiri bergantung total pada RLS
+`team_members` yang kebijakannya **tidak terdokumentasi** di README ini
+(hanya dipakai sebagai subquery policy tabel lain) — kalau RLS `UPDATE`-nya
+longgar, kasir yang sudah aktif bisa saja mencoba `update({owner_id: ...})`
+ke baris miliknya sendiri untuk "pindah" ke toko lain tanpa diundang.
+
+Ganti dengan satu RPC `security definer` yang atomik (UPDATE bersyarat
+`status='pending'` SEKALIGUS jadi kunci baris, pola sama seperti klaim
+`payment_requests` di `netlify/functions/midtrans-webhook.js`) dan tidak
+bisa diajak menulis kolom selain `member_id`/`status` baris itu sendiri,
+apa pun kebijakan RLS `team_members` yang sedang berlaku:
+
+```sql
+create or replace function claim_invite_code(p_code text)
+returns table(owner_id uuid, nama text, outlet_id bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id bigint;
+begin
+  update team_members
+    set member_id = auth.uid(), status = 'aktif'
+    where invite_code = p_code and status = 'pending'
+    returning id into v_id;
+
+  if v_id is null then
+    return;
+  end if;
+
+  return query select t.owner_id, t.nama, t.outlet_id from team_members t where t.id = v_id;
+end;
+$$;
+
+grant execute on function claim_invite_code(text) to authenticated;
+```
+
+`js/02-init-data.js` sudah diupdate memanggil RPC ini, bukan `select()`+
+`update()` langsung lagi.
+
 ### Cetak Bluetooth (printer thermal)
 
 Nota (transaksi biasa, invoice paket, nota timbangan) sekarang bisa dicetak
@@ -873,6 +920,94 @@ grant execute on function get_registration_code_referrer(text) to anon, authenti
 `js/01-auth.js` sudah diupdate memanggil `get_registration_code_referrer`
 (RPC) ini, bukan `select()` langsung ke `registration_codes`, lagi.
 
+### Kode admin dipakai ulang tanpa batas — RPC `claim_registration_code`
+
+Ditemukan lewat audit (9 Oktober 2026): begitu policy admin-only di atas
+benar-benar aktif, `update({status:'terpakai', used_by:...}).eq('code',
+regCode).eq('status','aktif')` yang dipanggil `js/01-auth.js` dan
+`js/02-init-data.js` (sebagai user baru, BUKAN admin) kena **0 baris**
+— RLS diam-diam menolak (bukan error terlihat, PostgREST tidak
+menganggap UPDATE 0-baris sebagai error). Akibatnya kode admin yang
+sudah dibeli **TIDAK PERNAH benar-benar ditandai `terpakai`**, jadi satu
+kode yang bocor (dibagikan via WA) bisa dipakai berkali-kali oleh siapa
+saja untuk dapat akun `status:'aktif'` 30 hari gratis tanpa pernah bayar
+lagi. Perbaikan: RPC `security definer` yang atomik (UPDATE bersyarat
+`status='aktif'`, sekaligus jadi kunci baris) dan cuma menyasar kode
+ADMIN (`referrer_owner_id is null`) — kode referral TETAP tidak pernah
+ditandai `terpakai` (sengaja boleh dipakai berkali-kali, lihat bagian
+Program Referral di bawah):
+
+```sql
+create or replace function claim_registration_code(p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rows int;
+begin
+  update registration_codes
+    set status = 'terpakai', used_by = auth.uid()
+  where code = p_code and status = 'aktif' and referrer_owner_id is null;
+  get diagnostics v_rows = row_count;
+  return v_rows > 0;
+end;
+$$;
+
+grant execute on function claim_registration_code(text) to authenticated;
+```
+
+Sekaligus, `check_registration_code` (RPC yang sudah dipanggil
+`js/01-auth.js` sebelum signup, tapi SQL definisinya belum pernah
+tercatat di README ini — ketahuan lewat audit, jadi grant-nya tidak
+pernah bisa diverifikasi) — jalankan ulang juga supaya pasti cocok &
+grant-nya cuma anon+authenticated (bukan lebih longgar):
+
+```sql
+create or replace function check_registration_code(p_code text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1 from registration_codes where code = p_code and status = 'aktif'
+  );
+$$;
+
+grant execute on function check_registration_code(text) to anon, authenticated;
+```
+
+`js/01-auth.js`/`js/02-init-data.js` sudah diupdate memanggil
+`claim_registration_code`, dan `nk_paidSignup` HANYA diset kalau
+klaimnya benar-benar berhasil (dulu diset tanpa syarat). Kode admin baru
+yang dibuat `createManualCode()`/`approvePaymentRequest()` (`js/05-admin.js`)
+sekarang juga 10 karakter (bukan 6) — 6 karakter dari 33 simbol (~1,07
+miliar kombinasi) ketahuan lewat audit bisa diterobos brute-force lewat
+`check_registration_code` berulang tanpa rate-limit yang kelihatan; kode
+LAMA yang sudah dibagikan (6 karakter) tetap valid seperti biasa. Fungsi
+pembuatnya sekarang `genAdminRegCode()` — terpisah dari `genRegCode()`
+(tetap 6 karakter, dipakai `getOrCreateReferralCode()` di
+`js/03-langganan.js` untuk kode referral `REF-XXXXXX`, yang sengaja
+TIDAK diperpanjang: risikonya jauh lebih rendah karena tidak melewati
+trial, cuma menandai siapa mereferensikan siapa).
+
+### Admin mana yang approve/tolak — kolom `processed_by_email`
+
+Ditemukan lewat audit (9 Oktober 2026): `approvePaymentRequest()`/
+`approveRenewalRequest()`/`rejectPaymentRequest()` (`js/05-admin.js`) tidak
+pernah mencatat admin MANA yang bertindak — dengan `ADMIN_EMAILS` bisa
+lebih dari satu akun admin, tidak bisa dilacak kalau ada perselisihan
+approve/tolak. Jalankan sekali:
+
+```sql
+alter table payment_requests add column if not exists processed_by_email text;
+```
+
+Ketiga fungsi di atas sekarang mengisi kolom ini dari email admin yang
+sedang login (`currentUser.email`).
+
 ## Program Referral (bagikan & dapat bonus 15 hari)
 
 Tombol **"🎁 Bagikan dan Dapat Bonus"** — sengaja ditaruh sebagai bar
@@ -986,6 +1121,45 @@ kolom `referrer_owner_id` belum ada, dan persetujuan pembayaran
 dipanggil di dalam `try/catch`, jadi kalau function-nya belum ada,
 gagalnya diam-diam saja, tidak menggagalkan proses aktivasi langganan
 itu sendiri.
+
+### Race condition kode referral — unique index
+
+Ditemukan lewat audit (9 Oktober 2026): `getOrCreateReferralCode()`
+(`js/03-langganan.js`) melakukan SELECT cek kode sudah ada, baru INSERT
+kalau belum — dua langkah terpisah, TIDAK atomik. Klik ganda tombol
+"Bagikan dan Dapat Bonus" atau 2 tab terbuka bersamaan bisa membuat
+**dua** baris kode referral untuk 1 toko, karena tidak ada constraint
+yang mencegahnya. Jalankan sekali (partial index — kode ADMIN yang
+`referrer_owner_id`-nya `null` TIDAK ikut dibatasi, boleh banyak):
+
+```sql
+create unique index if not exists registration_codes_referrer_owner_unique
+  on registration_codes(referrer_owner_id) where referrer_owner_id is not null;
+```
+
+`getOrCreateReferralCode()` sudah diupdate: kalau `insert()` ditolak index
+ini (race), fungsi ini SELECT ulang dan mengembalikan kode yang sudah
+dibuat panggilan lain, bukan `null`.
+
+### Transaksi tidak menyimpan siapa pembuatnya — kolom `created_by`/`created_by_nama`
+
+Ditemukan lewat audit (9 Oktober 2026): `edit_log` cuma mencatat nama
+editor untuk jalur EDIT transaksi (`submitTransaction()` mode edit) —
+baris transaksi ASLI (insert pertama, belum pernah diedit) tidak pernah
+menyimpan siapa yang membuatnya sama sekali. Toko dengan lebih dari 1
+kasir tidak bisa tahu siapa input nota tertentu kalau belum pernah
+diedit. Jalankan sekali:
+
+```sql
+alter table transactions add column if not exists created_by uuid references auth.users(id);
+alter table transactions add column if not exists created_by_nama text;
+```
+
+Aman dijalankan kapan saja — kolom nullable, transaksi lama tetap tampil
+seperti biasa (cuma `created_by`-nya kosong). `submitTransaction()`
+(`js/12-transaksi.js`) sekarang mengisi keduanya saat insert transaksi
+baru, dari user yang sedang login (`currentUser.id`) + nama editor yang
+sama persis dengan yang dipakai `logEditHistory()`.
 
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 

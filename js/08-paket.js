@@ -8,7 +8,7 @@ function addOneMonthClamped(dateStr){
   const daysInTargetMonth = new Date(targetYear, targetMonth+1, 0).getDate();
   const finalDay = Math.min(day, daysInTargetMonth);
   const result = new Date(targetYear, targetMonth, finalDay);
-  return result.toISOString().slice(0,10);
+  return toISODateLocal(result);
 }
 function updateSubsEndPreview(){
   const start = document.getElementById('subsTanggalMulai').value;
@@ -62,7 +62,10 @@ var allWorkUsage = [];
    "belum berhasil" -- bukan logic groupUsageRowsByBatch()-nya yang salah,
    tapi data batchId-nya yang tidak pernah sampai ke sana lagi setelah reload. */
 async function loadAllWorkUsage(){
-  const { data, error } = await sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId);
+  // fetchAllRows() (js/09-utils.js) WAJIB di sini -- ini query subscription_usage
+  // PALING CEPAT tumbuh di app (tiap pemakaian Paket Bulanan/Tempo nambah baris),
+  // paling cepat kena potongan ~1000 baris default Supabase dibanding tabel lain.
+  const { data, error } = await fetchAllRows(() => sb.from('subscription_usage').select('*').eq('user_id', shopOwnerId).order('id', { ascending:true }));
   if(error){ allWorkUsage = []; return; }
   allWorkUsage = (data||[]).map(r=>({
     id:r.id, subscriptionId:r.subscription_id, tanggal:r.tanggal, estimasi:r.estimasi||null,
@@ -715,12 +718,29 @@ async function markSubsLunas(){
   });
   if(tempo){
     const carryOver = calc.lebihBayar||0;
-    await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+    /* REGRESI (audit): dulu kedua panggilan di bawah TIDAK diperiksa benar --
+       delete() subscription_usage malah tidak diperiksa SAMA SEKALI, dan
+       state lokal (s.statusBayar dkk, allWorkUsage, currentUsageList) selalu
+       ditimpa TANPA SYARAT walau update()/delete() di atas gagal. Akibatnya
+       tombol "Tandai Lunas" bisa kelihatan sudah beres padahal DB masih
+       yang lama -- muncul lagi salah setelah reload, dan retry bisa bikin
+       transaksi pelunasan dobel (transaksi di atas SUDAH kebentuk duluan
+       lepas dari hasil 2 panggilan ini). Sekarang: berhenti SEBELUM mengubah
+       state lokal kalau salah satu gagal, dan refresh dari DB biar UI selalu
+       mencerminkan keadaan SEBENARNYA (bukan yang diasumsikan berhasil). */
+    const { error: errUsageDelete } = await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+    if(errUsageDelete){
+      showToast(t('Pembayaran tercatat, tapi gagal mereset catatan kunjungan Tempo -- muat ulang sebelum mengubah apa pun lagi'));
+      await refreshSubsDetail(); renderSubscriptions(); return;
+    }
     allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
     const { error: err2 } = await sb.from('subscriptions').update({
       status_bayar:'belum', dp: carryOver, lunas_at: today, transaction_id: data.id
     }).eq('id', s.id);
-    if(err2){ showToast(t('Pembayaran tercatat, tapi gagal mereset catatan Tempo')); }
+    if(err2){
+      showToast(t('Pembayaran tercatat, tapi gagal mereset status Tempo -- muat ulang sebelum mengubah apa pun lagi'));
+      await refreshSubsDetail(); renderSubscriptions(); return;
+    }
     s.statusBayar = 'belum'; s.dp = carryOver; s.lunasAt = today; s.transactionId = data.id;
     s.tempoTotal = 0; s.tempoCount = 0;
     currentUsageList = [];
@@ -731,7 +751,10 @@ async function markSubsLunas(){
     const { error: err2 } = await sb.from('subscriptions').update({
       status_bayar:'lunas', dp: calc.totalTagihan, lunas_at: today, transaction_id: data.id
     }).eq('id', s.id);
-    if(err2){ showToast(t('Pembayaran tercatat, tapi gagal update status paket')); }
+    if(err2){
+      showToast(t('Pembayaran tercatat, tapi gagal update status paket -- muat ulang sebelum mengubah apa pun lagi'));
+      await refreshSubsDetail(); renderSubscriptions(); return;
+    }
     s.statusBayar = 'lunas'; s.dp = calc.totalTagihan; s.lunasAt = today; s.transactionId = data.id;
     showToast(t('Paket ditandai lunas & masuk ke laporan omset'));
   }
@@ -882,13 +905,56 @@ async function deleteSubscription(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
   if(!confirm(`${t('Hapus pelanggan paket')} "${s.nama}"? ${t('Semua riwayat pemakaian & layanan tambahan periode ini juga akan terhapus.')}`)) return;
-  await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+  const usageSnapshot = currentUsageList.slice(); // snapshot SEBELUM dihapus, dipakai Undo di bawah
+  const { error: errUsage } = await sb.from('subscription_usage').delete().eq('subscription_id', s.id);
+  if(errUsage){ showToast(t('Gagal menghapus riwayat pemakaian paket')); return; }
   allWorkUsage = allWorkUsage.filter(u=>u.subscriptionId!==s.id);
   const { error } = await sb.from('subscriptions').delete().eq('id', s.id);
   if(error){ showToast(t('Gagal menghapus paket')); return; }
   subscriptions = subscriptions.filter(x=>x.id!==s.id);
   closeSubsDetail();
   renderSubscriptions();
-  showToast(t('Pelanggan paket dihapus'));
+  /* Tercatat di edit_log + ADA Undo sekarang -- dulu TIDAK ADA keduanya sama
+     sekali untuk hapus pelanggan paket: penghapusan permanen senyap paling
+     parah di app (bisa menyembunyikan pendapatan paket yang sudah lunas
+     berbulan-bulan dari Laporan, tanpa jejak & tanpa cara mengembalikan). */
+  await logEditHistory('subscription', s.id, [{ field:'_deleted', label:t('Dihapus'), from:`${s.nama} — ${s.paketNama||t('Tempo')}`, to:t('dihapus') }]);
+  showToast(t('Pelanggan paket dihapus'), {
+    label: t('Urungkan'),
+    onClick: async ()=>{
+      const { data, error: errRestore } = await sb.from('subscriptions').insert({
+        user_id: shopOwnerId, nama: s.nama, hp: s.hp, paket_nama: s.paketNama, harga_paket: s.hargaPaket,
+        harga_lebih_kg: s.hargaLebihKg, kuota_kg: s.kuotaKg, tanggal_mulai: s.tanggalMulai, tanggal_selesai: s.tanggalSelesai,
+        status: s.status, status_bayar: s.statusBayar, dp: s.dp, lunas_at: s.lunasAt, transaction_id: s.transactionId,
+        ...(s.outletId ? { outlet_id: s.outletId } : {})
+      }).select().single();
+      if(errRestore){ showToast(t('Gagal mengembalikan pelanggan paket')); return; }
+      const restored = {
+        id:data.id, nama:data.nama, hp:data.hp, paketNama:data.paket_nama, hargaPaket:Number(data.harga_paket)||0,
+        hargaLebihKg:Number(data.harga_lebih_kg)||0, kuotaKg:Number(data.kuota_kg)||0,
+        tanggalMulai:data.tanggal_mulai, tanggalSelesai:data.tanggal_selesai, status:data.status||'aktif',
+        statusBayar:data.status_bayar||'belum', dp:Number(data.dp)||0, lunasAt:data.lunas_at||null,
+        transactionId:data.transaction_id||null, terpakai:0, outletId: data.outlet_id!=null ? String(data.outlet_id) : null
+      };
+      subscriptions.push(restored);
+      // Pulihkan juga SEMUA riwayat pemakaian/layanan tambahan yang ikut
+      // terhapus -- kalau tidak, pelanggan "kembali" tapi riwayatnya kosong.
+      for(const u of usageSnapshot){
+        const payload = u.type==='layanan_tambahan'
+          ? { subscription_id: restored.id, user_id: shopOwnerId, tanggal: u.tanggal, estimasi: u.estimasi, type:'layanan_tambahan', layanan_nama: u.layananNama, qty: u.qty, satuan: u.satuan, harga: u.harga, subtotal: u.subtotal, batch_id: u.batchId||null }
+          : { subscription_id: restored.id, user_id: shopOwnerId, tanggal: u.tanggal, estimasi: u.estimasi, berat_kg: u.berat, catatan: u.catatan, type:'pemakaian' };
+        const { data: uData, error: uErr } = await sb.from('subscription_usage').insert(payload).select().single();
+        if(uErr || !uData) continue;
+        if(uData.type==='layanan_tambahan'){
+          allWorkUsage.push({ id:uData.id, subscriptionId:restored.id, tanggal:uData.tanggal, estimasi:uData.estimasi||null, type:'layanan_tambahan', layananNama:uData.layanan_nama, qty:Number(uData.qty)||0, satuan:uData.satuan||'', harga:Number(uData.harga)||0, subtotal:Number(uData.subtotal)||0, workStatus:'belum', batchId:uData.batch_id||null });
+        } else {
+          allWorkUsage.push({ id:uData.id, subscriptionId:restored.id, tanggal:uData.tanggal, estimasi:uData.estimasi||null, type:'pemakaian', layananNama:'', qty:0, satuan:'', harga:0, subtotal:0, berat:Number(uData.berat_kg)||0, catatan:uData.catatan||'', workStatus:'belum' });
+        }
+      }
+      renderSubscriptions();
+      await logEditHistory('subscription', restored.id, [{ field:'_restored', label:t('Dikembalikan'), from:t('terhapus'), to:`${restored.nama} — ${restored.paketNama||t('Tempo')}` }]);
+      showToast(t('Pelanggan paket dikembalikan'));
+    }
+  });
 }
 

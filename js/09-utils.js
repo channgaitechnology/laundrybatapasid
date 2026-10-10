@@ -16,7 +16,35 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
 }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+/* Konversi object Date (hasil operasi LOKAL seperti setDate()/new Date(y,m,d))
+   ke string YYYY-MM-DD dari komponen Y/M/D LOKAL -- BUKAN toISOString()
+   (yang selalu convert ke UTC dulu, menggeser mundur ke tanggal sebelumnya
+   untuk SEMUA zona waktu Indonesia -- WIB/WITA/WIT semua UTC+, lihat bug
+   nyata yang pernah terjadi karena ini di todayISO()/addOneMonthClamped()/
+   papanHapusDateThreshold()). */
+function toISODateLocal(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayISO(){ return toISODateLocal(new Date()); }
+/* Ambil SEMUA baris query Supabase lewat .range() berulang -- REST API
+   Supabase diam-diam membatasi maksimal ~1000 baris per request (dibatasi di
+   server, bukan oleh .limit() di client), jadi query tanpa paginasi KEPOTONG
+   begitu tabelnya sudah lebih dari itu, tanpa error apa pun. queryBuilderFn
+   dipanggil ULANG tiap halaman (bukan dipakai ulang) karena query builder
+   Supabase sekali pakai -- harus function yang membangun query baru tiap
+   panggil, lalu .range(from,to) ditambahkan di atasnya di sini. */
+const SUPABASE_PAGE_SIZE = 1000;
+async function fetchAllRows(queryBuilderFn){
+  let all = [], from = 0;
+  while(true){
+    const { data, error } = await queryBuilderFn().range(from, from + SUPABASE_PAGE_SIZE - 1);
+    if(error) return { data: all, error };
+    all = all.concat(data || []);
+    if(!data || data.length < SUPABASE_PAGE_SIZE) break;
+    from += SUPABASE_PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
 /* Ambang batas (10 tahun) untuk mendeteksi paket langganan 'seumurhidup' dari
    TANGGAL paid_until saja (app_subscriptions tidak menyimpan paket mana yang
    dibeli, cuma tanggal hasil akhirnya). Paket ini pakai hari:36500 (~100
