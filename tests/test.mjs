@@ -3609,6 +3609,132 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('checkAdminNotifications(): no-op (tidak query, tidak ubah badge) untuk user yang bukan admin platform', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const savedState = { ...adminNotifState };
+    let touched = false;
+    try {
+      currentUser = { email: 'bukan-admin@example.com' };
+      sb.from = (table) => { if (table === 'payment_requests' || table === 'app_subscriptions') touched = true; return savedFrom(table); };
+      await checkAdminNotifications();
+      if (touched) throw new Error('checkAdminNotifications() should not query payment_requests/app_subscriptions for a non-admin user');
+      if (JSON.stringify(adminNotifState) !== JSON.stringify(savedState)) throw new Error('adminNotifState should stay untouched for a non-admin user');
+    } finally {
+      currentUser = savedUser;
+      sb.from = savedFrom;
+      adminNotifState = savedState;
+    }
+  });
+
+  await step('checkAdminNotifications()/renderAdminNotifBadge(): cek pertama kali langsung tampilkan jumlah yang SUDAH ada (tanpa toast "baru"), lalu polling berikutnya yang bertambah memicu toast + badge naik', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const savedState = { ...adminNotifState };
+    const savedLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+    let pendingRows = [{ id: 'pr1' }, { id: 'pr2' }];
+    let subRows = [{ id: 's1' }, { id: 's2' }, { id: 's3' }];
+    try {
+      localStorage.removeItem('nk_adminLastSeenAccountCount'); // simulasikan perangkat yang belum pernah cek sebelumnya
+      currentUser = { email: ADMIN_EMAIL };
+      adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+      sb.from = (table) => {
+        if (table === 'payment_requests') return { select: () => ({ eq: () => Promise.resolve({ data: pendingRows, error: null }) }) };
+        if (table === 'app_subscriptions') return { select: () => Promise.resolve({ data: subRows, error: null }) };
+        return savedFrom(table);
+      };
+
+      document.getElementById('toast').classList.remove('show');
+      document.getElementById('toast').textContent = '';
+      await checkAdminNotifications();
+      if (adminNotifState.pendingPayments !== 2) throw new Error('expected pendingPayments=2 on first check, got ' + adminNotifState.pendingPayments);
+      if (adminNotifState.newAccounts !== 0) throw new Error('first-ever check on a device should treat the current account total as baseline (0 new), got ' + adminNotifState.newAccounts);
+      if (document.getElementById('toast').classList.contains('show')) throw new Error('REGRESI: first check should NOT toast — admin would get spammed on every login/reload even when nothing actually changed');
+      if (document.getElementById('adminNotifBadge').style.display === 'none') throw new Error('badge should be visible (2 pending) right after the first check');
+      if (document.getElementById('adminNotifBadge').textContent !== '2') throw new Error('expected badge "2", got ' + document.getElementById('adminNotifBadge').textContent);
+      if (Number(localStorage.getItem('nk_adminLastSeenAccountCount')) !== 3) throw new Error('first check should persist the current account total (3) as the new-account baseline');
+
+      // Sekarang simulasikan: 1 payment_request baru masuk SAJA selagi admin sedang pakai app (akun belum bertambah).
+      pendingRows = [{ id: 'pr1' }, { id: 'pr2' }, { id: 'pr3' }];
+      document.getElementById('toast').classList.remove('show');
+      await checkAdminNotifications();
+      if (adminNotifState.pendingPayments !== 3) throw new Error('expected pendingPayments=3 after increase, got ' + adminNotifState.pendingPayments);
+      if (adminNotifState.newAccounts !== 0) throw new Error('newAccounts should stay 0 when the account total has not changed, got ' + adminNotifState.newAccounts);
+      if (!document.getElementById('toast').textContent.includes('permintaan pembayaran baru')) throw new Error('expected a toast about a new payment request: ' + document.getElementById('toast').textContent);
+      if (document.getElementById('adminNotifBadge').textContent !== '3') throw new Error('expected badge 3 (3 pending, 0 new accounts), got ' + document.getElementById('adminNotifBadge').textContent);
+
+      // Lalu 2 toko baru daftar (pending payment TIDAK berubah lagi) -- toast kali ini soal akun, bukan payment lagi.
+      subRows = [{ id: 's1' }, { id: 's2' }, { id: 's3' }, { id: 's4' }, { id: 's5' }];
+      document.getElementById('toast').classList.remove('show');
+      await checkAdminNotifications();
+      if (adminNotifState.newAccounts !== 2) throw new Error('expected newAccounts=2 (5 total - baseline 3), got ' + adminNotifState.newAccounts);
+      if (!document.getElementById('toast').textContent.includes('akun toko baru terdaftar')) throw new Error('expected a toast about a new store account: ' + document.getElementById('toast').textContent);
+      if (document.getElementById('adminNotifBadge').textContent !== '5') throw new Error('expected badge 5 (3 pending + 2 new accounts), got ' + document.getElementById('adminNotifBadge').textContent);
+    } finally {
+      currentUser = savedUser;
+      sb.from = savedFrom;
+      adminNotifState = savedState;
+      if (savedLastSeen === null) localStorage.removeItem('nk_adminLastSeenAccountCount'); else localStorage.setItem('nk_adminLastSeenAccountCount', savedLastSeen);
+    }
+  });
+
+  await step('openAdminNotifPanel(): menandai akun baru "sudah dilihat" (badge-nya hilang) TAPI TIDAK menyentuh jumlah payment_requests pending (itu cuma hilang kalau benar-benar di-approve/tolak), lalu membuka langsung panel Admin Platform', async () => {
+    const savedUser = currentUser;
+    const savedState = { ...adminNotifState };
+    const savedLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      adminNotifState = { pendingPayments: 2, newAccounts: 3, totalAccountsSeen: 10, firstCheckDone: true };
+      renderAdminNotifBadge();
+      if (document.getElementById('adminNotifBadge').textContent !== '5') throw new Error('setup sanity check failed, badge should be 5 before opening the panel');
+
+      openAdminNotifPanel();
+      if (adminNotifState.newAccounts !== 0) throw new Error('openAdminNotifPanel() should clear newAccounts (mark as seen)');
+      if (adminNotifState.pendingPayments !== 2) throw new Error('openAdminNotifPanel() must NOT clear pendingPayments — that only clears via actually approving/rejecting the request');
+      if (Number(localStorage.getItem('nk_adminLastSeenAccountCount')) !== 10) throw new Error('openAdminNotifPanel() should persist the current account total as the new baseline');
+      if (document.getElementById('adminNotifBadge').textContent !== '2') throw new Error('badge should drop to 2 (pending payments only) after opening the panel, got ' + document.getElementById('adminNotifBadge').textContent);
+      if (!document.getElementById('settingsModal').classList.contains('show')) throw new Error('openAdminNotifPanel() should open the Settings modal');
+      if (!document.getElementById('settingsSub-admin').classList.contains('active')) throw new Error('openAdminNotifPanel() should jump straight into the Admin Platform sub-panel, not the category grid');
+    } finally {
+      currentUser = savedUser;
+      adminNotifState = savedState;
+      renderAdminNotifBadge();
+      if (savedLastSeen === null) localStorage.removeItem('nk_adminLastSeenAccountCount'); else localStorage.setItem('nk_adminLastSeenAccountCount', savedLastSeen);
+      closeSettings();
+      closeSettingsSub();
+    }
+  });
+
+  await step('startAdminNotifPolling()/stopAdminNotifPolling(): tampilkan/sembunyikan lonceng notifikasi & nyala/matikan interval polling-nya', async () => {
+    const savedTimer = adminNotifPollTimer;
+    const savedState = { ...adminNotifState };
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      sb.from = (table) => {
+        if (table === 'payment_requests') return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+        if (table === 'app_subscriptions') return { select: () => Promise.resolve({ data: [], error: null }) };
+        return savedFrom(table);
+      };
+      adminNotifPollTimer = null;
+      startAdminNotifPolling();
+      if (document.getElementById('btnAdminNotif').style.display !== 'flex') throw new Error('startAdminNotifPolling() should reveal the bell icon');
+      if (adminNotifPollTimer === null) throw new Error('startAdminNotifPolling() should start an interval timer');
+
+      stopAdminNotifPolling();
+      if (document.getElementById('btnAdminNotif').style.display !== 'none') throw new Error('stopAdminNotifPolling() should hide the bell icon again (e.g. on logout, or for a non-admin user)');
+      if (adminNotifPollTimer !== null) throw new Error('stopAdminNotifPolling() should clear the interval timer');
+      if (adminNotifState.pendingPayments !== 0 || adminNotifState.newAccounts !== 0) throw new Error('stopAdminNotifPolling() should reset adminNotifState');
+    } finally {
+      if (adminNotifPollTimer) clearInterval(adminNotifPollTimer);
+      adminNotifPollTimer = savedTimer;
+      adminNotifState = savedState;
+      currentUser = savedUser;
+      sb.from = savedFrom;
+    }
+  });
+
   await step('appBranding: saveAppBranding()/loadAppBranding() persist & reload the developer-credit footer, and every nota builder (WA text, PDF lines, HTML) reflects it instead of the old hardcoded Tinggiran Tech Studio values', async () => {
     const savedBranding = { ...appBranding };
     try {

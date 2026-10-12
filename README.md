@@ -1553,6 +1553,73 @@ memang mundur ke SEBELUM window 6 bulan itu (bandingkan lewat
 sehari-hari (lihat laporan bulan ini, cari transaksi minggu lalu) tidak
 memicu fetch tambahan sama sekali.
 
+### Lonceng Notifikasi Admin Platform — permintaan pembayaran & akun toko baru
+
+Dikerjakan 12 Oktober 2026. Khusus `ADMIN_EMAILS` (bukan owner/kasir toko
+biasa) — sebelumnya satu-satunya cara admin tahu ada `payment_requests`
+baru atau toko baru daftar adalah lewat email Resend (cuma untuk
+`payment_requests`, lihat bagian "Notifikasi Email untuk Permintaan
+Baru" di atas — trial signup organik TIDAK memicu email sama sekali)
+atau buka modal Pengaturan → Admin Platform secara manual. Sekarang ada
+ikon 🔔 di pojok kanan atas app (`#btnAdminNotif`, sebelah ikon ⚙️
+Pengaturan), cuma kelihatan untuk `ADMIN_EMAILS`, dengan badge merah
+berisi jumlah total yang butuh perhatian.
+
+App ini tidak punya infrastruktur realtime sama sekali (tidak ada
+`supabase.channel`/`postgres_changes` di mana pun) — dipilih **polling**
+sederhana tiap 60 detik (`ADMIN_NOTIF_POLL_MS`, `js/05-admin.js`) selagi
+admin login, konsisten dengan pola app ini yang lain. Dua sumber beda
+cara "dianggap sudah dilihat"-nya:
+
+- **Permintaan pembayaran pending** (`payment_requests` status
+  `'menunggu'`) — badge-nya count baris pending apa adanya, otomatis
+  berkurang begitu admin benar-benar approve/tolak (`loadAdminData()`
+  dipanggil ulang) — TIDAK butuh state "sudah dilihat" terpisah.
+- **Akun toko baru** (baris baru di `app_subscriptions`, apa pun status
+  akhirnya — trial atau langsung aktif) — TIDAK pernah "selesai
+  diproses" kayak payment request, jadi butuh baseline count sendiri,
+  disimpan di `localStorage.nk_adminLastSeenAccountCount` (per
+  perangkat/browser, bukan per-admin — cukup untuk tim 1-2 admin seperti
+  sekarang). Baseline ini diperbarui begitu admin klik lonceng
+  (`openAdminNotifPanel()`, langsung lompat ke panel Admin Platform).
+
+Toast singkat ("🔔 Ada permintaan pembayaran baru" / "🔔 Ada akun toko
+baru terdaftar") muncul HANYA untuk pertambahan yang terdeteksi SELAGI
+admin aktif memakai app (bukan di setiap login/reload) — supaya tidak
+spam toast yang sama berulang kali untuk hal yang sudah ada sejak lama.
+
+**Perlu dijalankan sekali di Supabase SQL Editor** supaya admin KEDUA
+(`dokterlaundromat@gmail.com`) ikut bisa melihat badge/data ini —
+ditemukan saat mengerjakan fitur ini: policy SELECT `payment_requests`
+& `app_subscriptions` yang ada ternyata hardcode SATU email admin saja
+(`(auth.jwt()->>'email') = 'mukhlispertama@gmail.com'`, sama seperti
+pola bug yang sudah diperbaiki di bagian "Ringkasan Admin Platform tidak
+tampilkan nama toko lain" di atas), padahal kode JS-nya sudah mendukung
+`ADMIN_EMAILS` (array, 2 email) lewat `isAdminEmail()`. Policy di bawah
+ini SENGAJA policy BARU dengan nama berbeda (bukan ganti yang lama) —
+policy RLS untuk command yang sama di Postgres digabung dengan OR, jadi
+aman ditambahkan tanpa perlu tahu/menyentuh nama policy lama sama sekali:
+
+```sql
+create policy "admin_select_all_payment_requests_v2" on payment_requests
+  for select
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+
+create policy "admin_update_all_payment_requests_v2" on payment_requests
+  for update
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+
+create policy "admin_select_all_app_subscriptions_v2" on app_subscriptions
+  for select
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+```
+
+Tanpa migrasi ini, lonceng notifikasi (dan ringkasan/approve/tolak di
+Admin Platform yang SUDAH ada sebelumnya) tetap jalan seperti biasa
+untuk `mukhlispertama@gmail.com`, tapi diam-diam selalu menunjukkan 0
+untuk `dokterlaundromat@gmail.com` (bukan error, query-nya cuma balik
+array kosong karena RLS).
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas

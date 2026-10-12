@@ -317,6 +317,105 @@ async function rejectPaymentRequest(id){
   await loadAdminData();
 }
 
+/* ===================== NOTIFIKASI ADMIN PLATFORM ===================== */
+/* Lonceng notifikasi khusus ADMIN_EMAILS (bukan admin toko/owner biasa) --
+   memberi tahu ada (1) payment_requests baru yang menunggu, dan (2) akun
+   toko baru terdaftar (baris baru di app_subscriptions, apa pun status
+   akhirnya -- trial atau langsung aktif lewat kode, lihat README). App ini
+   sama sekali tidak punya infrastruktur realtime (tidak ada
+   supabase.channel/postgres_changes di mana pun) -- dipilih POLLING
+   sederhana tiap ADMIN_NOTIF_POLL_MS, konsisten dengan pola app ini yang
+   lain (semua data admin selama ini cuma dimuat sekali per buka modal
+   Pengaturan lewat loadAdminData(), tidak pernah auto-refresh). */
+const ADMIN_NOTIF_POLL_MS = 60000;
+var adminNotifPollTimer = null;
+/* firstCheckDone sengaja dipisah dari sekadar "count masih 0" -- supaya
+   jumlah pending/akun baru yang SUDAH ada sejak sebelum admin login tetap
+   langsung kelihatan di badge saat pertama kali cek (tidak diam-diam
+   disembunyikan), TAPI tidak memicu toast "ada yang baru" di setiap
+   reload/login (toast cuma relevan untuk PERTAMBAHAN yang terjadi SELAGI
+   admin sedang pakai app). totalAccountsSeen dipakai openAdminNotifPanel()
+   buat tahu baseline count mana yang harus ditulis ke localStorage saat
+   akun baru itu "dianggap sudah dilihat". */
+var adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+/* payment_requests TIDAK butuh timestamp "sudah dilihat" terpisah --
+   count baris status='menunggu' SECARA ALAMI berkurang begitu admin
+   approve/tolak (lihat approvePaymentRequest()/approveRenewalRequest()/
+   rejectPaymentRequest() di atas, semuanya memanggil loadAdminData() lagi),
+   jadi badge ini sudah otomatis sinkron dengan state yang sebenarnya perlu
+   ditindaklanjuti -- tidak ada "akun baru" setara PR#19 (pengurangan
+   agregat) di sini karena ini cuma hitungan baris, bukan uang.
+   app_subscriptions sebaliknya TIDAK PERNAH "selesai diproses" (toko baru
+   ya tetap ada selamanya) -- makanya baris baru butuh baseline count
+   tersendiri (nk_adminLastSeenAccountCount di localStorage, PER PERANGKAT/
+   browser, bukan per-admin -- cukup untuk tim 1-2 admin seperti sekarang;
+   kalau admin ganti perangkat, badge akun baru akan hitung ulang dari 0
+   sekali saja di perangkat itu, bukan kesalahan data). */
+async function checkAdminNotifications(){
+  if(!currentUser || !isAdminEmail(currentUser.email)) return;
+  const [{ data: pending, error: e1 }, { data: allSubs, error: e2 }] = await Promise.all([
+    sb.from('payment_requests').select('id').eq('status','menunggu'),
+    sb.from('app_subscriptions').select('id'),
+  ]);
+  if(e1 || e2) return; // diamkan -- coba lagi di polling berikutnya, jangan sampai error jaringan sesaat bikin badge hilang/salah
+  const totalAccounts = (allSubs||[]).length;
+  // BUKAN Number(localStorage.getItem(...)) lalu cek isFinite -- Number(null)
+  // itu 0 (BUKAN NaN), jadi perangkat yang belum pernah cek sama sekali akan
+  // salah dianggap baseline-nya 0, bikin SEMUA toko yang sudah ada lama
+  // diam-diam ketagih sebagai "baru" di cek pertama. Baca string mentahnya
+  // dulu, baru convert kalau memang ada.
+  const rawLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+  let lastSeenAccounts = rawLastSeen===null ? NaN : Number(rawLastSeen);
+  if(!Number.isFinite(lastSeenAccounts)){
+    lastSeenAccounts = totalAccounts;
+    localStorage.setItem('nk_adminLastSeenAccountCount', String(totalAccounts));
+  }
+  const newPendingCount = (pending||[]).length;
+  const newAccountsCount = Math.max(0, totalAccounts - lastSeenAccounts);
+  if(adminNotifState.firstCheckDone){
+    if(newPendingCount > adminNotifState.pendingPayments) showToast(t('🔔 Ada permintaan pembayaran baru'));
+    if(newAccountsCount > adminNotifState.newAccounts) showToast(t('🔔 Ada akun toko baru terdaftar'));
+  }
+  adminNotifState.pendingPayments = newPendingCount;
+  adminNotifState.newAccounts = newAccountsCount;
+  adminNotifState.totalAccountsSeen = totalAccounts;
+  adminNotifState.firstCheckDone = true;
+  renderAdminNotifBadge();
+}
+function renderAdminNotifBadge(){
+  const badge = document.getElementById('adminNotifBadge');
+  if(!badge) return;
+  const total = adminNotifState.pendingPayments + adminNotifState.newAccounts;
+  badge.textContent = total > 99 ? '99+' : String(total);
+  badge.style.display = total > 0 ? 'flex' : 'none';
+}
+function startAdminNotifPolling(){
+  const btn = document.getElementById('btnAdminNotif');
+  if(btn) btn.style.display = 'flex';
+  checkAdminNotifications();
+  if(adminNotifPollTimer) clearInterval(adminNotifPollTimer);
+  adminNotifPollTimer = setInterval(checkAdminNotifications, ADMIN_NOTIF_POLL_MS);
+}
+function stopAdminNotifPolling(){
+  const btn = document.getElementById('btnAdminNotif');
+  if(btn) btn.style.display = 'none';
+  if(adminNotifPollTimer){ clearInterval(adminNotifPollTimer); adminNotifPollTimer = null; }
+  adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+}
+/* Diklik dari lonceng notifikasi -- akun baru dianggap "sudah dilihat"
+   begitu panelnya dibuka (badge-nya langsung hilang), TAPI permintaan
+   pembayaran TIDAK ditandai di sini -- itu baru hilang kalau benar-benar
+   ditindaklanjuti (approve/tolak), persis cara kerja daftarnya di bawah. */
+function openAdminNotifPanel(){
+  if(adminNotifState.totalAccountsSeen != null){
+    localStorage.setItem('nk_adminLastSeenAccountCount', String(adminNotifState.totalAccountsSeen));
+    adminNotifState.newAccounts = 0;
+    renderAdminNotifBadge();
+  }
+  openSettings();
+  openSettingsSub('admin');
+}
+
 async function initUserData(){
   try{
     // Sebelas query ini masing-masing independen (tabel & array globalnya
@@ -341,6 +440,12 @@ async function initUserData(){
     renderOutletSwitcherLabel();
     populateReportOutletFilter();
     renderAll();
+    // Lonceng notifikasi Admin Platform -- jalan untuk SEMUA role (owner
+    // maupun kasir) karena isAdminEmail() mengecek EMAIL login, bukan role;
+    // dalam praktiknya cuma akun pemilik aplikasi (ADMIN_EMAILS) yang akan
+    // benar-benar menyalakan polling-nya (lihat komentar lengkap di atas
+    // startAdminNotifPolling()).
+    if(isAdminEmail(currentUser.email)) startAdminNotifPolling(); else stopAdminNotifPolling();
   }catch(e){
     console.error('Gagal memuat data awal:', e);
   }finally{
