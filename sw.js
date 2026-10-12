@@ -17,7 +17,7 @@
  * auth/login & panggilan API selalu langsung ke jaringan, tidak pernah
  * lewat cache ini.
  */
-const CACHE_NAME = 'laundry-batapas-v8';
+const CACHE_NAME = 'laundry-batapas-v9';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -58,5 +58,38 @@ self.addEventListener('fetch', (event) => {
         return res;
       })
       .catch(() => caches.match(req))
+  );
+});
+
+/* Khusus Admin Platform (ADMIN_EMAILS) -- lihat enableAdminPushNotif()/
+   js/05-admin.js & netlify/functions/_web-push-send.js. Payload JSON dikirim
+   server (bentuknya { title, body, url }) -- tampilkan sebagai notifikasi OS
+   (muncul + berbunyi walau tab app sedang tertutup), beda dari badge lonceng
+   dalam app yang cuma kelihatan selagi tab terbuka. */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) {}
+  const title = data.title || 'Dokter Laundry';
+  const options = {
+    body: data.body || '',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: data.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/* Klik notifikasi -> fokus ke tab app yang sudah terbuka kalau ada (jangan
+   buka tab baru lagi di atas tab yang sudah ada), baru buka tab baru kalau
+   belum ada sama sekali. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => c.url.includes(self.location.origin));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    })
   );
 });

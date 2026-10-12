@@ -1620,7 +1620,117 @@ untuk `mukhlispertama@gmail.com`, tapi diam-diam selalu menunjukkan 0
 untuk `dokterlaundromat@gmail.com` (bukan error, query-nya cuma balik
 array kosong karena RLS).
 
-## Belum dikerjakan / perlu diperiksa
+### Notifikasi Push (Web Push) — muncul + berbunyi walau app tertutup
+
+Dikerjakan 12 Oktober 2026, lanjutan dari lonceng notifikasi di atas.
+Badge lonceng di atas CUMA kelihatan selagi tab app ini terbuka (hasil
+polling, bukan push sungguhan) — fitur ini menambahkan **Web Push API**
+supaya admin benar-benar dapat notifikasi gaya WhatsApp: muncul di
+notification tray OS + berbunyi, **walau aplikasinya sedang tertutup**
+atau HP terkunci.
+
+**Alur singkatnya**: admin menekan tombol "🔔 Nyalakan Notifikasi Push" di
+Pengaturan → Admin Platform (`enableAdminPushNotif()`, `js/05-admin.js`)
+→ browser minta izin notifikasi → browser bikin *subscription* (endpoint
+unik + 2 kunci enkripsi `p256dh`/`auth`) lewat `PushManager` → disimpan
+ke tabel `admin_push_subscriptions` → kapan pun ada `payment_requests`
+baru ATAU toko baru daftar, Supabase Database Webhook memicu Netlify
+Function yang mengirim notifikasi **terenkripsi** ke endpoint itu lewat
+`web-push` (npm package) — app ini sendiri **sama sekali tidak perlu
+jalan/terbuka** saat itu terjadi, sw.js (`self.addEventListener('push',
+...)`) yang menampilkan notifikasinya begitu browser/OS membangunkannya.
+
+**1. Migrasi database** — tabel baru buat simpan subscription tiap admin/perangkat:
+
+```sql
+create table if not exists admin_push_subscriptions (
+  id bigint generated always as identity primary key,
+  admin_email text not null,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table admin_push_subscriptions enable row level security;
+
+create policy "admin_insert_own_push_subscription" on admin_push_subscriptions
+  for insert
+  with check ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+
+create policy "admin_update_own_push_subscription" on admin_push_subscriptions
+  for update
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+
+create policy "admin_delete_own_push_subscription" on admin_push_subscriptions
+  for delete
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+```
+
+Sengaja TIDAK ada policy SELECT untuk client (`anon`/`authenticated`) —
+baris-baris ini cuma pernah dibaca oleh Netlify Function lewat Service
+Role Key (lihat bagian 3), tidak pernah lewat sesi login browser.
+
+**2. Pasangan kunci VAPID** — identitas kriptografis aplikasi ini sebagai
+"pengirim push" (wajib menurut spesifikasi Web Push, 1 pasang kunci
+untuk SELURUH aplikasi, bukan per-admin). Public key-nya SUDAH ditaruh
+langsung di kode (`ADMIN_PUSH_VAPID_PUBLIC_KEY`, `js/05-admin.js`) —
+aman, memang didesain publik. **Private key-nya dikirim terpisah lewat
+chat** (bukan di README ini) — **JANGAN PERNAH** commit ke git dalam
+bentuk apa pun, cuma boleh ada sebagai environment variable di dashboard
+Netlify (persis aturan `MIDTRANS_SERVER_KEY`/`SUPABASE_SERVICE_ROLE_KEY`
+di atas). Kalau private key itu hilang/perlu diganti, generate pasangan
+baru (`npx web-push generate-vapid-keys`) — tapi WAJIB ganti juga
+`ADMIN_PUSH_VAPID_PUBLIC_KEY` di kode, DAN setiap admin yang sudah
+menekan "Nyalakan Notifikasi Push" harus menekan tombol itu ULANG di
+semua perangkatnya (subscription lama jadi tidak valid begitu kunci
+publiknya beda).
+
+**3. Environment variables TAMBAHAN di Netlify** (gunakan nilai yang
+SAMA dengan env var Midtrans yang sudah ada untuk `SUPABASE_URL`/
+`SUPABASE_SERVICE_ROLE_KEY` kalau sudah pernah diisi):
+
+| Env var | Keterangan |
+|---|---|
+| `VAPID_PUBLIC_KEY` | Sama persis dengan `ADMIN_PUSH_VAPID_PUBLIC_KEY` di `js/05-admin.js`. |
+| `VAPID_PRIVATE_KEY` | **Rahasia** — dikirim lewat chat, jangan commit. |
+| `SUPABASE_URL` | URL project Supabase (`https://xxxx.supabase.co`). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Sama dengan yang dipakai `midtrans-webhook.js` — **rahasia**, jangan commit. |
+
+`ADMIN_NOTIFY_EMAIL`/`PAYMENT_WEBHOOK_SECRET` dipakai ulang dari
+konfigurasi Resend yang sudah ada (lihat bagian "Notifikasi Email"), tidak
+perlu env var rahasia baru lagi khusus push.
+
+**4. Daftarkan Database Webhook KEDUA di dashboard Supabase** (Database →
+Webhooks) — webhook PERTAMA untuk `payment_requests` INSERT ke
+`notify-new-payment-request.js` HARUSNYA SUDAH ada dari fitur email
+sebelumnya (fungsi itu sekarang JUGA mengirim push, tidak perlu webhook
+terpisah). Tambahkan SATU LAGI, khusus toko baru:
+
+- **Table**: `app_subscriptions`
+- **Events**: Insert saja
+- **Type**: HTTP Request, method POST
+- **URL**: `https://<situs-kamu>.netlify.app/.netlify/functions/notify-new-account`
+- **HTTP Headers**: `X-Webhook-Secret: <nilai PAYMENT_WEBHOOK_SECRET yang sama>`
+
+**5. Dependency `web-push`** (`netlify/functions/package.json`) — Netlify
+otomatis `npm install` package.json ini sebelum bundling functions,
+TIDAK perlu langkah manual tambahan. Kalau deploy gagal dengan error
+`Cannot find module 'web-push'`, cek log build Netlify (kemungkinan
+butuh `npm install` dijalankan manual sekali atau cache build
+dibersihkan) — fungsi email (`notify-new-payment-request.js`) tetap
+jalan normal TANPA `web-push` terinstall sama sekali (require()-nya
+lazy, cuma dipanggil kalau `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` sudah
+diisi, lihat komentar di file itu) — yang gagal cuma jalur push-nya,
+bukan email yang sudah terbukti jalan sebelumnya.
+
+**Keterbatasan yang perlu diketahui**: perlu dinyalakan TERPISAH di
+SETIAP perangkat/browser yang admin pakai (subscription-nya per-browser,
+bukan per-akun) — kalau admin ganti HP/install ulang/clear data
+browser, perlu tekan "Nyalakan" lagi. iOS Safari baru mendukung Web
+Push sejak iOS 16.4 DAN cuma untuk PWA yang sudah di-"Add to Home
+Screen" (tidak bisa dari tab Safari biasa) — browser lain (Chrome/Edge/
+Firefox, desktop maupun Android) mendukung penuh dari tab biasa.
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.

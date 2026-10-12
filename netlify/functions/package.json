@@ -1,0 +1,8 @@
+{
+  "name": "laundrybatapasid-netlify-functions",
+  "private": true,
+  "description": "Dependency KHUSUS untuk netlify/functions/*.js (web-push, dipakai notify-new-payment-request.js/notify-new-account.js lewat _web-push-send.js) -- Netlify otomatis npm install package.json ini sebelum bundling functions. Fungsi lain di folder ini (midtrans-*.js, search-communities.js, notify-new-payment-request.js sisi email) TIDAK butuh dependency apa pun, cuma fetch() bawaan Node.",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

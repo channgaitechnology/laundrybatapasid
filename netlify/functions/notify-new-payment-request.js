@@ -23,13 +23,42 @@
  *   -- harus alamat yang SAMA dipakai daftar akun Resend (syarat gratisan
  *   Resend: tanpa domain terverifikasi, cuma boleh kirim ke email akun
  *   sendiri).
+ *
+ * Env var TAMBAHAN (opsional -- lihat README bagian "Lonceng Notifikasi
+ * Admin Platform", Web Push): VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
+ * SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Kalau salah satu belum diisi,
+ * fungsi ini TETAP jalan seperti biasa (cuma email, tanpa push) -- push
+ * SENGAJA best-effort, gagal/belum disetel TIDAK BOLEH menggagalkan email
+ * yang sudah berhasil terkirim.
  */
 const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL;
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function escapeHtml(s) {
   return String(s || '-').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function sendPushBestEffort(title, body) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+  try {
+    // require() DI SINI (bukan di atas file) SENGAJA -- supaya kalau
+    // 'web-push' entah kenapa gagal ter-install/ter-bundle (lihat
+    // netlify/functions/package.json), yang rusak cuma jalur push ini
+    // (ditangkap try/catch ini), BUKAN seluruh fungsi notifikasi email yang
+    // sudah berjalan baik sebelum fitur push ini ada.
+    const webpush = require('web-push');
+    const { createPushSender } = require('./_web-push-send');
+    const pushSender = createPushSender(webpush, {
+      supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+      vapidPublicKey: VAPID_PUBLIC_KEY, vapidPrivateKey: VAPID_PRIVATE_KEY, contactEmail: ADMIN_NOTIFY_EMAIL,
+    });
+    await pushSender.sendPushToAdmins({ title, body, url: '/' });
+  } catch (e) { /* diamkan -- lihat komentar env var tambahan di atas */ }
 }
 
 exports.handler = async (event) => {
@@ -88,6 +117,8 @@ exports.handler = async (event) => {
       html,
     }),
   });
+
+  await sendPushBestEffort(subject, `${row.nama || '-'} — ${row.wa || '-'}`);
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');

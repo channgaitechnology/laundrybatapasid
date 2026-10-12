@@ -416,6 +416,92 @@ function openAdminNotifPanel(){
   openSettingsSub('admin');
 }
 
+/* ===================== NOTIFIKASI PUSH ADMIN PLATFORM (Web Push) ===================== */
+/* Lonceng + badge di atas cuma kelihatan SELAGI tab app ini terbuka --
+   kalau admin mau benar-benar dapat notifikasi gaya WhatsApp (muncul +
+   berbunyi walau app sedang tertutup/HP terkunci), perlu Web Push API:
+   browser (via FCM-nya Chrome dkk) yang kirim notifikasi, BUKAN polling
+   app ini. Alur: admin izinkan notifikasi -> browser bikin "subscription"
+   (endpoint unik + 2 kunci enkripsi) -> disimpan ke admin_push_subscriptions
+   -> netlify/functions/_web-push-send.js (dipanggil dari
+   notify-new-payment-request.js & notify-new-account.js, dipicu Supabase
+   Database Webhook) kirim notifikasi terenkripsi ke endpoint itu kapan pun
+   ada payment_requests/akun baru -- app ini SAMA SEKALI tidak perlu jalan/
+   terbuka saat itu terjadi, persis seperti WA. Key publik VAPID di bawah
+   AMAN ditaruh di kode browser (memang didesain publik, cuma identitas
+   "siapa pengirim push ini" -- yang rahasia cuma private key-nya, lihat
+   README & env var VAPID_PRIVATE_KEY di netlify/functions/). */
+const ADMIN_PUSH_VAPID_PUBLIC_KEY = 'BNF0plqfp5AN_QzTZqKY8MtATHIxkJ5Vy15hzt4rd2sMAOyn-ZjcGIO6S6WFwFTsESok4m0yxyk-hb7oEUuknzc';
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+async function enableAdminPushNotif(){
+  if(!currentUser || !isAdminEmail(currentUser.email)) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    showToast(t('Browser ini tidak mendukung notifikasi push'));
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ showToast(t('Izin notifikasi ditolak')); return; }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(ADMIN_PUSH_VAPID_PUBLIC_KEY) });
+    }
+    const json = sub.toJSON();
+    // upsert (bukan insert) -- endpoint UNIQUE di DB, admin bisa saja
+    // menekan tombol ini lagi di perangkat yang sama tanpa error duplikat.
+    const { error } = await sb.from('admin_push_subscriptions').upsert({
+      admin_email: currentUser.email, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth
+    }, { onConflict: 'endpoint' });
+    if(error){ showToast(t('Gagal menyimpan subscription push')); return; }
+    showToast(t('Notifikasi push diaktifkan 🔔'));
+  }catch(e){
+    showToast(t('Gagal mengaktifkan notifikasi push'));
+  }
+  renderAdminPushNotifStatus();
+}
+async function disableAdminPushNotif(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      await sb.from('admin_push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      await sub.unsubscribe();
+    }
+    showToast(t('Notifikasi push dimatikan'));
+  }catch(e){
+    showToast(t('Gagal mematikan notifikasi push'));
+  }
+  renderAdminPushNotifStatus();
+}
+/* Dipanggil tiap kali panel Admin Platform dibuka (openSettingsSub('admin'))
+   -- status subscription hidup di browser (reg.pushManager.getSubscription()),
+   BUKAN di variabel JS di memori, jadi harus dicek ulang tiap kali supaya
+   tombol yang ditampilkan selalu sesuai kondisi NYATA perangkat ini. */
+async function renderAdminPushNotifStatus(){
+  const statusEl = document.getElementById('adminPushNotifStatus');
+  const btnOn = document.getElementById('btnEnableAdminPush');
+  const btnOff = document.getElementById('btnDisableAdminPush');
+  if(!statusEl || !btnOn || !btnOff) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    statusEl.textContent = t('Browser ini tidak mendukung notifikasi push.');
+    btnOn.style.display = 'none'; btnOff.style.display = 'none';
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready.catch(()=>null);
+  const sub = reg ? await reg.pushManager.getSubscription().catch(()=>null) : null;
+  statusEl.textContent = sub ? t('Aktif di perangkat ini ✅') : t('Belum aktif di perangkat ini.');
+  btnOn.style.display = sub ? 'none' : 'block';
+  btnOff.style.display = sub ? 'block' : 'none';
+}
+
 async function initUserData(){
   try{
     // Sebelas query ini masing-masing independen (tabel & array globalnya
