@@ -21,11 +21,26 @@ function renderReport(){
      yang tampil di halaman detail pelanggan itu sendiri. */
   const totalBelumLangganan = visibleReportSubscriptions().reduce((sum,s)=>sum+subscriptionOutstanding(s), 0);
   const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+Math.max(t.total-trxCashReceived(t),0),0) + totalBelumLangganan;
+  /* "Kas Masuk Bulan Ini" (audit 9-10 Okt 2026, Opsi A) -- BEDA dari
+     totalLunas di atas: totalLunas pakai t.tanggal (tanggal NOTA, bisa
+     berubah kalau ada pelunasan susulan bulan berikutnya -- nota September
+     yang baru dibayar Oktober masih kehitung "Sudah Lunas" September).
+     Metrik ini pakai t.lunasAt (tanggal BENAR-BENAR ditandai lunas, lihat
+     lunas_at di submitTransaction()/toggleLunas()/markSubsLunas()) --
+     uang kas yang literally diterima bulan ini, dari NOTA APA PUN (bulan
+     ini atau susulan dari bulan lalu). Begitu bulan ini lewat, angka ini
+     TIDAK BERUBAH LAGI (beda dari totalLunas yang masih bisa bergeser).
+     SENGAJA metrik TERPISAH, bukan menggantikan totalLunas -- totalLunas
+     tetap dipertahankan identitasnya (Sudah Lunas + Belum Lunas = Total
+     Omzet, lihat komentar trxCashReceived() di js/09-utils.js). */
+  const kasMasukList = visibleReportTransactions().filter(t=>t.lunasAt && t.lunasAt.slice(0,7)===ym);
+  const totalKasMasuk = kasMasukList.reduce((s,t)=>s+trxCashReceived(t),0);
 
   document.getElementById('stTrx').textContent = totalTrx;
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
   document.getElementById('stLunas').textContent = rupiah(totalLunas);
   document.getElementById('stBelum').textContent = rupiah(totalBelum);
+  document.getElementById('stKasMasuk').textContent = rupiah(totalKasMasuk);
 
   // chart per hari
   const [yy,mm] = ym.split('-').map(Number);

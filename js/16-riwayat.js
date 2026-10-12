@@ -81,9 +81,13 @@ async function toggleLunas(id){
      uang muka sungguhan, biarkan apa adanya (biasanya 0 kalau tidak pernah
      ada DP). trxCashReceived() yang menghitung kas Rp penuh untuk transaksi
      Lunas, bukan field dp yang dipaksa. */
-  const { error } = await sb.from('transactions').update({ status:'lunas' }).eq('id', id);
+  // lunas_at diisi HARI INI -- ini persis momen nota ditandai lunas (lihat
+  // README, Laporan "Kas Masuk Bulan Ini").
+  const lunasAt = todayISO();
+  const { error } = await sb.from('transactions').update({ status:'lunas', lunas_at: lunasAt }).eq('id', id);
   if(error){ showToast(t('Gagal memperbarui status')); return; }
   trx.status = 'lunas';
+  trx.lunasAt = lunasAt;
   showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }

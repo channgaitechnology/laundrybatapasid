@@ -867,6 +867,7 @@ const result = await page.evaluate(async () => {
     if (!lastTx || lastTx.total !== 33000 || lastTx.dp !== 33000) {
       throw new Error('expected settlement transaction of exactly the 33000 bill, got ' + JSON.stringify(lastTx));
     }
+    if (lastTx.lunasAt !== lastTx.tanggal) throw new Error('REGRESI (audit 9-10 Okt 2026, Opsi A): transaksi settlement markSubsLunas() harus set lunasAt = tanggal settlement-nya (hari ini), got lunasAt=' + lastTx.lunasAt + ' tanggal=' + lastTx.tanggal);
     closeSubsDetail();
   });
 
@@ -1131,6 +1132,105 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('REGRESI (audit 9-10 Okt 2026, Opsi A): submitTransaction() nota BARU mengisi lunas_at = tanggal nota kalau langsung dibuat status lunas, atau null kalau belum lunas (lihat README, Laporan "Kas Masuk Bulan Ini")', async () => {
+    const originalFrom = sb.from;
+    const savedEditingId = editingTransactionId;
+    let capturedInsert = null;
+    try {
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci express', qty:1, satuan:'kg', harga:15000, subtotal:15000 }];
+      document.getElementById('inNama').value = 'Gita';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inTanggal').value = '2026-09-25';
+      document.getElementById('inEstimasi').value = '';
+      document.getElementById('inDiskon').value = '0';
+      document.getElementById('inDP').value = '15000';
+      document.getElementById('inStatus').value = 'lunas';
+      document.getElementById('inCatatan').value = '';
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q,
+          insert: (row) => { capturedInsert = row; q._inserted = { id: 'fake-tx-lunasat-1', kode: 'TX-LA-1', ...row }; return q; },
+          single: () => Promise.resolve({ data: q._inserted, error: null }),
+          then: (resolve) => resolve({ data: q._inserted ? [q._inserted] : [], error: null }) };
+        return q;
+      };
+      await submitTransaction();
+      if (!capturedInsert) throw new Error('expected an insert() call to transactions');
+      if (capturedInsert.lunas_at !== '2026-09-25') throw new Error('REGRESI: nota baru status lunas harus set lunas_at = tanggal nota, got: ' + capturedInsert.lunas_at);
+
+      capturedInsert = null;
+      editingTransactionId = null;
+      draftItems = [{ nama:'cuci express', qty:1, satuan:'kg', harga:15000, subtotal:15000 }];
+      document.getElementById('inNama').value = 'Gita'; // resetTransactionForm() dari panggilan pertama mengosongkan ini
+      document.getElementById('inTanggal').value = '2026-09-25';
+      document.getElementById('inDP').value = '0';
+      document.getElementById('inStatus').value = 'belum';
+      await submitTransaction();
+      if (!capturedInsert) throw new Error('expected a second insert() call');
+      if (capturedInsert.lunas_at !== null) throw new Error('REGRESI: nota baru status belum harus lunas_at = null, got: ' + capturedInsert.lunas_at);
+    } finally {
+      sb.from = originalFrom;
+      editingTransactionId = savedEditingId;
+      document.getElementById('inNama').value = '';
+      document.getElementById('inHP').value = '';
+      document.getElementById('inDP').value = '0';
+      document.getElementById('inStatus').value = 'belum';
+    }
+  });
+
+  await step('REGRESI (audit 9-10 Okt 2026, Opsi A): submitTransaction() mode Edit -- transisi belum->lunas isi lunas_at=HARI INI, lunas->lunas (status tetap) PERTAHANKAN lunas_at lama, lunas->belum KOSONGKAN lunas_at', async () => {
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const savedEditingId = editingTransactionId;
+    transactions = transactions.slice();
+    try {
+      const trx = { id:'edit-la-1', kode:'EL-1', nama:'Hadi', hp:'', tanggal:'2026-09-01', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:10000,subtotal:10000}], diskon:0, total:10000, dp:0, status:'belum', lunasAt:null, catatan:'' };
+      transactions.push(trx);
+
+      function stubUpdate(){
+        sb.from = (table) => {
+          if (table !== 'transactions') return originalFrom(table);
+          const q = { select: () => q, eq: () => q, in: () => q, order: () => q, insert: () => q, delete: () => q,
+            update: (row) => { q._updated = { ...trx, ...row }; return q; },
+            single: () => Promise.resolve({ data: q._updated, error: null }) };
+          return q;
+        };
+      }
+
+      // Transisi 1: belum -> lunas, lewat Edit.
+      editTransaction(trx.id);
+      document.getElementById('inStatus').value = 'lunas';
+      stubUpdate();
+      await submitTransaction();
+      let edited = transactions.find(x=>x.id===trx.id);
+      if (edited.lunasAt !== todayISO()) throw new Error('REGRESI: transisi belum->lunas lewat Edit harus isi lunas_at = hari ini, got: ' + edited.lunasAt);
+
+      // Transisi 2: lunas -> lunas (status TIDAK berubah) -- lunas_at lama harus DIPERTAHANKAN.
+      const lunasAtAfterFirstEdit = edited.lunasAt;
+      editTransaction(trx.id);
+      document.getElementById('inCatatan').value = 'catatan diubah tapi status tetap lunas';
+      stubUpdate();
+      await submitTransaction();
+      edited = transactions.find(x=>x.id===trx.id);
+      if (edited.lunasAt !== lunasAtAfterFirstEdit) throw new Error('REGRESI: edit yang TIDAK mengubah status lunas tidak boleh menimpa lunas_at lama, got: ' + edited.lunasAt + ' expected: ' + lunasAtAfterFirstEdit);
+
+      // Transisi 3: lunas -> belum, lewat Edit -- lunas_at harus dikosongkan lagi.
+      editTransaction(trx.id);
+      document.getElementById('inStatus').value = 'belum';
+      document.getElementById('inDP').value = '0';
+      stubUpdate();
+      await submitTransaction();
+      edited = transactions.find(x=>x.id===trx.id);
+      if (edited.lunasAt !== null) throw new Error('REGRESI: transisi lunas->belum lewat Edit harus mengosongkan lunas_at, got: ' + edited.lunasAt);
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      editingTransactionId = savedEditingId;
+      document.getElementById('inCatatan').value = '';
+    }
+  });
+
   await step('toggleLunas() (tombol "Lunasi" di Riwayat) mengubah status ke Lunas TANPA memaksa dp jadi sama dengan total', async () => {
     const savedTransactions = transactions;
     transactions = transactions.slice();
@@ -1152,6 +1252,7 @@ const result = await page.evaluate(async () => {
       if (trx.status !== 'lunas') throw new Error('expected status lunas after toggleLunas(), got ' + trx.status);
       if (trx.dp !== 0) throw new Error('BUG: toggleLunas() should not force dp to equal total, got dp=' + trx.dp);
       if (trxCashReceived(trx) !== 12000) throw new Error('trxCashReceived() should still count the full total as cash received for Lunas, got ' + trxCashReceived(trx));
+      if (trx.lunasAt !== todayISO()) throw new Error('REGRESI (audit 9-10 Okt 2026, Opsi A): toggleLunas() harus mengisi lunasAt = hari ini (lihat README, Laporan "Kas Masuk Bulan Ini"), got: ' + trx.lunasAt);
     } finally {
       transactions = savedTransactions;
     }
@@ -2777,6 +2878,28 @@ const result = await page.evaluate(async () => {
     if (parseRp(lunasTxt) + parseRp(belumTxt) !== parseRp(omzetTxt)) {
       throw new Error(`Sudah Lunas + Belum Lunas must equal Total Omzet: ${lunasTxt} + ${belumTxt} != ${omzetTxt}`);
     }
+  });
+
+  await step('REGRESI KRITIS (audit 9-10 Okt 2026, Opsi A): renderReport() "Kas Masuk Bulan Ini" dihitung dari lunas_at (tanggal BENAR-BENAR dibayar), bukan tanggal nota -- nota Agustus yang baru lunas di September kehitung Kas Masuk SEPTEMBER (bukti bug "Laporan bulan ditutup berubah" tertutup), TANPA mengubah "Sudah Lunas" (tetap pakai tanggal nota seperti sebelumnya)', () => {
+    outlets = []; currentOutletId = null; reportOutletFilter = '';
+    subscriptions = []; allWorkUsage = [];
+    transactions = [
+      { id:'km1', kode:'KM-1', nama:'Eka', hp:'', tanggal:'2026-08-28', estimasi:null, items:[], diskon:0, total:50000, dp:50000, status:'lunas', lunasAt:'2026-09-03', catatan:'', outletId:null },
+      { id:'km2', kode:'KM-2', nama:'Fani', hp:'', tanggal:'2026-08-15', estimasi:null, items:[], diskon:0, total:30000, dp:30000, status:'lunas', lunasAt:'2026-08-15', catatan:'', outletId:null },
+    ];
+    document.getElementById('reportMonth').value = '2026-08';
+    renderReport();
+    // "Sudah Lunas" Agustus TETAP pakai tanggal nota (perilaku lama tidak berubah) -- keduanya bertanggal Agustus & lunas: 50000+30000.
+    if (document.getElementById('stLunas').textContent !== rupiah(80000)) throw new Error('Sudah Lunas Agustus (tanggal nota) harus tetap 80.000, tidak boleh berubah oleh fitur baru ini, got: ' + document.getElementById('stLunas').textContent);
+    // "Kas Masuk Bulan Ini" Agustus cuma hitung km2 (lunas_at Agustus) -- km1 lunas_at-nya September, TIDAK ikut.
+    if (document.getElementById('stKasMasuk').textContent !== rupiah(30000)) throw new Error('Kas Masuk Agustus harus cuma 30.000 (km1 baru lunas 3 September, belum ikut), got: ' + document.getElementById('stKasMasuk').textContent);
+
+    document.getElementById('reportMonth').value = '2026-09';
+    renderReport();
+    // Kas Masuk September HARUS tangkap km1 (lunas_at September) walau tanggal notanya Agustus -- ini bukti langsung bug "Laporan Agustus yang sudah dicek berubah" sekarang tertutup: uangnya pindah ke bulan ia BENAR-BENAR diterima, bukan "menempel" di laporan bulan nota.
+    if (document.getElementById('stKasMasuk').textContent !== rupiah(50000)) throw new Error('REGRESI KRITIS: Kas Masuk September harus tangkap pelunasan km1 (lunas 3 Sept) walau tanggal notanya Agustus, got: ' + document.getElementById('stKasMasuk').textContent);
+    // Sudah Lunas September (tanggal nota) harus 0 -- tidak ada transaksi BERTANGGAL September di fixture, membuktikan 2 metrik ini sungguh independen.
+    if (document.getElementById('stLunas').textContent !== rupiah(0)) throw new Error('Sudah Lunas September (tanggal nota) harus 0 karena tidak ada transaksi bertanggal September di fixture, got: ' + document.getElementById('stLunas').textContent);
   });
 
   await step('renderLabaRugi() computes Pemasukan from cash actually received, not gross omzet -- an unpaid transaction must NOT inflate "Untung"', () => {

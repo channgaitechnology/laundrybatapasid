@@ -129,14 +129,14 @@ async function deleteTransaction(id){
       const { data, error: err2 } = await sb.from('transactions').insert({
         user_id: shopOwnerId, kode: trx.kode, nama: trx.nama, hp: trx.hp, tanggal: trx.tanggal,
         estimasi: trx.estimasi, items: trx.items, diskon: trx.diskon, total: trx.total, dp: trx.dp,
-        status: trx.status, catatan: trx.catatan, work_status: trx.workStatus,
+        status: trx.status, lunas_at: trx.lunasAt||null, catatan: trx.catatan, work_status: trx.workStatus,
         ...(trx.outletId ? { outlet_id: trx.outletId } : {})
       }).select().single();
       if(err2){ showToast(t('Gagal mengembalikan transaksi')); return; }
       transactions.push({
         id:data.id, kode:data.kode, nama:data.nama, hp:data.hp, tanggal:data.tanggal, estimasi:data.estimasi,
         items:data.items, diskon:Number(data.diskon), total:Number(data.total), dp:Number(data.dp),
-        status:data.status, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum',
+        status:data.status, lunasAt:data.lunas_at||null, catatan:data.catatan, workStatus: data.work_status || trx.workStatus || 'belum',
         outletId: data.outlet_id!=null ? String(data.outlet_id) : null
       });
       renderHistory();

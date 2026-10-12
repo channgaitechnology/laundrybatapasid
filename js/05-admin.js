@@ -370,7 +370,7 @@ async function loadTransactionsFromDB(){
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
+    status: row.status, lunasAt: row.lunas_at||null, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
     outletId: row.outlet_id!=null ? String(row.outlet_id) : null
   }));
 }

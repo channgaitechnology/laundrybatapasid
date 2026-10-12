@@ -1467,11 +1467,44 @@ cuma berantakan. Jalankan sekali untuk membersihkan salah satunya:
 drop policy if exists "anyone submit payment request" on payment_requests;
 ```
 
+### Laporan bulan "ditutup" berubah karena pelunasan susulan — kolom `lunas_at` + metrik "Kas Masuk Bulan Ini"
+
+Ditemukan lewat audit 9 Oktober 2026, dikerjakan 12 Oktober 2026 (Opsi A,
+lihat diskusi di sesi chat): nota 28 September status `'belum'`, baru
+dibayar & ditandai lunas 3 Oktober — uangnya tetap kehitung "Sudah
+Lunas" **September** di Laporan, karena satu-satunya tanggal yang ada
+cuma `tanggal` (tanggal nota). Ini pola standar *cash-basis accounting*
+yang sama dipakai software akuntansi (QuickBooks/Sage: "on cash basis,
+the payment is not recorded until it is actually made") — butuh kolom
+tanggal pelunasan TERPISAH dari tanggal nota.
+
+```sql
+alter table transactions add column if not exists lunas_at date;
+```
+
+Aman dijalankan kapan saja — kolom nullable, transaksi lama tetap
+tampil seperti biasa (`lunas_at` kosong untuk baris yang belum pernah
+disentuh kode baru). `submitTransaction()`/`toggleLunas()`/
+`markSubsLunas()` sekarang mengisi `lunas_at` persis di momen status
+berubah jadi `'lunas'` (bukan tanggal nota, kecuali nota itu memang
+langsung dibuat lunas sejak awal).
+
+**SENGAJA TIDAK mengganti** metrik "Sudah Lunas" yang sudah ada (tetap
+pakai `tanggal`, tetap menjaga identitas "Sudah Lunas + Belum Lunas =
+Total Omzet" yang didokumentasikan di `trxCashReceived()`,
+`js/09-utils.js`) — itu sudut pandang *accrual* yang valid ("dari nota
+bulan ini, berapa yang sudah tertagih SAMPAI SEKARANG", wajar berubah
+seiring waktu). Sebagai gantinya, Laporan Bulanan (`js/18-laporan.js`)
+dapat **kartu baru terpisah**, "Kas Masuk Bulan Ini" (`stKasMasuk` di
+`index.html`) — dihitung dari `lunas_at`, bukan `tanggal`, jadi
+benar-benar uang yang diterima selama bulan itu (termasuk pelunasan
+nota bulan lalu) dan **tidak berubah lagi** setelah bulan itu lewat.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)
 - [ ] Multi-Outlet: pembatasan kasir ke outlet tertentu baru di level tampilan (client-side) — RLS `transactions`/`subscriptions`/`expenses` belum ikut memeriksa `team_members.outlet_id`, jadi bukan pagar keamanan yang ketat kalau kasir akses API Supabase langsung
-- [ ] Laporan bulan yang "sudah ditutup" bisa berubah nilainya kapan pun ada pelunasan susulan (ditemukan lewat audit 9 Oktober 2026) — filter tanggal di `renderReport()`/`renderLabaRugi()` (`js/18-laporan.js`) cuma pakai `t.tanggal` (tanggal nota), bukan tanggal pelunasan (tidak ada kolom itu di `transactions` sama sekali — beda dari `subscriptions` yang punya `lunas_at`), dan **tidak ada mekanisme tutup buku apa pun** di seluruh app. Belum dikerjakan — butuh keputusan desain dulu (lihat README/chat): tambah kolom `lunas_at` ke `transactions` lalu Laporan pakai itu untuk "Sudah Lunas" (mengubah makna periode "Omzet" vs "Kas Masuk" jadi 2 hal berbeda), ATAU bikin fitur tutup-buku terpisah yang membekukan angka periode yang sudah dicek. Dua pendekatan ini mengubah cara pemilik toko membaca Laporan, bukan sekadar bug fix teknis.
+- [x] Laporan bulan yang "sudah ditutup" bisa berubah nilainya kapan pun ada pelunasan susulan (ditemukan lewat audit 9 Oktober 2026) — selesai 12 Oktober 2026, lihat bagian "Laporan bulan 'ditutup' berubah karena pelunasan susulan" di atas (Opsi A: kolom `lunas_at` + metrik baru "Kas Masuk Bulan Ini")
 - [x] Diskon/total transaksi 100% dipercaya dari input browser (`js/12-transaksi.js`), tidak dihitung ulang di server — ditinjau lewat audit 9 Oktober 2026, SENGAJA tidak diperbaiki: risikonya cuma ke toko sendiri (kasir nakal merugikan tokonya sendiri, bukan platform), dan merekalkulasi di server butuh memindahkan seluruh logika harga/katalog ke server — perubahan arsitektur besar yang tidak proporsional untuk risiko serendah ini.
