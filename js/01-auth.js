@@ -94,21 +94,21 @@ async function handleAuthSubmit(){
         if(referrerOwnerId){
           try{ localStorage.setItem('nk_referredBy', referrerOwnerId); }catch(e){}
         } else {
-          /* RPC security definer claim_registration_code (lihat README) --
-             BUKAN update() langsung ke registration_codes dari browser. RLS
-             tabel ini admin-only untuk UPDATE (lihat README bagian RLS
-             registration_codes), jadi update() langsung dari user biasa
-             sebenarnya SELALU kena 0 baris (RLS diam-diam menolak, bukan
-             error) -- kode jadi TIDAK PERNAH benar-benar ditandai 'terpakai',
-             dan satu kode bisa dipakai berkali-kali oleh siapa saja yang
-             tahu kodenya. RPC ini atomik (UPDATE bersyarat status='aktif')
-             DAN bisa menembus RLS (security definer) untuk menandai kode
-             admin biasa (bukan kode referral) jadi 'terpakai' dengan benar.
-             nk_paidSignup HANYA diset kalau klaimnya benar-benar berhasil. */
-          const { data: claimed } = await sb.rpc('claim_registration_code', { p_code: regCode });
-          if(claimed){
-            try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
-          }
+          /* RPC security definer claim_registration_code_and_activate (lihat
+             README) -- menggabungkan klaim kode + aktivasi app_subscriptions
+             jadi SATU langkah atomik di server. Perbaikan KRITIS (audit 9-10
+             Okt 2026): pola LAMA (flag localStorage nk_paidSignup dibaca
+             ensureAppSubscription() buat memutuskan insert status:'aktif')
+             bisa dipalsukan bebas lewat DevTools TANPA pernah lewat RPC ini
+             sama sekali -- `localStorage.setItem('nk_paidSignup','1')` lalu
+             reload, karena RLS INSERT app_subscriptions ('owner_insert_own_
+             subscription') dulu cuma cek auth.uid()=owner_id, TIDAK membatasi
+             nilai status sama sekali. Sekarang aktivasi 'aktif' TIDAK PERNAH
+             lagi terjadi dari kode browser/flag apa pun -- cuma dari RPC ini
+             (atau approveRenewalRequest()/midtrans-webhook.js via admin/
+             Midtrans), dan policy INSERT-nya sudah diperketat cuma boleh
+             self-insert status:'trial' (lihat README). */
+          await sb.rpc('claim_registration_code_and_activate', { p_code: regCode });
         }
       }
     }

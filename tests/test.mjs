@@ -3433,12 +3433,11 @@ const result = await page.evaluate(async () => {
       document.getElementById('authPassword').value = 'password123';
       document.getElementById('regCodeInput').value = 'REF-ABC123';
       document.getElementById('authTosCheck').checked = true;
-      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
 
       await handleAuthSubmit();
 
       if (localStorage.getItem('nk_referredBy') !== 'referrer-owner-1') throw new Error('expected nk_referredBy to be set to the code\'s referrer_owner_id, got: ' + localStorage.getItem('nk_referredBy'));
-      if (localStorage.getItem('nk_paidSignup')) throw new Error('a referral-code signup should NOT set nk_paidSignup (new account must still start from a normal trial, not skip it)');
       if (lastRegCodeUpdate !== null) throw new Error('a referral code should NOT be marked via update() (it must stay reusable for other people), got update payload: ' + JSON.stringify(lastRegCodeUpdate));
     } finally {
       sb.auth.signUp = originalAuth.signUp;
@@ -3447,13 +3446,13 @@ const result = await page.evaluate(async () => {
       document.getElementById('authEmail').value = '';
       document.getElementById('authPassword').value = '';
       document.getElementById('regCodeInput').value = '';
-      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
       fakeReferralCode = null;
       lastRegCodeUpdate = null;
     }
   });
 
-  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) berhasil klaim lewat RPC claim_registration_code (BUKAN update() langsung lagi -- lihat README, RLS registration_codes admin-only) -- set nk_paidSignup, BUKAN nk_referredBy', async () => {
+  await step('handleAuthSubmit(): signup dengan kode ADMIN biasa (referrer_owner_id kosong) memanggil RPC gabungan claim_registration_code_and_activate (BUKAN claim_registration_code + flag nk_paidSignup lagi -- lihat README KRITIS kenapa flag itu dihapus total)', async () => {
     const originalAuth = { signUp: sb.auth.signUp };
     const originalRpc = sb.rpc;
     const savedAuthMode = authMode;
@@ -3464,7 +3463,7 @@ const result = await page.evaluate(async () => {
       sb.rpc = async (name, params) => {
         if (name === 'check_registration_code') return { data: true, error: null };
         if (name === 'get_registration_code_referrer') return { data: fakeReferralCode ? (fakeReferralCode.referrer_owner_id || null) : null, error: null };
-        if (name === 'claim_registration_code') { capturedClaimCode = params && params.p_code; return { data: true, error: null }; }
+        if (name === 'claim_registration_code_and_activate') { capturedClaimCode = params && params.p_code; return { data: true, error: null }; }
         return { data: null, error: null };
       };
       sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-2' }, session: { access_token: 'fake' } }, error: null });
@@ -3473,14 +3472,13 @@ const result = await page.evaluate(async () => {
       document.getElementById('authPassword').value = 'password123';
       document.getElementById('regCodeInput').value = 'ADMIN123';
       document.getElementById('authTosCheck').checked = true;
-      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
 
       await handleAuthSubmit();
 
-      if (capturedClaimCode !== 'ADMIN123') throw new Error('expected handleAuthSubmit() to call claim_registration_code RPC with the admin code, got: ' + capturedClaimCode);
-      if (localStorage.getItem('nk_paidSignup') !== '1') throw new Error('an admin-code signup whose claim RPC succeeds should set nk_paidSignup=1');
+      if (capturedClaimCode !== 'ADMIN123') throw new Error('expected handleAuthSubmit() to call claim_registration_code_and_activate RPC with the admin code, got: ' + capturedClaimCode);
       if (localStorage.getItem('nk_referredBy')) throw new Error('an admin-code signup should NOT set nk_referredBy');
-      if (lastRegCodeUpdate !== null) throw new Error('registration_codes should NOT be update()-d directly from the browser anymore (RLS is admin-only) -- claiming must go through the RPC, got update payload: ' + JSON.stringify(lastRegCodeUpdate));
+      if (lastRegCodeUpdate !== null) throw new Error('registration_codes should NOT be update()-d directly from the browser (RLS is admin-only) -- claiming must go through the RPC, got update payload: ' + JSON.stringify(lastRegCodeUpdate));
     } finally {
       sb.auth.signUp = originalAuth.signUp;
       sb.rpc = originalRpc;
@@ -3488,44 +3486,55 @@ const result = await page.evaluate(async () => {
       document.getElementById('authEmail').value = '';
       document.getElementById('authPassword').value = '';
       document.getElementById('regCodeInput').value = '';
-      try{ localStorage.removeItem('nk_referredBy'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
       fakeReferralCode = null;
       lastRegCodeUpdate = null;
     }
   });
 
-  await step('REGRESI (audit 9 Okt 2026): handleAuthSubmit() -- kalau RPC claim_registration_code gagal klaim (kode sudah dipakai orang lain, data:false), nk_paidSignup TIDAK BOLEH diset -- dulu diset tanpa syarat sebelum RPC ini ada, membuat satu kode admin bisa dipakai berkali-kali', async () => {
-    const originalAuth = { signUp: sb.auth.signUp };
+  await step('resolveRoleAndInit(): jalur kode pendaftaran pending (signup butuh konfirmasi email dulu) memanggil RPC claim_registration_code_and_activate yang sama', async () => {
     const originalRpc = sb.rpc;
-    const savedAuthMode = authMode;
-    fakeReferralCode = { code: 'ADMIN999', status: 'aktif' };
-    try {
-      sb.rpc = async (name) => {
-        if (name === 'check_registration_code') return { data: true, error: null };
-        if (name === 'get_registration_code_referrer') return { data: null, error: null };
-        if (name === 'claim_registration_code') return { data: false, error: null }; // sudah diklaim orang lain lebih dulu
+    const originalEnsureApp = ensureAppSubscription;
+    const originalInitUserData = initUserData;
+    const savedOriginalFrom = sb.from;
+    let capturedClaimCode = null;
+    try{
+      localStorage.setItem('nk_pendingRegCode', 'ADMIN777');
+      localStorage.removeItem('nk_pendingReferrer');
+      sb.rpc = async (name, params) => {
+        if (name === 'claim_registration_code_and_activate') { capturedClaimCode = params && params.p_code; return { data: true, error: null }; }
         return { data: null, error: null };
       };
-      sb.auth.signUp = async () => ({ data: { user: { id: 'new-user-reused' }, session: { access_token: 'fake' } }, error: null });
-      authMode = 'daftar';
-      document.getElementById('authEmail').value = 'reused@example.com';
-      document.getElementById('authPassword').value = 'password123';
-      document.getElementById('regCodeInput').value = 'ADMIN999';
-      document.getElementById('authTosCheck').checked = true;
-      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      ensureAppSubscription = async () => {};
+      initUserData = async () => {};
+      sb.from = (table) => {
+        if (table === 'team_members') {
+          const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: null, error: null }) };
+          return q;
+        }
+        if (table === 'settings') {
+          const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: null, error: null }) };
+          return q;
+        }
+        if (table === 'transactions') {
+          const q = { select: () => q, eq: () => q, limit: () => Promise.resolve({ data: [], error: null }) };
+          return q;
+        }
+        return savedOriginalFrom(table);
+      };
 
-      await handleAuthSubmit();
+      await resolveRoleAndInit();
 
-      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: nk_paidSignup tidak boleh diset kalau klaim RPC gagal (kode sudah dipakai), got: ' + localStorage.getItem('nk_paidSignup'));
+      if (capturedClaimCode !== 'ADMIN777') throw new Error('expected resolveRoleAndInit() to call claim_registration_code_and_activate with the pending code, got: ' + capturedClaimCode);
+      if (localStorage.getItem('nk_pendingRegCode')) throw new Error('nk_pendingRegCode should be cleared after being consumed');
     } finally {
-      sb.auth.signUp = originalAuth.signUp;
       sb.rpc = originalRpc;
-      authMode = savedAuthMode;
-      document.getElementById('authEmail').value = '';
-      document.getElementById('authPassword').value = '';
-      document.getElementById('regCodeInput').value = '';
-      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
-      fakeReferralCode = null;
+      ensureAppSubscription = originalEnsureApp;
+      initUserData = originalInitUserData;
+      sb.from = savedOriginalFrom;
+      localStorage.removeItem('nk_pendingRegCode');
+      localStorage.removeItem('nk_pendingReferrer');
+      document.getElementById('onboardingScreen').classList.remove('show');
     }
   });
 
@@ -3542,7 +3551,7 @@ const result = await page.evaluate(async () => {
         };
         return q;
       };
-      try{ localStorage.setItem('nk_referredBy', 'referrer-owner-2'); localStorage.removeItem('nk_paidSignup'); }catch(e){}
+      try{ localStorage.setItem('nk_referredBy', 'referrer-owner-2'); }catch(e){}
 
       await ensureAppSubscription('new-user-3', true);
 
@@ -3555,7 +3564,33 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  await step('ensureAppSubscription(): REGRESI -- flag nk_paidSignup/nk_referredBy HARUS dibersihkan di SEMUA jalur keluar (bukan cuma jalur insert baru), supaya tidak "nyangkut" dan salah terbaca user lain di device yang sama', async () => {
+  await step('REGRESI KRITIS (audit 9-10 Okt 2026): ensureAppSubscription() TIDAK PERNAH insert status:"aktif" lagi -- bahkan kalau localStorage.nk_paidSignup dipalsukan manual lewat DevTools TANPA pernah lewat RPC klaim kode sama sekali (celah nyata: RLS INSERT app_subscriptions dulu tidak membatasi nilai status sama sekali)', async () => {
+    const savedOriginalFrom = sb.from;
+    let capturedInsert = null;
+    try {
+      sb.from = (table) => {
+        if (table !== 'app_subscriptions') return savedOriginalFrom(table);
+        const q = {
+          select: () => q, eq: () => q,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }), // belum ada baris -> akun baru
+          insert: (row) => { capturedInsert = row; return { select: () => ({ single: () => Promise.resolve({ data: { id:'sub-forged', ...row }, error: null }) }) }; },
+        };
+        return q;
+      };
+      try{ localStorage.setItem('nk_paidSignup', '1'); localStorage.removeItem('nk_referredBy'); }catch(e){} // dipalsukan manual, TIDAK lewat RPC apa pun
+
+      await ensureAppSubscription('attacker-owner', true);
+
+      if (!capturedInsert) throw new Error('expected an insert() call to app_subscriptions');
+      if (capturedInsert.status !== 'trial') throw new Error('REGRESI KRITIS: ensureAppSubscription() HARUS selalu insert status:"trial", bahkan dengan nk_paidSignup dipalsukan di localStorage -- got status: ' + capturedInsert.status);
+      if (capturedInsert.paid_until) throw new Error('REGRESI: baris trial tidak boleh ikut mengirim paid_until');
+    } finally {
+      sb.from = savedOriginalFrom;
+      try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
+    }
+  });
+
+  await step('ensureAppSubscription(): REGRESI -- flag nk_referredBy HARUS dibersihkan di SEMUA jalur keluar (bukan cuma jalur insert baru), supaya tidak "nyangkut" dan salah terbaca user lain di device yang sama', async () => {
     const savedOriginalFrom = sb.from;
     const savedAppSubscription = appSubscription; // ensureAppSubscription() mengubah global ini -- WAJIB dikembalikan, kalau tidak test-test lain yang bergantung ke isSubscriptionActive() ikut gagal (paywall).
     try {
@@ -3567,9 +3602,9 @@ const result = await page.evaluate(async () => {
         const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'aktif' }, error: null }) };
         return q;
       };
-      try{ localStorage.setItem('nk_paidSignup', '1'); localStorage.setItem('nk_referredBy', 'leaked-owner-id'); }catch(e){}
+      try{ localStorage.setItem('nk_referredBy', 'leaked-owner-id'); }catch(e){}
       await ensureAppSubscription('some-other-owner', false);
-      if (localStorage.getItem('nk_paidSignup') || localStorage.getItem('nk_referredBy')) throw new Error('REGRESI: flag harus dibersihkan walau isSelf=false & baris sudah ada (kalau tidak, bisa salah terbaca signup user LAIN di device yang sama)');
+      if (localStorage.getItem('nk_referredBy')) throw new Error('REGRESI: nk_referredBy harus dibersihkan walau isSelf=false & baris sudah ada (kalau tidak, bisa salah terbaca signup user LAIN di device yang sama)');
 
       // Kasus 2: isSelf=true tapi baris SUDAH ADA sebelumnya (mis. owner login ulang) -- juga harus bersih.
       sb.from = (table) => {
@@ -3577,13 +3612,13 @@ const result = await page.evaluate(async () => {
         const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { status:'trial' }, error: null }) };
         return q;
       };
-      try{ localStorage.setItem('nk_paidSignup', '1'); }catch(e){}
+      try{ localStorage.setItem('nk_referredBy', 'leaked-owner-id-2'); }catch(e){}
       await ensureAppSubscription('existing-owner', true);
-      if (localStorage.getItem('nk_paidSignup')) throw new Error('REGRESI: flag harus dibersihkan juga saat isSelf=true tapi baris app_subscriptions sudah ada sebelumnya');
+      if (localStorage.getItem('nk_referredBy')) throw new Error('REGRESI: nk_referredBy harus dibersihkan juga saat isSelf=true tapi baris app_subscriptions sudah ada sebelumnya');
     } finally {
       sb.from = savedOriginalFrom;
       appSubscription = savedAppSubscription;
-      try{ localStorage.removeItem('nk_paidSignup'); localStorage.removeItem('nk_referredBy'); }catch(e){}
+      try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
     }
   });
 

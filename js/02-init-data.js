@@ -49,10 +49,9 @@ async function resolveRoleAndInit(){
         localStorage.removeItem('nk_pendingReferrer');
       } else {
         // Sama seperti jalur signup langsung (handleAuthSubmit, js/01-auth.js) --
-        // lewat RPC security definer claim_registration_code, BUKAN update()
-        // langsung (lihat komentar lengkap di js/01-auth.js soal kenapa).
-        const { data: claimed } = await sb.rpc('claim_registration_code', { p_code: pending });
-        if(claimed) localStorage.setItem('nk_paidSignup', '1');
+        // RPC gabungan klaim+aktivasi, TIDAK ADA lagi flag nk_paidSignup
+        // (lihat komentar lengkap kenapa flag itu dihapus di js/01-auth.js).
+        await sb.rpc('claim_registration_code_and_activate', { p_code: pending });
       }
       localStorage.removeItem('nk_pendingRegCode');
     }

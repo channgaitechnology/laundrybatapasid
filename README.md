@@ -920,25 +920,28 @@ grant execute on function get_registration_code_referrer(text) to anon, authenti
 `js/01-auth.js` sudah diupdate memanggil `get_registration_code_referrer`
 (RPC) ini, bukan `select()` langsung ke `registration_codes`, lagi.
 
-### Kode admin dipakai ulang tanpa batas — RPC `claim_registration_code`
+### KRITIS: `app_subscriptions` bisa di-self-grant status aktif tanpa bayar — RPC `claim_registration_code_and_activate` + perketat RLS
 
-Ditemukan lewat audit (9 Oktober 2026): begitu policy admin-only di atas
-benar-benar aktif, `update({status:'terpakai', used_by:...}).eq('code',
-regCode).eq('status','aktif')` yang dipanggil `js/01-auth.js` dan
-`js/02-init-data.js` (sebagai user baru, BUKAN admin) kena **0 baris**
-— RLS diam-diam menolak (bukan error terlihat, PostgREST tidak
-menganggap UPDATE 0-baris sebagai error). Akibatnya kode admin yang
-sudah dibeli **TIDAK PERNAH benar-benar ditandai `terpakai`**, jadi satu
-kode yang bocor (dibagikan via WA) bisa dipakai berkali-kali oleh siapa
-saja untuk dapat akun `status:'aktif'` 30 hari gratis tanpa pernah bayar
-lagi. Perbaikan: RPC `security definer` yang atomik (UPDATE bersyarat
-`status='aktif'`, sekaligus jadi kunci baris) dan cuma menyasar kode
-ADMIN (`referrer_owner_id is null`) — kode referral TETAP tidak pernah
-ditandai `terpakai` (sengaja boleh dipakai berkali-kali, lihat bagian
-Program Referral di bawah):
+Ditemukan lewat audit (9 Oktober 2026), dikonfirmasi langsung lewat
+`pg_policies` live (10 Oktober 2026): policy INSERT `app_subscriptions`
+yang ada (`owner_insert_own_subscription`, `with_check: auth.uid() =
+owner_id`) **TIDAK membatasi nilai `status` sama sekali**. Kode LAMA
+`ensureAppSubscription()` (`js/03-langganan.js`) membaca flag
+`localStorage.nk_paidSignup` untuk memutuskan insert `status:'aktif'`
+langsung dari browser — flag itu bisa dipalsukan bebas lewat DevTools
+(`localStorage.setItem('nk_paidSignup','1')`) **TANPA pernah lewat RPC
+klaim kode sama sekali**, lalu reload: insert `status:'aktif'` palsu itu
+akan **LOLOS** RLS, dapat akses penuh tanpa pernah bayar. (Kabar baik
+dari verifikasi live: TIDAK ADA policy UPDATE untuk owner sendiri di
+tabel ini — cuma admin — jadi celahnya murni di INSERT/akun baru, tidak
+bisa dipakai mengubah baris yang sudah ada.)
+
+Perbaikan dua lapis:
+
+**1. RPC `security definer` yang menggabungkan klaim kode + aktivasi jadi SATU langkah atomik di server** (menggantikan `claim_registration_code` dari migrasi sebelumnya — kalau sempat menjalankannya, boleh di-drop, lihat di bawah):
 
 ```sql
-create or replace function claim_registration_code(p_code text)
+create or replace function claim_registration_code_and_activate(p_code text)
 returns boolean
 language plpgsql
 security definer
@@ -946,52 +949,101 @@ set search_path = public
 as $$
 declare
   v_rows int;
+  v_now timestamptz := now();
+  v_paid_until timestamptz := now() + interval '30 days';
+  v_exists boolean;
 begin
   update registration_codes
     set status = 'terpakai', used_by = auth.uid()
   where code = p_code and status = 'aktif' and referrer_owner_id is null;
   get diagnostics v_rows = row_count;
-  return v_rows > 0;
+  if v_rows = 0 then
+    return false;
+  end if;
+
+  select exists(select 1 from app_subscriptions where owner_id = auth.uid()) into v_exists;
+  if v_exists then
+    update app_subscriptions set status = 'aktif', paid_until = v_paid_until where owner_id = auth.uid();
+  else
+    insert into app_subscriptions (owner_id, status, trial_ends_at, paid_until)
+      values (auth.uid(), 'aktif', v_now, v_paid_until);
+  end if;
+
+  return true;
 end;
 $$;
 
-grant execute on function claim_registration_code(text) to authenticated;
+grant execute on function claim_registration_code_and_activate(text) to authenticated;
+
+-- Fungsi lama (migrasi sebelumnya) tidak lagi dipanggil dari kode manapun,
+-- aman di-drop:
+drop function if exists claim_registration_code(text);
 ```
 
-Sekaligus, `check_registration_code` (RPC yang sudah dipanggil
-`js/01-auth.js` sebelum signup, tapi SQL definisinya belum pernah
-tercatat di README ini — ketahuan lewat audit, jadi grant-nya tidak
-pernah bisa diverifikasi) — jalankan ulang juga supaya pasti cocok &
-grant-nya cuma anon+authenticated (bukan lebih longgar):
+**2. Perketat policy INSERT `app_subscriptions` itu sendiri — defense-in-depth, supaya walau ADA kode/flag yang somehow masih mencoba insert `status:'aktif'` langsung dari browser, RLS sendiri yang menolak:**
 
 ```sql
-create or replace function check_registration_code(p_code text)
-returns boolean
-language sql
-security definer
-set search_path = public
-as $$
-  select exists(
-    select 1 from registration_codes where code = p_code and status = 'aktif'
-  );
-$$;
-
-grant execute on function check_registration_code(text) to anon, authenticated;
+drop policy if exists "owner_insert_own_subscription" on app_subscriptions;
+create policy "owner_insert_own_subscription" on app_subscriptions
+  for insert
+  with check (auth.uid() = owner_id and status = 'trial');
 ```
 
-`js/01-auth.js`/`js/02-init-data.js` sudah diupdate memanggil
-`claim_registration_code`, dan `nk_paidSignup` HANYA diset kalau
-klaimnya benar-benar berhasil (dulu diset tanpa syarat). Kode admin baru
-yang dibuat `createManualCode()`/`approvePaymentRequest()` (`js/05-admin.js`)
-sekarang juga 10 karakter (bukan 6) — 6 karakter dari 33 simbol (~1,07
-miliar kombinasi) ketahuan lewat audit bisa diterobos brute-force lewat
-`check_registration_code` berulang tanpa rate-limit yang kelihatan; kode
-LAMA yang sudah dibagikan (6 karakter) tetap valid seperti biasa. Fungsi
-pembuatnya sekarang `genAdminRegCode()` — terpisah dari `genRegCode()`
-(tetap 6 karakter, dipakai `getOrCreateReferralCode()` di
-`js/03-langganan.js` untuk kode referral `REF-XXXXXX`, yang sengaja
-TIDAK diperpanjang: risikonya jauh lebih rendah karena tidak melewati
-trial, cuma menandai siapa mereferensikan siapa).
+`js/01-auth.js`/`js/02-init-data.js` sudah diupdate memanggil RPC
+gabungan ini langsung (bukan `claim_registration_code` + flag lagi), dan
+flag `nk_paidSignup` **sudah dihapus total** dari codebase —
+`ensureAppSubscription()` sekarang SELALU insert `status:'trial'` untuk
+baris baru, tidak pernah lagi `'aktif'` dari kode browser.
+`check_registration_code` (RPC lookup anon sebelum signup, grant-nya
+sudah didokumentasikan di migrasi sebelumnya) tidak berubah, tetap
+dipakai seperti biasa.
+
+Kode admin baru yang dibuat `createManualCode()`/`approvePaymentRequest()`
+(`js/05-admin.js`) tetap 10 karakter (`genAdminRegCode()`, bukan 6 —
+tahan brute-force lewat `check_registration_code`); kode referral tetap
+6 karakter (`genRegCode()`, `REF-XXXXXX` via `getOrCreateReferralCode()`
+di `js/03-langganan.js`) karena risikonya jauh lebih rendah (tidak
+melewati trial, cuma menandai siapa mereferensikan siapa).
+
+### KRITIS: `team_members` membocorkan SEMUA kode undangan pending lintas-toko — perketat RLS
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026) — lebih
+parah dari yang diduga audit 9 Oktober: policy SELECT
+`"anyone read pending invite"` (`qual: (status = 'pending') OR (auth.uid()
+= member_id)`) membiarkan **SIAPA SAJA yang login** (bukan cuma kasir
+yang diundang) men-SELECT **SEMUA baris `team_members` berstatus
+`pending` milik SEMUA toko** — termasuk `invite_code`, `owner_id`,
+`nama` — lewat REST API langsung, tanpa perlu tahu kode undangan sama
+sekali (modelnya seharusnya "kode rahasia dibagikan manual", bukan
+daftar terbuka). Policy UPDATE `"employee claim invite"` (`with_check:
+member_id = auth.uid() AND status = 'aktif'`) juga TIDAK membatasi kolom
+`owner_id` — klien jahat bisa `update({owner_id: <toko lain>, member_id:
+auth.uid(), status:'aktif'}).eq('id', <id baris pending siapa saja>)`
+lewat curl langsung dan jadi kasir toko yang tidak pernah mengundangnya.
+
+RPC `claim_invite_code` (migrasi sebelumnya, `security definer`) sudah
+menutup jalur ini dari KODE APLIKASI (`js/02-init-data.js` sekarang
+cuma panggil RPC, tidak pernah SELECT/UPDATE tabel ini langsung lagi) —
+tapi RLS tabel ini sendiri, yang bisa diakses langsung lewat REST API di
+luar aplikasi, belum ikut diperbaiki. Kedua policy ini TIDAK dibutuhkan
+lagi fitur apa pun di aplikasi (klaim undangan sekarang 100% lewat RPC
+security definer yang menembus RLS) — aman di-drop total, dan SELECT
+milik baris sendiri diganti versi yang jauh lebih sempit (cuma
+`member_id` sendiri, tanpa cabang `status='pending'` yang terbuka untuk
+semua orang):
+
+```sql
+drop policy if exists "anyone read pending invite" on team_members;
+create policy "member_select_own_row" on team_members
+  for select
+  using (auth.uid() = member_id);
+
+drop policy if exists "employee claim invite" on team_members;
+```
+
+Policy `"owner manage team"` (ALL, `auth.uid() = owner_id`) TIDAK
+disentuh — itu yang dipakai pemilik toko membuat/mengelola undangan
+timnya sendiri, sudah benar.
 
 ### Admin mana yang approve/tolak — kolom `processed_by_email`
 
