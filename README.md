@@ -1433,9 +1433,45 @@ bikin akun baru di Supabase Auth — tiap email yang dimasukkan di daftar
 ini tetap harus sudah punya akun (lewat Daftar seperti akun toko biasa)
 sebelum bisa login dan dianggap admin.
 
+### Ringkasan Admin Platform tidak tampilkan nama toko lain — kolom `settings` kurang izin RLS
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026): berbeda
+dari `app_subscriptions`/`registration_codes`/`payment_requests` yang
+SUDAH punya policy SELECT admin-wide, tabel `settings` **TIDAK
+punya** policy admin-wide sama sekali — cuma `auth.uid() = user_id` atau
+kasir milik toko itu. Ini BUKAN kebocoran (arah sebaliknya: admin
+kurang izin, bukan kelebihan), tapi bikin
+`loadAdminSubscriptionsOverview()` (`js/05-admin.js`) gagal mencocokkan
+`shop_name` toko lain — ringkasan Admin Platform cuma menampilkan "Toko
+tanpa nama (uuid...)" untuk semua toko selain milik admin sendiri (sudah
+diantisipasi di komentar kode-nya sendiri). Jalankan sekali kalau ingin
+fitur ini benar-benar menampilkan nama toko:
+
+```sql
+create policy "admin_select_all_settings" on settings
+  for select
+  using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+```
+
+### Duplikat policy INSERT `payment_requests`
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026): ada 2
+policy INSERT yang identik fungsinya (`with_check: true`) —
+`"Siapa saja boleh mengajukan permintaan pembayaran baru"` (dari migrasi
+yang didokumentasikan di README ini) dan `"anyone submit payment
+request"` (sudah ada duluan di database, tidak pernah tercatat di
+README). Tidak berbahaya (keduanya mengizinkan hal yang sama persis),
+cuma berantakan. Jalankan sekali untuk membersihkan salah satunya:
+
+```sql
+drop policy if exists "anyone submit payment request" on payment_requests;
+```
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)
 - [ ] Multi-Outlet: pembatasan kasir ke outlet tertentu baru di level tampilan (client-side) — RLS `transactions`/`subscriptions`/`expenses` belum ikut memeriksa `team_members.outlet_id`, jadi bukan pagar keamanan yang ketat kalau kasir akses API Supabase langsung
+- [ ] Laporan bulan yang "sudah ditutup" bisa berubah nilainya kapan pun ada pelunasan susulan (ditemukan lewat audit 9 Oktober 2026) — filter tanggal di `renderReport()`/`renderLabaRugi()` (`js/18-laporan.js`) cuma pakai `t.tanggal` (tanggal nota), bukan tanggal pelunasan (tidak ada kolom itu di `transactions` sama sekali — beda dari `subscriptions` yang punya `lunas_at`), dan **tidak ada mekanisme tutup buku apa pun** di seluruh app. Belum dikerjakan — butuh keputusan desain dulu (lihat README/chat): tambah kolom `lunas_at` ke `transactions` lalu Laporan pakai itu untuk "Sudah Lunas" (mengubah makna periode "Omzet" vs "Kas Masuk" jadi 2 hal berbeda), ATAU bikin fitur tutup-buku terpisah yang membekukan angka periode yang sudah dicek. Dua pendekatan ini mengubah cara pemilik toko membaca Laporan, bukan sekadar bug fix teknis.
+- [x] Diskon/total transaksi 100% dipercaya dari input browser (`js/12-transaksi.js`), tidak dihitung ulang di server — ditinjau lewat audit 9 Oktober 2026, SENGAJA tidak diperbaiki: risikonya cuma ke toko sendiri (kasir nakal merugikan tokonya sendiri, bukan platform), dan merekalkulasi di server butuh memindahkan seluruh logika harga/katalog ke server — perubahan arsitektur besar yang tidak proporsional untuk risiko serendah ini.
