@@ -5,9 +5,29 @@ function genRegCode(){
   for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
   return code;
 }
+/* Khusus kode ADMIN (bukan kode referral -- itu tetap genRegCode() 6
+   karakter via getOrCreateReferralCode() di js/03-langganan.js, format
+   REF-XXXXXX sengaja pendek supaya mudah dibagikan/diketik, dan nilai
+   risikonya rendah karena TIDAK melewati trial, cuma menandai siapa
+   mereferensikan siapa). Kode admin 10 karakter (bukan 6) -- kode ini
+   merepresentasikan pembayaran yang SUDAH diverifikasi admin (nilai uang
+   nyata, melewati trial langsung ke aktif). 6 karakter dari 33 simbol
+   (~1,07 miliar kombinasi) ketahuan lewat audit bisa diterobos
+   brute-force lewat RPC check_registration_code berulang kali tanpa
+   rate-limit yang kelihatan; 10 karakter (33^10, puluhan triliun
+   kombinasi) membuatnya praktis mustahil ditebak tanpa perlu
+   infrastruktur rate-limit baru. Kode ADMIN LAMA yang sudah dibagikan (6
+   karakter) tetap valid seperti biasa -- pencocokannya exact-match,
+   panjang beda tidak masalah. */
+function genAdminRegCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<10;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
 async function createManualCode(){
   const note = prompt(t('Catatan kode ini (opsional, misal nama pembeli):')) || '';
-  const code = genRegCode();
+  const code = genAdminRegCode();
   const { error } = await sb.from('registration_codes').insert({ code, status:'aktif', note });
   if(error){ showToast(t('Gagal membuat kode')); return; }
   await loadAdminData();
@@ -231,10 +251,12 @@ function renderPaymentReqList(){
 async function approvePaymentRequest(id){
   const req = paymentReqCache.find(r=>r.id===id);
   if(!req) return;
-  const code = genRegCode();
+  const code = genAdminRegCode();
   const { error: e1 } = await sb.from('registration_codes').insert({ code, status:'aktif', note: req.nama });
   if(e1){ showToast(t('Gagal membuat kode')); return; }
-  const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code }).eq('id', id);
+  // processed_by_email -- siapa admin yang approve (lihat README). Berguna
+  // kalau nanti ada perselisihan approve/tolak dan ADMIN_EMAILS lebih dari 1.
+  const { error: e2 } = await sb.from('payment_requests').update({ status:'disetujui', kode_diberikan: code, processed_by_email: currentUser ? currentUser.email : null }).eq('id', id);
   if(e2){ showToast(t('Kode dibuat tapi gagal update status permintaan')); }
   await loadAdminData();
   const waNum = normalizePhone(req.wa);
@@ -255,7 +277,7 @@ async function approveRenewalRequest(id){
      app_subscriptions sama sekali, supaya paid_until tidak diperpanjang
      dobel dari 1 pembayaran. */
   const { data: claimed, error: claimErr } = await sb.from('payment_requests')
-    .update({ status:'disetujui', paid_at: now.toISOString() })
+    .update({ status:'disetujui', paid_at: now.toISOString(), processed_by_email: currentUser ? currentUser.email : null })
     .eq('id', id).eq('status','menunggu').select();
   if(claimErr){ showToast(t('Gagal mengaktifkan langganan')); return; }
   if(!claimed || claimed.length===0){
@@ -290,7 +312,7 @@ async function approveRenewalRequest(id){
 }
 async function rejectPaymentRequest(id){
   if(!confirm(t('Tolak permintaan ini?'))) return;
-  const { error } = await sb.from('payment_requests').update({ status:'ditolak' }).eq('id', id);
+  const { error } = await sb.from('payment_requests').update({ status:'ditolak', processed_by_email: currentUser ? currentUser.email : null }).eq('id', id);
   if(error){ showToast(t('Gagal menolak')); return; }
   await loadAdminData();
 }
@@ -341,16 +363,65 @@ async function loadSettingsFromDB(){
     settings = { shopName:data.shop_name||t('Toko Laundry Saya'), address:data.address||'', phone:data.phone||'', note:data.note||'', logoUrl:data.logo_url||null, autoNotifySelesai:!!data.auto_notify_selesai };
   }
 }
-async function loadTransactionsFromDB(){
-  const { data, error } = await sb.from('transactions').select('*').eq('user_id', shopOwnerId).order('created_at', { ascending:true });
-  if(error){ showToast(t('Gagal memuat data transaksi')); return; }
-  transactions = (data||[]).map(row => ({
+/* Dipakai sama-sama oleh loadTransactionsFromDB() & ensureAllTransactionsLoaded()
+   supaya mapping baris DB -> object transaksi di memori tidak ganda ditulis. */
+function mapTransactionRow(row){
+  return {
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,
     tanggal: row.tanggal, estimasi: row.estimasi, items: row.items||[],
     diskon: Number(row.diskon)||0, total: Number(row.total)||0, dp: Number(row.dp)||0,
-    status: row.status, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
+    status: row.status, lunasAt: row.lunas_at||null, catatan: row.catatan||'', workStatus: row.work_status || 'belum',
     outletId: row.outlet_id!=null ? String(row.outlet_id) : null
-  }));
+  };
+}
+const TRANSACTIONS_LOAD_MONTHS = 6;
+function transactionsWindowStartDate(){
+  const d = new Date();
+  d.setMonth(d.getMonth() - TRANSACTIONS_LOAD_MONTHS);
+  return toISODateLocal(d);
+}
+async function loadTransactionsFromDB(){
+  /* fetchAllRows() (js/09-utils.js) WAJIB di sini -- tabel transactions tidak
+     dibatasi jumlah baris sama sekali (beda dari subscription_usage yang sudah
+     dipaginasi via loadAllWorkUsage()), jadi query ini tetap bisa kembalikan
+     ribuan baris walau sudah dibatasi ke TRANSACTIONS_LOAD_MONTHS bulan
+     terakhir -- toko yang ramai transaksinya 6 bulan terakhir saja sudah bisa
+     lebih dari ~1000 baris (batas default per-request Supabase).
+     .gte('tanggal', ...) inilah yang bikin ini TIDAK lagi memuat SELURUH
+     riwayat toko setiap app dibuka -- lihat ensureAllTransactionsLoaded() di
+     bawah untuk fitur yang memang butuh lebih lama dari window ini. */
+  transactionsWindowStart = transactionsWindowStartDate();
+  transactionsFullyLoaded = false;
+  const { data, error } = await fetchAllRows(() => sb.from('transactions').select('*').eq('user_id', shopOwnerId).gte('tanggal', transactionsWindowStart).order('created_at', { ascending:true }));
+  if(error){ showToast(t('Gagal memuat data transaksi')); return; }
+  transactions = (data||[]).map(mapTransactionRow);
+}
+/* Backfill SEKALI per sesi: ambil semua baris SEBELUM transactionsWindowStart
+   dan gabungkan ke depan array `transactions` yang sudah ada (urutan
+   created_at ascending tetap terjaga karena baris lama pasti created_at-nya
+   lebih kecil dari semua baris window). Idempoten -- kalau sudah pernah
+   dipanggil (transactionsFullyLoaded true), langsung return tanpa query
+   apa pun, supaya fitur yang memanggil ini berkali-kali (mis. tiap kali
+   Laporan Per Pelanggan dibuka ulang) tidak boros kuota berulang-ulang.
+   _transactionsLoadingPromise MENCEGAH RACE CONDITION nyata -- beberapa
+   pemanggil bisa tumpang tindih sebelum transactionsFullyLoaded keburu
+   true (mis. showRekapNamaSuggest() di js/22-rekap-pelanggan.js terpanggil
+   tiap KETIKAN), yang tanpa guard ini bisa bikin baris lama ter-concat
+   LEBIH DARI SEKALI ke `transactions` (duplikat). Semua pemanggil yang
+   tumpang tindih sekarang menunggu SATU fetch yang sama. */
+var _transactionsLoadingPromise = null;
+async function ensureAllTransactionsLoaded(){
+  if(transactionsFullyLoaded) return;
+  if(_transactionsLoadingPromise) return _transactionsLoadingPromise;
+  _transactionsLoadingPromise = (async () => {
+    const { data, error } = await fetchAllRows(() => sb.from('transactions').select('*').eq('user_id', shopOwnerId).lt('tanggal', transactionsWindowStart).order('created_at', { ascending:true }));
+    if(error){ showToast(t('Gagal memuat riwayat transaksi lama')); return; }
+    const older = (data||[]).map(mapTransactionRow);
+    transactions = older.concat(transactions);
+    transactionsFullyLoaded = true;
+    transactionsWindowStart = null;
+  })();
+  try{ await _transactionsLoadingPromise; } finally { _transactionsLoadingPromise = null; }
 }
 /* Tabel expenses baru (belum tentu ada di database lama) — kalau query gagal
    (tabel belum dibuat), diamkan saja dan anggap belum ada pengeluaran tercatat,

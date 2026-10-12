@@ -1,9 +1,18 @@
 /* ===================== LAPORAN BULANAN ===================== */
-function renderReport(){
-  populatePerNamaSelect();
+async function renderReport(){
   const monthInput = document.getElementById('reportMonth');
   if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
   const ym = monthInput.value; // "2026-07"
+  /* loadTransactionsFromDB() (js/05-admin.js) cuma muat beberapa bulan
+     terakhir secara default (hemat kuota) -- kalau bulan yang dipilih di
+     sini (ATAU tren 6-bulan renderOmzetTrend() di bawah, yang butuh sampai
+     5 bulan sebelum ym) jatuh SEBELUM window itu, backfill seluruh riwayat
+     dulu supaya angkanya tidak diam-diam kurang. No-op kalau sudah pernah
+     di-backfill sekali di sesi ini (transactionsFullyLoaded). */
+  if(!transactionsFullyLoaded && transactionsWindowStart && monthsBeforeYM(ym, 5) < transactionsWindowStart.slice(0,7)){
+    await ensureAllTransactionsLoaded();
+  }
+  populatePerNamaSelect();
   const list = visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
 
   const totalTrx = list.length;
@@ -21,11 +30,26 @@ function renderReport(){
      yang tampil di halaman detail pelanggan itu sendiri. */
   const totalBelumLangganan = visibleReportSubscriptions().reduce((sum,s)=>sum+subscriptionOutstanding(s), 0);
   const totalBelum = list.filter(t=>t.status==='belum').reduce((s,t)=>s+Math.max(t.total-trxCashReceived(t),0),0) + totalBelumLangganan;
+  /* "Kas Masuk Bulan Ini" (audit 9-10 Okt 2026, Opsi A) -- BEDA dari
+     totalLunas di atas: totalLunas pakai t.tanggal (tanggal NOTA, bisa
+     berubah kalau ada pelunasan susulan bulan berikutnya -- nota September
+     yang baru dibayar Oktober masih kehitung "Sudah Lunas" September).
+     Metrik ini pakai t.lunasAt (tanggal BENAR-BENAR ditandai lunas, lihat
+     lunas_at di submitTransaction()/toggleLunas()/markSubsLunas()) --
+     uang kas yang literally diterima bulan ini, dari NOTA APA PUN (bulan
+     ini atau susulan dari bulan lalu). Begitu bulan ini lewat, angka ini
+     TIDAK BERUBAH LAGI (beda dari totalLunas yang masih bisa bergeser).
+     SENGAJA metrik TERPISAH, bukan menggantikan totalLunas -- totalLunas
+     tetap dipertahankan identitasnya (Sudah Lunas + Belum Lunas = Total
+     Omzet, lihat komentar trxCashReceived() di js/09-utils.js). */
+  const kasMasukList = visibleReportTransactions().filter(t=>t.lunasAt && t.lunasAt.slice(0,7)===ym);
+  const totalKasMasuk = kasMasukList.reduce((s,t)=>s+trxCashReceived(t),0);
 
   document.getElementById('stTrx').textContent = totalTrx;
   document.getElementById('stOmzet').textContent = rupiah(totalOmzet);
   document.getElementById('stLunas').textContent = rupiah(totalLunas);
   document.getElementById('stBelum').textContent = rupiah(totalBelum);
+  document.getElementById('stKasMasuk').textContent = rupiah(totalKasMasuk);
 
   // chart per hari
   const [yy,mm] = ym.split('-').map(Number);
@@ -181,11 +205,15 @@ function subsOutstandingBlockHTML(s, bd){
   </div>`);
   return rows.join('');
 }
-function renderPerPelangganReport(){
+async function renderPerPelangganReport(){
   const nama = document.getElementById('perNama').value;
   if(!nama){ showToast(t('Pilih pelanggan dulu')); return; }
   const range = getPerPeriodeRange();
   if(!range){ showToast(t('Lengkapi periode laporan dulu')); return; }
+  // Rentang di sini bisa mode tahunan (jauh lebih lama dari window default
+  // loadTransactionsFromDB()) -- backfill seluruh riwayat dulu, no-op kalau
+  // sudah pernah (lihat README/js/05-admin.js).
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
 
   const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const lunasList = list.filter(t=>t.status==='lunas');
@@ -368,7 +396,7 @@ function getLrPeriodeRange(){
   }
   return null;
 }
-function renderLabaRugi(){
+async function renderLabaRugi(){
   if(!document.getElementById('lrBulan').value) document.getElementById('lrBulan').value = todayISO().slice(0,7);
   const range = getLrPeriodeRange();
   const breakdownEl = document.getElementById('lrBreakdown');
@@ -380,6 +408,8 @@ function renderLabaRugi(){
     labaRugiCache = null;
     return;
   }
+  // Mode tahunan bisa jauh lebih lama dari window default -- backfill dulu.
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const trxList = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const expList = visibleReportExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
   /* PENTING: Laba Rugi harus berbasis kas (uang yang benar-benar diterima),
@@ -478,11 +508,14 @@ function getRankPeriodeRange(){
   }
   return null;
 }
-function renderPeringkatPelanggan(){
+async function renderPeringkatPelanggan(){
   if(!document.getElementById('rankBulan').value) document.getElementById('rankBulan').value = todayISO().slice(0,7);
   const range = getRankPeriodeRange();
   const el = document.getElementById('rankList');
   if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
+  // Mode "Semua Waktu" (range.dari='0000-01-01') maupun tahunan butuh
+  // seluruh riwayat -- backfill dulu, no-op kalau sudah pernah.
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const list = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const byNama = {};
   /* "Pemasukan" -> kas yang benar-benar diterima (trxCashReceived()), bukan

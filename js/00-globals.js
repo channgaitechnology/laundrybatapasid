@@ -109,6 +109,21 @@ var settings = { shopName:'Toko Laundry Saya', address:'', phone:'', note:'Terim
 var appBranding = { nama:'Tinggiran Tech Studio', tagline:'Bikin Apps & Website Kilat', wa:'081293228520', email:'tinggirantech@gmail.com', midtransEnabled:false };
 function shopLogoSrc(){ return settings.logoUrl || SHOP_LOGO_B64; }
 var transactions = [];
+/* Pemuatan hemat kuota (dibahas di sesi chat 12 Okt 2026, demi kuota egress
+   Supabase gratis): loadTransactionsFromDB() cuma muat TRANSACTIONS_LOAD_MONTHS
+   bulan terakhir secara default, bukan seluruh riwayat sejak toko berdiri --
+   toko yang riwayatnya sudah panjang dulu mengunduh ulang SEMUA baris itu
+   setiap kali app dibuka, padahal 99% pemakaian normal (Riwayat/Laporan bulan
+   ini) cuma butuh beberapa bulan terakhir. Fitur yang BENAR-BENAR butuh
+   seluruh riwayat (Peringkat Pelanggan "Semua Waktu", Rekap Pelanggan cari
+   lintas tanggal, Laporan Per Pelanggan/Laba Rugi mode tahunan, ekspor JPG
+   Papan Laundry custom range, atau Laporan/Riwayat saat user pilih
+   bulan/tanggal di luar window) memanggil ensureAllTransactionsLoaded()
+   (js/05-admin.js) dulu -- itu nge-backfill baris yang lebih lama SEKALI per
+   sesi (idempoten, no-op lagi setelah pertama kali), bukan menggantikan
+   window default pada pemakaian normal. */
+var transactionsFullyLoaded = false;
+var transactionsWindowStart = null; // tanggal (YYYY-MM-DD) paling lama yang DIJAMIN lengkap di `transactions`; null kalau transactionsFullyLoaded true (semua sudah termuat)
 var draftItems = [];
 var currentReceiptId = null;
 var currentUser = null;

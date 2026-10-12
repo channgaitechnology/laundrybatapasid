@@ -1,36 +1,42 @@
 /* ===================== TRIAL & LANGGANAN APLIKASI ===================== */
 async function ensureAppSubscription(ownerId, isSelf){
-  /* nk_paidSignup/nk_referredBy cuma dibaca & dipakai di jalur insert baru
-     (isSelf===true, belum ada baris app_subscriptions sama sekali) -- TAPI
-     harus dibersihkan dari localStorage di SETIAP jalur keluar fungsi ini
-     (termasuk isSelf===false/kasir, dan ketika baris sudah ada sebelumnya),
-     bukan cuma jalur insert sukses. Dulu cuma dibersihkan di jalur itu --
-     kalau 1 device dipakai bergantian (mis. user A daftar pakai kode lalu
-     ternyata join sebagai kasir [isSelf=false, baris ownerId yang dicek
-     BUKAN milik dia], lalu user B daftar baru di device yang sama), flag
-     milik user A bisa "nyangkut" dan salah terbaca saat ensureAppSubscription()
-     dipanggil untuk user B -- bisa salah mengaktifkan status/atribusi
-     referral ke akun yang salah. Pada titik fungsi ini dipanggil (dari
-     SEMUA pemanggil di js/02-init-data.js), resolusi peran user SAAT INI
-     sudah final, jadi flag-nya sudah tidak relevan lagi apa pun hasilnya. */
-  let paidSignup = false, referredBy = null;
+  /* PERBAIKAN KRITIS (audit 9-10 Okt 2026): fungsi ini DULU juga membaca
+     flag localStorage nk_paidSignup untuk memutuskan insert status:'aktif'
+     langsung dari browser -- celah nyata, siapa saja bisa
+     `localStorage.setItem('nk_paidSignup','1')` manual lewat DevTools (TANPA
+     pernah lewat RPC klaim kode sama sekali) lalu reload, dan RLS INSERT
+     app_subscriptions ('owner_insert_own_subscription') DULU cuma mengecek
+     auth.uid()=owner_id, TIDAK membatasi nilai status -- insert status:'aktif'
+     palsu itu akan LOLOS. Flag nk_paidSignup SUDAH DIHAPUS TOTAL dari
+     codebase (lihat js/01-auth.js/js/02-init-data.js) -- fungsi ini sekarang
+     SELALU insert status:'trial' kalau bikin baris baru. Aktivasi 'aktif'
+     cuma pernah terjadi lewat RPC security definer
+     claim_registration_code_and_activate (klaim kode admin saat signup),
+     approveRenewalRequest()/midtrans-webhook.js (admin/Midtrans) -- semua di
+     SERVER, tidak pernah dari browser. Policy INSERT app_subscriptions juga
+     sudah diperketat cuma boleh self-insert status:'trial' (lihat README) --
+     jadi walau ada baris kode lama/belum ter-upgrade yang somehow masih
+     mencoba insert 'aktif', RLS sendiri yang menolak.
+
+     nk_referredBy TETAP dipakai (akun hasil referral tetap mulai trial biasa,
+     cuma dicatat siapa yang mereferensikan) -- HARUS dibersihkan dari
+     localStorage di SETIAP jalur keluar fungsi ini (termasuk isSelf===false/
+     kasir, dan ketika baris sudah ada sebelumnya), bukan cuma jalur insert
+     sukses -- kalau 1 device dipakai bergantian, flag bisa "nyangkut" dan
+     salah terbaca untuk user berikutnya di device yang sama. */
+  let referredBy = null;
   try{
-    paidSignup = localStorage.getItem('nk_paidSignup') === '1';
     referredBy = localStorage.getItem('nk_referredBy') || null;
   }catch(e){}
   const clearFlags = () => {
-    try{ localStorage.removeItem('nk_paidSignup'); }catch(e){}
     try{ localStorage.removeItem('nk_referredBy'); }catch(e){}
   };
   try{
     const { data, error } = await sb.from('app_subscriptions').select('*').eq('owner_id', ownerId).maybeSingle();
     if(data){ appSubscription = data; renderSubscriptionBadge(); clearFlags(); return; }
     if(error || !isSelf){ appSubscription = null; renderSubscriptionBadge(); clearFlags(); return; }
-    const now = new Date();
-    const trialEnds = new Date(now.getTime() + 30*24*60*60*1000).toISOString();
-    const insertRow = paidSignup
-      ? { owner_id: ownerId, status: 'aktif', trial_ends_at: now.toISOString(), paid_until: trialEnds }
-      : { owner_id: ownerId, status: 'trial', trial_ends_at: trialEnds };
+    const trialEnds = new Date(Date.now() + 30*24*60*60*1000).toISOString();
+    const insertRow = { owner_id: ownerId, status: 'trial', trial_ends_at: trialEnds };
     /* Akun baru yang daftar pakai kode referral tetap mulai dari trial biasa
        (lihat komentar di js/01-auth.js) -- cuma dicatat SIAPA yang
        mereferensikannya di sini, supaya bonus 15 hari buat akun ini DAN buat
@@ -204,7 +210,16 @@ async function getOrCreateReferralCode(){
   if(existing && existing.code) return existing.code;
   const code = 'REF-' + genRegCode();
   const { data, error } = await sb.from('registration_codes').insert({ code, status:'aktif', referrer_owner_id: shopOwnerId, note:'Kode referral' }).select().single();
-  return error ? null : data.code;
+  if(!error) return data.code;
+  /* REGRESI race condition (audit) -- SELECT lalu INSERT terpisah di atas
+     TIDAK atomik: klik ganda tombol "Bagikan"/2 tab terbuka bisa membuat
+     DUA baris kode referral untuk 1 toko kalau insert() di sini tidak
+     ditolak. Index UNIQUE partial `registration_codes_referrer_owner_unique`
+     (lihat README) sekarang menolak insert KEDUA yang datang hampir
+     bersamaan -- kalau insert kita gagal karena itu, jangan anggap gagal
+     total, ambil balik kode yang SUDAH berhasil dibuat panggilan lain. */
+  const { data: afterRace } = await sb.from('registration_codes').select('code').eq('referrer_owner_id', shopOwnerId).limit(1).maybeSingle();
+  return (afterRace && afterRace.code) || null;
 }
 async function loadReferralCode(){
   const el = document.getElementById('referralCodeDisplay');

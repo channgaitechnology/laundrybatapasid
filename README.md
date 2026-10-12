@@ -302,6 +302,53 @@ langsung. Kalau dibutuhkan proteksi yang lebih kuat, RLS `transactions`/
 `subscriptions`/`expenses` perlu ditulis ulang supaya ikut memeriksa
 `team_members.outlet_id` — belum dikerjakan di iterasi ini.
 
+### Klaim kode undangan kasir — RPC `claim_invite_code`
+
+Ditemukan lewat audit (9 Oktober 2026): `claimInviteCode()` (`js/02-init-data.js`)
+dulu melakukan `select()` cari baris `status='pending'`, lalu `update()`
+terpisah — ada 2 masalah: (1) **race condition** nyata, 2 kasir submit
+kode undangan yang sama hampir bersamaan bisa berdua lolos SELECT sebelum
+salah satunya UPDATE; (2) `update()`-nya sendiri bergantung total pada RLS
+`team_members` yang kebijakannya **tidak terdokumentasi** di README ini
+(hanya dipakai sebagai subquery policy tabel lain) — kalau RLS `UPDATE`-nya
+longgar, kasir yang sudah aktif bisa saja mencoba `update({owner_id: ...})`
+ke baris miliknya sendiri untuk "pindah" ke toko lain tanpa diundang.
+
+Ganti dengan satu RPC `security definer` yang atomik (UPDATE bersyarat
+`status='pending'` SEKALIGUS jadi kunci baris, pola sama seperti klaim
+`payment_requests` di `netlify/functions/midtrans-webhook.js`) dan tidak
+bisa diajak menulis kolom selain `member_id`/`status` baris itu sendiri,
+apa pun kebijakan RLS `team_members` yang sedang berlaku:
+
+```sql
+create or replace function claim_invite_code(p_code text)
+returns table(owner_id uuid, nama text, outlet_id bigint)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id bigint;
+begin
+  update team_members
+    set member_id = auth.uid(), status = 'aktif'
+    where invite_code = p_code and status = 'pending'
+    returning id into v_id;
+
+  if v_id is null then
+    return;
+  end if;
+
+  return query select t.owner_id, t.nama, t.outlet_id from team_members t where t.id = v_id;
+end;
+$$;
+
+grant execute on function claim_invite_code(text) to authenticated;
+```
+
+`js/02-init-data.js` sudah diupdate memanggil RPC ini, bukan `select()`+
+`update()` langsung lagi.
+
 ### Cetak Bluetooth (printer thermal)
 
 Nota (transaksi biasa, invoice paket, nota timbangan) sekarang bisa dicetak
@@ -873,6 +920,146 @@ grant execute on function get_registration_code_referrer(text) to anon, authenti
 `js/01-auth.js` sudah diupdate memanggil `get_registration_code_referrer`
 (RPC) ini, bukan `select()` langsung ke `registration_codes`, lagi.
 
+### KRITIS: `app_subscriptions` bisa di-self-grant status aktif tanpa bayar — RPC `claim_registration_code_and_activate` + perketat RLS
+
+Ditemukan lewat audit (9 Oktober 2026), dikonfirmasi langsung lewat
+`pg_policies` live (10 Oktober 2026): policy INSERT `app_subscriptions`
+yang ada (`owner_insert_own_subscription`, `with_check: auth.uid() =
+owner_id`) **TIDAK membatasi nilai `status` sama sekali**. Kode LAMA
+`ensureAppSubscription()` (`js/03-langganan.js`) membaca flag
+`localStorage.nk_paidSignup` untuk memutuskan insert `status:'aktif'`
+langsung dari browser — flag itu bisa dipalsukan bebas lewat DevTools
+(`localStorage.setItem('nk_paidSignup','1')`) **TANPA pernah lewat RPC
+klaim kode sama sekali**, lalu reload: insert `status:'aktif'` palsu itu
+akan **LOLOS** RLS, dapat akses penuh tanpa pernah bayar. (Kabar baik
+dari verifikasi live: TIDAK ADA policy UPDATE untuk owner sendiri di
+tabel ini — cuma admin — jadi celahnya murni di INSERT/akun baru, tidak
+bisa dipakai mengubah baris yang sudah ada.)
+
+Perbaikan dua lapis:
+
+**1. RPC `security definer` yang menggabungkan klaim kode + aktivasi jadi SATU langkah atomik di server** (menggantikan `claim_registration_code` dari migrasi sebelumnya — kalau sempat menjalankannya, boleh di-drop, lihat di bawah):
+
+```sql
+create or replace function claim_registration_code_and_activate(p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rows int;
+  v_now timestamptz := now();
+  v_paid_until timestamptz := now() + interval '30 days';
+  v_exists boolean;
+begin
+  update registration_codes
+    set status = 'terpakai', used_by = auth.uid()
+  where code = p_code and status = 'aktif' and referrer_owner_id is null;
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then
+    return false;
+  end if;
+
+  select exists(select 1 from app_subscriptions where owner_id = auth.uid()) into v_exists;
+  if v_exists then
+    update app_subscriptions set status = 'aktif', paid_until = v_paid_until where owner_id = auth.uid();
+  else
+    insert into app_subscriptions (owner_id, status, trial_ends_at, paid_until)
+      values (auth.uid(), 'aktif', v_now, v_paid_until);
+  end if;
+
+  return true;
+end;
+$$;
+
+grant execute on function claim_registration_code_and_activate(text) to authenticated;
+
+-- Fungsi lama (migrasi sebelumnya) tidak lagi dipanggil dari kode manapun,
+-- aman di-drop:
+drop function if exists claim_registration_code(text);
+```
+
+**2. Perketat policy INSERT `app_subscriptions` itu sendiri — defense-in-depth, supaya walau ADA kode/flag yang somehow masih mencoba insert `status:'aktif'` langsung dari browser, RLS sendiri yang menolak:**
+
+```sql
+drop policy if exists "owner_insert_own_subscription" on app_subscriptions;
+create policy "owner_insert_own_subscription" on app_subscriptions
+  for insert
+  with check (auth.uid() = owner_id and status = 'trial');
+```
+
+`js/01-auth.js`/`js/02-init-data.js` sudah diupdate memanggil RPC
+gabungan ini langsung (bukan `claim_registration_code` + flag lagi), dan
+flag `nk_paidSignup` **sudah dihapus total** dari codebase —
+`ensureAppSubscription()` sekarang SELALU insert `status:'trial'` untuk
+baris baru, tidak pernah lagi `'aktif'` dari kode browser.
+`check_registration_code` (RPC lookup anon sebelum signup, grant-nya
+sudah didokumentasikan di migrasi sebelumnya) tidak berubah, tetap
+dipakai seperti biasa.
+
+Kode admin baru yang dibuat `createManualCode()`/`approvePaymentRequest()`
+(`js/05-admin.js`) tetap 10 karakter (`genAdminRegCode()`, bukan 6 —
+tahan brute-force lewat `check_registration_code`); kode referral tetap
+6 karakter (`genRegCode()`, `REF-XXXXXX` via `getOrCreateReferralCode()`
+di `js/03-langganan.js`) karena risikonya jauh lebih rendah (tidak
+melewati trial, cuma menandai siapa mereferensikan siapa).
+
+### KRITIS: `team_members` membocorkan SEMUA kode undangan pending lintas-toko — perketat RLS
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026) — lebih
+parah dari yang diduga audit 9 Oktober: policy SELECT
+`"anyone read pending invite"` (`qual: (status = 'pending') OR (auth.uid()
+= member_id)`) membiarkan **SIAPA SAJA yang login** (bukan cuma kasir
+yang diundang) men-SELECT **SEMUA baris `team_members` berstatus
+`pending` milik SEMUA toko** — termasuk `invite_code`, `owner_id`,
+`nama` — lewat REST API langsung, tanpa perlu tahu kode undangan sama
+sekali (modelnya seharusnya "kode rahasia dibagikan manual", bukan
+daftar terbuka). Policy UPDATE `"employee claim invite"` (`with_check:
+member_id = auth.uid() AND status = 'aktif'`) juga TIDAK membatasi kolom
+`owner_id` — klien jahat bisa `update({owner_id: <toko lain>, member_id:
+auth.uid(), status:'aktif'}).eq('id', <id baris pending siapa saja>)`
+lewat curl langsung dan jadi kasir toko yang tidak pernah mengundangnya.
+
+RPC `claim_invite_code` (migrasi sebelumnya, `security definer`) sudah
+menutup jalur ini dari KODE APLIKASI (`js/02-init-data.js` sekarang
+cuma panggil RPC, tidak pernah SELECT/UPDATE tabel ini langsung lagi) —
+tapi RLS tabel ini sendiri, yang bisa diakses langsung lewat REST API di
+luar aplikasi, belum ikut diperbaiki. Kedua policy ini TIDAK dibutuhkan
+lagi fitur apa pun di aplikasi (klaim undangan sekarang 100% lewat RPC
+security definer yang menembus RLS) — aman di-drop total, dan SELECT
+milik baris sendiri diganti versi yang jauh lebih sempit (cuma
+`member_id` sendiri, tanpa cabang `status='pending'` yang terbuka untuk
+semua orang):
+
+```sql
+drop policy if exists "anyone read pending invite" on team_members;
+create policy "member_select_own_row" on team_members
+  for select
+  using (auth.uid() = member_id);
+
+drop policy if exists "employee claim invite" on team_members;
+```
+
+Policy `"owner manage team"` (ALL, `auth.uid() = owner_id`) TIDAK
+disentuh — itu yang dipakai pemilik toko membuat/mengelola undangan
+timnya sendiri, sudah benar.
+
+### Admin mana yang approve/tolak — kolom `processed_by_email`
+
+Ditemukan lewat audit (9 Oktober 2026): `approvePaymentRequest()`/
+`approveRenewalRequest()`/`rejectPaymentRequest()` (`js/05-admin.js`) tidak
+pernah mencatat admin MANA yang bertindak — dengan `ADMIN_EMAILS` bisa
+lebih dari satu akun admin, tidak bisa dilacak kalau ada perselisihan
+approve/tolak. Jalankan sekali:
+
+```sql
+alter table payment_requests add column if not exists processed_by_email text;
+```
+
+Ketiga fungsi di atas sekarang mengisi kolom ini dari email admin yang
+sedang login (`currentUser.email`).
+
 ## Program Referral (bagikan & dapat bonus 15 hari)
 
 Tombol **"🎁 Bagikan dan Dapat Bonus"** — sengaja ditaruh sebagai bar
@@ -986,6 +1173,45 @@ kolom `referrer_owner_id` belum ada, dan persetujuan pembayaran
 dipanggil di dalam `try/catch`, jadi kalau function-nya belum ada,
 gagalnya diam-diam saja, tidak menggagalkan proses aktivasi langganan
 itu sendiri.
+
+### Race condition kode referral — unique index
+
+Ditemukan lewat audit (9 Oktober 2026): `getOrCreateReferralCode()`
+(`js/03-langganan.js`) melakukan SELECT cek kode sudah ada, baru INSERT
+kalau belum — dua langkah terpisah, TIDAK atomik. Klik ganda tombol
+"Bagikan dan Dapat Bonus" atau 2 tab terbuka bersamaan bisa membuat
+**dua** baris kode referral untuk 1 toko, karena tidak ada constraint
+yang mencegahnya. Jalankan sekali (partial index — kode ADMIN yang
+`referrer_owner_id`-nya `null` TIDAK ikut dibatasi, boleh banyak):
+
+```sql
+create unique index if not exists registration_codes_referrer_owner_unique
+  on registration_codes(referrer_owner_id) where referrer_owner_id is not null;
+```
+
+`getOrCreateReferralCode()` sudah diupdate: kalau `insert()` ditolak index
+ini (race), fungsi ini SELECT ulang dan mengembalikan kode yang sudah
+dibuat panggilan lain, bukan `null`.
+
+### Transaksi tidak menyimpan siapa pembuatnya — kolom `created_by`/`created_by_nama`
+
+Ditemukan lewat audit (9 Oktober 2026): `edit_log` cuma mencatat nama
+editor untuk jalur EDIT transaksi (`submitTransaction()` mode edit) —
+baris transaksi ASLI (insert pertama, belum pernah diedit) tidak pernah
+menyimpan siapa yang membuatnya sama sekali. Toko dengan lebih dari 1
+kasir tidak bisa tahu siapa input nota tertentu kalau belum pernah
+diedit. Jalankan sekali:
+
+```sql
+alter table transactions add column if not exists created_by uuid references auth.users(id);
+alter table transactions add column if not exists created_by_nama text;
+```
+
+Aman dijalankan kapan saja — kolom nullable, transaksi lama tetap tampil
+seperti biasa (cuma `created_by`-nya kosong). `submitTransaction()`
+(`js/12-transaksi.js`) sekarang mengisi keduanya saat insert transaksi
+baru, dari user yang sedang login (`currentUser.id`) + nama editor yang
+sama persis dengan yang dipakai `logEditHistory()`.
 
 ## Alat Internal: Marketing Dokter Laundry (`marketing.html`)
 
@@ -1207,9 +1433,131 @@ bikin akun baru di Supabase Auth — tiap email yang dimasukkan di daftar
 ini tetap harus sudah punya akun (lewat Daftar seperti akun toko biasa)
 sebelum bisa login dan dianggap admin.
 
+### Ringkasan Admin Platform tidak tampilkan nama toko lain — kolom `settings` kurang izin RLS
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026): berbeda
+dari `app_subscriptions`/`registration_codes`/`payment_requests` yang
+SUDAH punya policy SELECT admin-wide, tabel `settings` **TIDAK
+punya** policy admin-wide sama sekali — cuma `auth.uid() = user_id` atau
+kasir milik toko itu. Ini BUKAN kebocoran (arah sebaliknya: admin
+kurang izin, bukan kelebihan), tapi bikin
+`loadAdminSubscriptionsOverview()` (`js/05-admin.js`) gagal mencocokkan
+`shop_name` toko lain — ringkasan Admin Platform cuma menampilkan "Toko
+tanpa nama (uuid...)" untuk semua toko selain milik admin sendiri (sudah
+diantisipasi di komentar kode-nya sendiri). Jalankan sekali kalau ingin
+fitur ini benar-benar menampilkan nama toko:
+
+```sql
+create policy "admin_select_all_settings" on settings
+  for select
+  using ((auth.jwt() ->> 'email') = 'mukhlispertama@gmail.com');
+```
+
+### Duplikat policy INSERT `payment_requests`
+
+Ditemukan lewat verifikasi `pg_policies` live (10 Oktober 2026): ada 2
+policy INSERT yang identik fungsinya (`with_check: true`) —
+`"Siapa saja boleh mengajukan permintaan pembayaran baru"` (dari migrasi
+yang didokumentasikan di README ini) dan `"anyone submit payment
+request"` (sudah ada duluan di database, tidak pernah tercatat di
+README). Tidak berbahaya (keduanya mengizinkan hal yang sama persis),
+cuma berantakan. Jalankan sekali untuk membersihkan salah satunya:
+
+```sql
+drop policy if exists "anyone submit payment request" on payment_requests;
+```
+
+### Laporan bulan "ditutup" berubah karena pelunasan susulan — kolom `lunas_at` + metrik "Kas Masuk Bulan Ini"
+
+Ditemukan lewat audit 9 Oktober 2026, dikerjakan 12 Oktober 2026 (Opsi A,
+lihat diskusi di sesi chat): nota 28 September status `'belum'`, baru
+dibayar & ditandai lunas 3 Oktober — uangnya tetap kehitung "Sudah
+Lunas" **September** di Laporan, karena satu-satunya tanggal yang ada
+cuma `tanggal` (tanggal nota). Ini pola standar *cash-basis accounting*
+yang sama dipakai software akuntansi (QuickBooks/Sage: "on cash basis,
+the payment is not recorded until it is actually made") — butuh kolom
+tanggal pelunasan TERPISAH dari tanggal nota.
+
+```sql
+alter table transactions add column if not exists lunas_at date;
+```
+
+Aman dijalankan kapan saja — kolom nullable, transaksi lama tetap
+tampil seperti biasa (`lunas_at` kosong untuk baris yang belum pernah
+disentuh kode baru). `submitTransaction()`/`toggleLunas()`/
+`markSubsLunas()` sekarang mengisi `lunas_at` persis di momen status
+berubah jadi `'lunas'` (bukan tanggal nota, kecuali nota itu memang
+langsung dibuat lunas sejak awal).
+
+**SENGAJA TIDAK mengganti** metrik "Sudah Lunas" yang sudah ada (tetap
+pakai `tanggal`, tetap menjaga identitas "Sudah Lunas + Belum Lunas =
+Total Omzet" yang didokumentasikan di `trxCashReceived()`,
+`js/09-utils.js`) — itu sudut pandang *accrual* yang valid ("dari nota
+bulan ini, berapa yang sudah tertagih SAMPAI SEKARANG", wajar berubah
+seiring waktu). Sebagai gantinya, Laporan Bulanan (`js/18-laporan.js`)
+dapat **kartu baru terpisah**, "Kas Masuk Bulan Ini" (`stKasMasuk` di
+`index.html`) — dihitung dari `lunas_at`, bukan `tanggal`, jadi
+benar-benar uang yang diterima selama bulan itu (termasuk pelunasan
+nota bulan lalu) dan **tidak berubah lagi** setelah bulan itu lewat.
+
+### Window muat default 6 bulan untuk `transactions` — hemat kuota *egress* Supabase
+
+Dikerjakan 12 Oktober 2026. Sebelumnya `loadTransactionsFromDB()` (sudah
+dipaginasi lewat `fetchAllRows()`/`.range()` berulang, lihat bagian
+paginasi di atas) selalu memuat **SELURUH riwayat transaksi toko** ke
+memori setiap kali app dibuka — makin lama toko beroperasi, makin besar
+data yang didownload ulang tiap buka app (lihat `sw.js`: strategi
+*network-first*, `fetch(req,{cache:'reload'})`, jadi app shell MAUPUN
+data selalu didownload ulang, tidak pernah dari cache browser). Ini jadi
+bottleneck kuota *database egress* Supabase (Free tier: 5GB/bulan) jauh
+sebelum kuota lain (Netlify build minutes, dsb) kehabisan.
+
+**Perbaikan**: `loadTransactionsFromDB()` (`js/05-admin.js`) sekarang
+cuma memuat transaksi `TRANSACTIONS_LOAD_MONTHS` (6) bulan terakhir
+(filter `.gte('tanggal', <cutoff>)`), dan menyetel 2 global baru
+(`js/00-globals.js`):
+
+- `transactionsFullyLoaded` (boolean) — `true` kalau `transactions`
+  sudah berisi SELURUH riwayat (tidak ada lagi yang ketinggalan di
+  database).
+- `transactionsWindowStart` (tanggal `YYYY-MM-DD` atau `null`) — tanggal
+  paling lama yang DIJAMIN lengkap di memori; `null` kalau
+  `transactionsFullyLoaded` true.
+
+Begitu user butuh data LEBIH LAMA dari window itu, `ensureAllTransactionsLoaded()`
+(juga di `js/05-admin.js`) mem-backfill SISA riwayat lewat `.lt('tanggal',
+transactionsWindowStart)`, gabung ke `transactions` di DEPAN (urutan
+tanggal tetap benar), lalu set `transactionsFullyLoaded=true`. Dipanggil
+`await`, dan no-op (tidak fetch ulang) kalau sudah pernah dalam sesi yang
+sama. Dilindungi guard `_transactionsLoadingPromise` dari race condition
+kalau terpanggil berkali-kali hampir bersamaan (mis. tiap keystroke di
+kotak cari Rekap Pelanggan) — semua pemanggil berbagi SATU fetch yang
+sama, tidak duplikat baris.
+
+Fitur yang butuh **seluruh riwayat** (Rekap Pelanggan & Peringkat
+Pelanggan secara eksplisit TETAP dijamin benar — ini pola nyata yang
+pernah jadi bug produksi lewat PR #19, jadi SENGAJA tidak dikorbankan
+demi hemat kuota) memicu `ensureAllTransactionsLoaded()` otomatis,
+tanpa user perlu tahu ada "batasan" sama sekali:
+
+- Laporan Per Pelanggan, Laba Rugi, Peringkat Pelanggan (`js/18-laporan.js`)
+- Cari nama & lihat hasil Rekap Pelanggan (`js/22-rekap-pelanggan.js`)
+- Unduh gambar JPG Daftar Tugas dengan rentang tanggal custom
+  (`js/17-papan-laundry.js`) — tampilan papan kerja normal TETAP dibatasi
+  cutoff-nya sendiri (`papanHapusDateThreshold()`), tidak terpengaruh
+
+Laporan Bulanan (`renderReport()`) dan Riwayat (`renderHistory()`) lebih
+pelit: cuma mem-backfill kalau bulan/filter tanggal yang dipilih user
+memang mundur ke SEBELUM window 6 bulan itu (bandingkan lewat
+`monthsBeforeYM()`, `js/09-utils.js`) — supaya pemakaian normal
+sehari-hari (lihat laporan bulan ini, cari transaksi minggu lalu) tidak
+memicu fetch tambahan sama sekali.
+
 ## Belum dikerjakan / perlu diperiksa
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)
 - [ ] Multi-Outlet: pembatasan kasir ke outlet tertentu baru di level tampilan (client-side) — RLS `transactions`/`subscriptions`/`expenses` belum ikut memeriksa `team_members.outlet_id`, jadi bukan pagar keamanan yang ketat kalau kasir akses API Supabase langsung
+- [x] Laporan bulan yang "sudah ditutup" bisa berubah nilainya kapan pun ada pelunasan susulan (ditemukan lewat audit 9 Oktober 2026) — selesai 12 Oktober 2026, lihat bagian "Laporan bulan 'ditutup' berubah karena pelunasan susulan" di atas (Opsi A: kolom `lunas_at` + metrik baru "Kas Masuk Bulan Ini")
+- [x] Diskon/total transaksi 100% dipercaya dari input browser (`js/12-transaksi.js`), tidak dihitung ulang di server — ditinjau lewat audit 9 Oktober 2026, SENGAJA tidak diperbaiki: risikonya cuma ke toko sendiri (kasir nakal merugikan tokonya sendiri, bukan platform), dan merekalkulasi di server butuh memindahkan seluruh logika harga/katalog ke server — perubahan arsitektur besar yang tidak proporsional untuk risiko serendah ini.

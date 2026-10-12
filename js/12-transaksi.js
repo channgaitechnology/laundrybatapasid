@@ -133,9 +133,19 @@ async function submitTransaction(){
   if(editingTransactionId){
     const before = transactions.find(t=>t.id===editingTransactionId);
     const beforeSnapshot = before ? {...before} : null;
+    /* lunas_at (lihat README, Laporan "Kas Masuk Bulan Ini") -- HANYA diisi
+       tanggal HARI INI kalau status BARU jadi 'lunas' sementara sebelumnya
+       BUKAN (transisi belum->lunas lewat form Edit, sama seperti toggleLunas()).
+       Kalau sudah lunas sebelum & tetap lunas, lunasAt lama dipertahankan
+       APA ADANYA (tidak boleh ikut ketimpa tanggal hari ini tiap kali nota
+       diedit). Kalau statusnya balik jadi 'belum' lewat Edit, lunas_at
+       dikosongkan lagi -- nota itu dianggap belum pernah benar-benar lunas. */
+    const lunasAt = status==='lunas'
+      ? (before && before.status==='lunas' ? before.lunasAt : todayISO())
+      : null;
     const { data, error } = await sb.from('transactions').update({
       nama, hp, tanggal, estimasi: estimasi || null,
-      items: draftItems.slice(), diskon, total, dp, status, catatan
+      items: draftItems.slice(), diskon, total, dp, status, catatan, lunas_at: lunasAt
     }).eq('id', editingTransactionId).select().single();
     if(error){ showToast(t('Gagal memperbarui transaksi')); return; }
     const idx = transactions.findIndex(t=>t.id===editingTransactionId);
@@ -143,7 +153,7 @@ async function submitTransaction(){
       id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
       tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
       diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-      status: data.status, catatan: data.catatan,
+      status: data.status, catatan: data.catatan, lunasAt: data.lunas_at||null,
       workStatus: data.work_status || (idx>-1 ? transactions[idx].workStatus : 'belum') || 'belum',
       outletId: data.outlet_id!=null ? String(data.outlet_id) : (idx>-1 ? transactions[idx].outletId : null)
     };
@@ -155,6 +165,17 @@ async function submitTransaction(){
     return;
   }
 
+  /* created_by/created_by_nama (lihat README) -- dulu baris transaksi ASLI
+     (insert pertama) tidak pernah menyimpan siapa yang membuatnya sama
+     sekali; edit_log cuma mencatat editor untuk jalur EDIT, jadi pemilik
+     toko dengan >1 kasir tidak bisa tahu siapa input nota tertentu kalau
+     belum pernah diedit. Sama seperti editorNama di logEditHistory(). */
+  const createdByNama = currentRole==='owner' ? t('Pemilik') : (employeeName || t('Kasir'));
+  /* lunas_at -- nota BARU yang langsung dibuat status 'lunas' dianggap
+     dibayar persis di tanggal nota itu sendiri (lihat README, Laporan
+     "Kas Masuk Bulan Ini"). Nota yang dibuat 'belum' dulu lunas_at-nya
+     null, baru diisi nanti kalau ditandai lunas via toggleLunas()/Edit. */
+  const lunasAt = status==='lunas' ? tanggal : null;
   const { data, error } = await sb.from('transactions').insert({
     user_id: shopOwnerId,
     kode: await nextKode(),
@@ -162,7 +183,9 @@ async function submitTransaction(){
     estimasi: estimasi || null,
     items: draftItems.slice(),
     diskon, total, dp,
-    status, catatan,
+    status, catatan, lunas_at: lunasAt,
+    created_by: currentUser ? currentUser.id : null,
+    created_by_nama: createdByNama,
     /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
        tertentu (currentOutletId terisi) — supaya toko yang belum pernah
        bikin outlet sama sekali (fitur ini opt-in) tetap kirim payload
@@ -177,7 +200,7 @@ async function submitTransaction(){
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
     tanggal: data.tanggal, estimasi: data.estimasi, items: data.items,
     diskon: Number(data.diskon), total: Number(data.total), dp: Number(data.dp),
-    status: data.status, catatan: data.catatan, workStatus: data.work_status || 'belum',
+    status: data.status, catatan: data.catatan, lunasAt: data.lunas_at||null, workStatus: data.work_status || 'belum',
     outletId: data.outlet_id!=null ? String(data.outlet_id) : null
   };
   transactions.push(trx);

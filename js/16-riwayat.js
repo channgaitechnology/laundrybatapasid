@@ -5,11 +5,17 @@ function resetHistoryFilter(){
   document.getElementById('historySampaiFilter').value = '';
   renderHistory();
 }
-function renderHistory(){
+async function renderHistory(){
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
   const statusFilter = document.getElementById('historyStatusFilter').value;
   const dariFilter = document.getElementById('historyDariFilter').value;
   const sampaiFilter = document.getElementById('historySampaiFilter').value;
+  /* Default (tanpa filter "Dari") cukup window default loadTransactionsFromDB()
+     (js/05-admin.js) -- cuma kalau user eksplisit minta tanggal SEBELUM window
+     itu, backfill seluruh riwayat dulu (no-op kalau sudah pernah di sesi ini). */
+  if(!transactionsFullyLoaded && transactionsWindowStart && dariFilter && dariFilter < transactionsWindowStart){
+    await ensureAllTransactionsLoaded();
+  }
   const anyFilterActive = !!(statusFilter || dariFilter || sampaiFilter);
   document.getElementById('historyResetFilterBtn').style.display = anyFilterActive ? 'block' : 'none';
   const el = document.getElementById('historyList');
@@ -81,9 +87,13 @@ async function toggleLunas(id){
      uang muka sungguhan, biarkan apa adanya (biasanya 0 kalau tidak pernah
      ada DP). trxCashReceived() yang menghitung kas Rp penuh untuk transaksi
      Lunas, bukan field dp yang dipaksa. */
-  const { error } = await sb.from('transactions').update({ status:'lunas' }).eq('id', id);
+  // lunas_at diisi HARI INI -- ini persis momen nota ditandai lunas (lihat
+  // README, Laporan "Kas Masuk Bulan Ini").
+  const lunasAt = todayISO();
+  const { error } = await sb.from('transactions').update({ status:'lunas', lunas_at: lunasAt }).eq('id', id);
   if(error){ showToast(t('Gagal memperbarui status')); return; }
   trx.status = 'lunas';
+  trx.lunasAt = lunasAt;
   showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }

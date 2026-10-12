@@ -38,10 +38,13 @@ function backToRekapSearch(){
 /* Saran nama diambil dari nama-nama unik yang SUDAH PERNAH bertransaksi
    (bukan dari kontak tersimpan) -- lebih relevan karena tujuan fitur ini
    memang mencari pelanggan yang riwayat transaksinya mau dijumlahkan. */
-function showRekapNamaSuggest(){
+async function showRekapNamaSuggest(){
   const val = document.getElementById('rekapNamaInput').value.trim().toLowerCase();
   const box = document.getElementById('rekapNamaSuggestBox');
   if(!val){ box.classList.remove('show'); box.innerHTML=''; rekapNamaSuggestions=[]; return; }
+  // Rekap Pelanggan cari lintas SELURUH riwayat (tidak dibatasi tanggal sama
+  // sekali) -- backfill dulu, no-op kalau sudah pernah (lihat README/js/05-admin.js).
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   rekapNamaSuggestions = [...new Set(visibleTransactions().map(t=>t.nama))]
     .filter(n=>n.toLowerCase().includes(val)).slice(0,8);
   if(rekapNamaSuggestions.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
@@ -62,9 +65,12 @@ function selectRekapNamaSuggest(i){
 /* Nama yang belum punya transaksi sama sekali TETAP ditampilkan sebagai hasil
    (list kosong + tombol Tambah Transaksi Baru), bukan cuma toast lalu berhenti
    -- supaya nama yang datanya belum ada di database bisa langsung diisi dari sini. */
-function searchRekapPelanggan(){
+async function searchRekapPelanggan(){
   const nama = document.getElementById('rekapNamaInput').value.trim();
   if(!nama){ showToast(t('Isi nama pelanggan dulu')); return; }
+  // Rekap Pelanggan cari lintas SELURUH riwayat (tidak dibatasi tanggal sama
+  // sekali) -- backfill dulu, no-op kalau sudah pernah (lihat README/js/05-admin.js).
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const list = sortByTanggalAsc(visibleTransactions().filter(x=>x.nama.trim().toLowerCase()===nama.toLowerCase()));
   rekapPelangganNama = nama;
   rekapPelangganList = list;

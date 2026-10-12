@@ -290,7 +290,7 @@ function papanHapusDateThreshold(mode){
   else if(mode==='2-hari') d.setDate(d.getDate()-2);
   else if(mode==='3-hari') d.setDate(d.getDate()-3);
   else return null;
-  return d.toISOString().slice(0,10);
+  return toISODateLocal(d);
 }
 function papanHapusMatchingItems(){
   const mode = document.getElementById('papanHapusMode').value;
@@ -350,6 +350,10 @@ async function downloadWorkBoardImage(){
   const sampai = sampaiEl ? sampaiEl.value : '';
   if(!dari || !sampai){ showToast(t('Isi rentang tanggal dulu')); return; }
   if(dari > sampai){ showToast(t('Tanggal "Dari" harus sebelum "Sampai"')); return; }
+  // Rentang unduh custom bisa mundur lebih jauh dari window default
+  // loadTransactionsFromDB() (js/05-admin.js) -- backfill dulu, no-op kalau
+  // sudah pernah di sesi ini.
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const items = buildWorkItemsForRange(dari, sampai);
   if(items.length===0){ showToast(t('Tidak ada cucian di rentang tanggal ini')); return; }
   if(typeof html2canvas==='undefined'){ showToast(t('Gagal memuat alat unduh gambar')); return; }
