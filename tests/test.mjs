@@ -3609,6 +3609,303 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('checkAdminNotifications(): no-op (tidak query, tidak ubah badge) untuk user yang bukan admin platform', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const savedState = { ...adminNotifState };
+    let touched = false;
+    try {
+      currentUser = { email: 'bukan-admin@example.com' };
+      sb.from = (table) => { if (table === 'payment_requests' || table === 'app_subscriptions') touched = true; return savedFrom(table); };
+      await checkAdminNotifications();
+      if (touched) throw new Error('checkAdminNotifications() should not query payment_requests/app_subscriptions for a non-admin user');
+      if (JSON.stringify(adminNotifState) !== JSON.stringify(savedState)) throw new Error('adminNotifState should stay untouched for a non-admin user');
+    } finally {
+      currentUser = savedUser;
+      sb.from = savedFrom;
+      adminNotifState = savedState;
+    }
+  });
+
+  await step('checkAdminNotifications()/renderAdminNotifBadge(): cek pertama kali langsung tampilkan jumlah yang SUDAH ada (tanpa toast "baru"), lalu polling berikutnya yang bertambah memicu toast + badge naik', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const savedState = { ...adminNotifState };
+    const savedLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+    let pendingRows = [{ id: 'pr1' }, { id: 'pr2' }];
+    let subRows = [{ id: 's1' }, { id: 's2' }, { id: 's3' }];
+    try {
+      localStorage.removeItem('nk_adminLastSeenAccountCount'); // simulasikan perangkat yang belum pernah cek sebelumnya
+      currentUser = { email: ADMIN_EMAIL };
+      adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+      sb.from = (table) => {
+        if (table === 'payment_requests') return { select: () => ({ eq: () => Promise.resolve({ data: pendingRows, error: null }) }) };
+        if (table === 'app_subscriptions') return { select: () => Promise.resolve({ data: subRows, error: null }) };
+        return savedFrom(table);
+      };
+
+      document.getElementById('toast').classList.remove('show');
+      document.getElementById('toast').textContent = '';
+      await checkAdminNotifications();
+      if (adminNotifState.pendingPayments !== 2) throw new Error('expected pendingPayments=2 on first check, got ' + adminNotifState.pendingPayments);
+      if (adminNotifState.newAccounts !== 0) throw new Error('first-ever check on a device should treat the current account total as baseline (0 new), got ' + adminNotifState.newAccounts);
+      if (document.getElementById('toast').classList.contains('show')) throw new Error('REGRESI: first check should NOT toast — admin would get spammed on every login/reload even when nothing actually changed');
+      if (document.getElementById('adminNotifBadge').style.display === 'none') throw new Error('badge should be visible (2 pending) right after the first check');
+      if (document.getElementById('adminNotifBadge').textContent !== '2') throw new Error('expected badge "2", got ' + document.getElementById('adminNotifBadge').textContent);
+      if (Number(localStorage.getItem('nk_adminLastSeenAccountCount')) !== 3) throw new Error('first check should persist the current account total (3) as the new-account baseline');
+
+      // Sekarang simulasikan: 1 payment_request baru masuk SAJA selagi admin sedang pakai app (akun belum bertambah).
+      pendingRows = [{ id: 'pr1' }, { id: 'pr2' }, { id: 'pr3' }];
+      document.getElementById('toast').classList.remove('show');
+      await checkAdminNotifications();
+      if (adminNotifState.pendingPayments !== 3) throw new Error('expected pendingPayments=3 after increase, got ' + adminNotifState.pendingPayments);
+      if (adminNotifState.newAccounts !== 0) throw new Error('newAccounts should stay 0 when the account total has not changed, got ' + adminNotifState.newAccounts);
+      if (!document.getElementById('toast').textContent.includes('permintaan pembayaran baru')) throw new Error('expected a toast about a new payment request: ' + document.getElementById('toast').textContent);
+      if (document.getElementById('adminNotifBadge').textContent !== '3') throw new Error('expected badge 3 (3 pending, 0 new accounts), got ' + document.getElementById('adminNotifBadge').textContent);
+
+      // Lalu 2 toko baru daftar (pending payment TIDAK berubah lagi) -- toast kali ini soal akun, bukan payment lagi.
+      subRows = [{ id: 's1' }, { id: 's2' }, { id: 's3' }, { id: 's4' }, { id: 's5' }];
+      document.getElementById('toast').classList.remove('show');
+      await checkAdminNotifications();
+      if (adminNotifState.newAccounts !== 2) throw new Error('expected newAccounts=2 (5 total - baseline 3), got ' + adminNotifState.newAccounts);
+      if (!document.getElementById('toast').textContent.includes('akun toko baru terdaftar')) throw new Error('expected a toast about a new store account: ' + document.getElementById('toast').textContent);
+      if (document.getElementById('adminNotifBadge').textContent !== '5') throw new Error('expected badge 5 (3 pending + 2 new accounts), got ' + document.getElementById('adminNotifBadge').textContent);
+    } finally {
+      currentUser = savedUser;
+      sb.from = savedFrom;
+      adminNotifState = savedState;
+      if (savedLastSeen === null) localStorage.removeItem('nk_adminLastSeenAccountCount'); else localStorage.setItem('nk_adminLastSeenAccountCount', savedLastSeen);
+    }
+  });
+
+  await step('openAdminNotifPanel(): menandai akun baru "sudah dilihat" (badge-nya hilang) TAPI TIDAK menyentuh jumlah payment_requests pending (itu cuma hilang kalau benar-benar di-approve/tolak), lalu membuka langsung panel Admin Platform', async () => {
+    const savedUser = currentUser;
+    const savedState = { ...adminNotifState };
+    const savedLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      adminNotifState = { pendingPayments: 2, newAccounts: 3, totalAccountsSeen: 10, firstCheckDone: true };
+      renderAdminNotifBadge();
+      if (document.getElementById('adminNotifBadge').textContent !== '5') throw new Error('setup sanity check failed, badge should be 5 before opening the panel');
+
+      openAdminNotifPanel();
+      if (adminNotifState.newAccounts !== 0) throw new Error('openAdminNotifPanel() should clear newAccounts (mark as seen)');
+      if (adminNotifState.pendingPayments !== 2) throw new Error('openAdminNotifPanel() must NOT clear pendingPayments — that only clears via actually approving/rejecting the request');
+      if (Number(localStorage.getItem('nk_adminLastSeenAccountCount')) !== 10) throw new Error('openAdminNotifPanel() should persist the current account total as the new baseline');
+      if (document.getElementById('adminNotifBadge').textContent !== '2') throw new Error('badge should drop to 2 (pending payments only) after opening the panel, got ' + document.getElementById('adminNotifBadge').textContent);
+      if (!document.getElementById('settingsModal').classList.contains('show')) throw new Error('openAdminNotifPanel() should open the Settings modal');
+      if (!document.getElementById('settingsSub-admin').classList.contains('active')) throw new Error('openAdminNotifPanel() should jump straight into the Admin Platform sub-panel, not the category grid');
+    } finally {
+      currentUser = savedUser;
+      adminNotifState = savedState;
+      renderAdminNotifBadge();
+      if (savedLastSeen === null) localStorage.removeItem('nk_adminLastSeenAccountCount'); else localStorage.setItem('nk_adminLastSeenAccountCount', savedLastSeen);
+      closeSettings();
+      closeSettingsSub();
+    }
+  });
+
+  await step('startAdminNotifPolling()/stopAdminNotifPolling(): tampilkan/sembunyikan lonceng notifikasi & nyala/matikan interval polling-nya', async () => {
+    const savedTimer = adminNotifPollTimer;
+    const savedState = { ...adminNotifState };
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      sb.from = (table) => {
+        if (table === 'payment_requests') return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+        if (table === 'app_subscriptions') return { select: () => Promise.resolve({ data: [], error: null }) };
+        return savedFrom(table);
+      };
+      adminNotifPollTimer = null;
+      startAdminNotifPolling();
+      if (document.getElementById('btnAdminNotif').style.display !== 'flex') throw new Error('startAdminNotifPolling() should reveal the bell icon');
+      if (adminNotifPollTimer === null) throw new Error('startAdminNotifPolling() should start an interval timer');
+
+      stopAdminNotifPolling();
+      if (document.getElementById('btnAdminNotif').style.display !== 'none') throw new Error('stopAdminNotifPolling() should hide the bell icon again (e.g. on logout, or for a non-admin user)');
+      if (adminNotifPollTimer !== null) throw new Error('stopAdminNotifPolling() should clear the interval timer');
+      if (adminNotifState.pendingPayments !== 0 || adminNotifState.newAccounts !== 0) throw new Error('stopAdminNotifPolling() should reset adminNotifState');
+    } finally {
+      if (adminNotifPollTimer) clearInterval(adminNotifPollTimer);
+      adminNotifPollTimer = savedTimer;
+      adminNotifState = savedState;
+      currentUser = savedUser;
+      sb.from = savedFrom;
+    }
+  });
+
+  await step('enableAdminPushNotif(): browser tanpa dukungan PushManager -> toast "tidak mendukung", tidak crash sama sekali', async () => {
+    const savedUser = currentUser;
+    const originalPM = window.PushManager;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      delete window.PushManager;
+      document.getElementById('toast').classList.remove('show');
+      await enableAdminPushNotif();
+      if (!document.getElementById('toast').textContent.includes('tidak mendukung')) throw new Error('toast "tidak mendukung" tidak muncul: ' + document.getElementById('toast').textContent);
+    } finally {
+      window.PushManager = originalPM;
+      currentUser = savedUser;
+    }
+  });
+
+  await step('enableAdminPushNotif(): izin notifikasi ditolak -> toast "ditolak", TIDAK memanggil pushManager.subscribe() sama sekali', async () => {
+    const savedUser = currentUser;
+    const originalRequestPermission = Notification.requestPermission;
+    const reg = navigator.serviceWorker;
+    let subscribeCalled = false;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      Notification.requestPermission = async () => 'denied';
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({ pushManager: { getSubscription: async () => null, subscribe: async () => { subscribeCalled = true; } } }), configurable: true });
+      document.getElementById('toast').classList.remove('show');
+      await enableAdminPushNotif();
+      if (subscribeCalled) throw new Error('REGRESI: tidak boleh memanggil pushManager.subscribe() kalau izin notifikasi ditolak');
+      if (!document.getElementById('toast').textContent.includes('ditolak')) throw new Error('toast izin ditolak tidak muncul: ' + document.getElementById('toast').textContent);
+    } finally {
+      Notification.requestPermission = originalRequestPermission;
+      delete reg.ready;
+      currentUser = savedUser;
+    }
+  });
+
+  await step('enableAdminPushNotif(): izin diberikan + belum ada subscription -> subscribe() ke PushManager (pakai VAPID public key sebagai Uint8Array), lalu upsert endpoint/kunci ke admin_push_subscriptions', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const originalRequestPermission = Notification.requestPermission;
+    const reg = navigator.serviceWorker;
+    let upsertPayload = null, upsertOpts = null, subscribeCalled = false;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      Notification.requestPermission = async () => 'granted';
+      const fakeSub = { endpoint: 'https://push.example/new', toJSON: () => ({ endpoint: 'https://push.example/new', keys: { p256dh: 'p1', auth: 'a1' } }) };
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({
+        pushManager: {
+          getSubscription: async () => null,
+          subscribe: async (opts) => {
+            subscribeCalled = true;
+            if (!(opts.applicationServerKey instanceof Uint8Array)) throw new Error('applicationServerKey harus Uint8Array (hasil urlBase64ToUint8Array()), bukan string base64url mentah');
+            if (opts.userVisibleOnly !== true) throw new Error('userVisibleOnly harus true (wajib menurut spesifikasi Push API untuk notifikasi yang terlihat user)');
+            return fakeSub;
+          },
+        },
+      }), configurable: true });
+      sb.from = (table) => {
+        if (table === 'admin_push_subscriptions') return { upsert: (payload, opts) => { upsertPayload = payload; upsertOpts = opts; return Promise.resolve({ error: null }); } };
+        return savedFrom(table);
+      };
+      document.getElementById('toast').classList.remove('show');
+      await enableAdminPushNotif();
+      if (!subscribeCalled) throw new Error('harus memanggil pushManager.subscribe() kalau belum ada subscription sebelumnya');
+      if (!upsertPayload) throw new Error('harus upsert ke admin_push_subscriptions');
+      if (upsertPayload.endpoint !== 'https://push.example/new') throw new Error('endpoint yang disimpan salah: ' + JSON.stringify(upsertPayload));
+      if (upsertPayload.p256dh !== 'p1' || upsertPayload.auth !== 'a1') throw new Error('kunci enkripsi yang disimpan salah: ' + JSON.stringify(upsertPayload));
+      if (upsertPayload.admin_email !== ADMIN_EMAIL) throw new Error('admin_email yang disimpan salah: ' + JSON.stringify(upsertPayload));
+      if (!upsertOpts || upsertOpts.onConflict !== 'endpoint') throw new Error('REGRESI: harus upsert dengan onConflict:"endpoint" -- endpoint UNIQUE di DB, tombol ini bisa ditekan lagi di perangkat yang sama tanpa error duplikat');
+      if (!document.getElementById('toast').textContent.includes('diaktifkan')) throw new Error('toast konfirmasi aktif tidak muncul: ' + document.getElementById('toast').textContent);
+    } finally {
+      Notification.requestPermission = originalRequestPermission;
+      delete reg.ready;
+      currentUser = savedUser;
+      sb.from = savedFrom;
+    }
+  });
+
+  await step('enableAdminPushNotif(): sudah ada subscription di perangkat ini -> langsung dipakai ulang (TIDAK subscribe() lagi), tetap di-upsert ke DB', async () => {
+    const savedUser = currentUser;
+    const savedFrom = sb.from;
+    const originalRequestPermission = Notification.requestPermission;
+    const reg = navigator.serviceWorker;
+    let subscribeCalled = false, upsertPayload = null;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      Notification.requestPermission = async () => 'granted';
+      const existingSub = { endpoint: 'https://push.example/existing', toJSON: () => ({ endpoint: 'https://push.example/existing', keys: { p256dh: 'p2', auth: 'a2' } }) };
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({
+        pushManager: { getSubscription: async () => existingSub, subscribe: async () => { subscribeCalled = true; return existingSub; } },
+      }), configurable: true });
+      sb.from = (table) => {
+        if (table === 'admin_push_subscriptions') return { upsert: (payload) => { upsertPayload = payload; return Promise.resolve({ error: null }); } };
+        return savedFrom(table);
+      };
+      await enableAdminPushNotif();
+      if (subscribeCalled) throw new Error('tidak boleh subscribe() ulang kalau browser sudah punya subscription aktif untuk perangkat ini');
+      if (!upsertPayload || upsertPayload.endpoint !== 'https://push.example/existing') throw new Error('harus tetap upsert subscription yang sudah ada ke DB (jaga-jaga baris DB-nya hilang/belum pernah tersimpan): ' + JSON.stringify(upsertPayload));
+    } finally {
+      Notification.requestPermission = originalRequestPermission;
+      delete reg.ready;
+      currentUser = savedUser;
+      sb.from = savedFrom;
+    }
+  });
+
+  await step('disableAdminPushNotif(): hapus baris admin_push_subscriptions berdasarkan endpoint yang benar, DAN unsubscribe() dari browser (bukan cuma salah satu)', async () => {
+    const savedFrom = sb.from;
+    const reg = navigator.serviceWorker;
+    let deletedEndpoint = null, unsubscribeCalled = false;
+    try {
+      const fakeSub = { endpoint: 'https://push.example/old', unsubscribe: async () => { unsubscribeCalled = true; return true; } };
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({ pushManager: { getSubscription: async () => fakeSub } }), configurable: true });
+      sb.from = (table) => {
+        if (table === 'admin_push_subscriptions') return { delete: () => ({ eq: (col, val) => { deletedEndpoint = val; return Promise.resolve({ error: null }); } }) };
+        return savedFrom(table);
+      };
+      document.getElementById('toast').classList.remove('show');
+      await disableAdminPushNotif();
+      if (deletedEndpoint !== 'https://push.example/old') throw new Error('harus hapus baris admin_push_subscriptions berdasarkan endpoint yang benar: ' + deletedEndpoint);
+      if (!unsubscribeCalled) throw new Error('REGRESI: harus memanggil sub.unsubscribe() juga -- kalau cuma hapus baris DB, browser tetap kirim push ke endpoint yang sudah tidak ada subscription-nya di server manapun');
+      if (!document.getElementById('toast').textContent.includes('dimatikan')) throw new Error('toast konfirmasi mati tidak muncul: ' + document.getElementById('toast').textContent);
+    } finally {
+      delete reg.ready;
+      sb.from = savedFrom;
+    }
+  });
+
+  await step('disableAdminPushNotif(): tidak ada subscription aktif di perangkat ini -> no-op aman (tidak delete/unsubscribe apa pun, tidak error)', async () => {
+    const savedFrom = sb.from;
+    const reg = navigator.serviceWorker;
+    let dbTouched = false;
+    try {
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({ pushManager: { getSubscription: async () => null } }), configurable: true });
+      sb.from = (table) => { if (table === 'admin_push_subscriptions') dbTouched = true; return savedFrom(table); };
+      await disableAdminPushNotif();
+      if (dbTouched) throw new Error('tidak boleh menyentuh admin_push_subscriptions kalau memang tidak ada subscription aktif di perangkat ini');
+    } finally {
+      delete reg.ready;
+      sb.from = savedFrom;
+    }
+  });
+
+  await step('renderAdminPushNotifStatus(): teks status & tombol Nyalakan/Matikan mengikuti kondisi subscription NYATA di perangkat ini (dicek ulang tiap dipanggil, bukan state di memori)', async () => {
+    const reg = navigator.serviceWorker;
+    try {
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({ pushManager: { getSubscription: async () => null } }), configurable: true });
+      await renderAdminPushNotifStatus();
+      if (document.getElementById('btnEnableAdminPush').style.display !== 'block') throw new Error('belum ada subscription -> tombol Nyalakan harus tampil');
+      if (document.getElementById('btnDisableAdminPush').style.display !== 'none') throw new Error('belum ada subscription -> tombol Matikan harus sembunyi');
+      if (!document.getElementById('adminPushNotifStatus').textContent.includes('Belum aktif')) throw new Error('teks status salah untuk kondisi belum ada subscription: ' + document.getElementById('adminPushNotifStatus').textContent);
+
+      delete reg.ready;
+      Object.defineProperty(reg, 'ready', { value: Promise.resolve({ pushManager: { getSubscription: async () => ({ endpoint: 'https://push.example/x' }) } }), configurable: true });
+      await renderAdminPushNotifStatus();
+      if (document.getElementById('btnEnableAdminPush').style.display !== 'none') throw new Error('sudah ada subscription -> tombol Nyalakan harus sembunyi');
+      if (document.getElementById('btnDisableAdminPush').style.display !== 'block') throw new Error('sudah ada subscription -> tombol Matikan harus tampil');
+      if (!document.getElementById('adminPushNotifStatus').textContent.includes('Aktif')) throw new Error('teks status salah untuk kondisi sudah ada subscription: ' + document.getElementById('adminPushNotifStatus').textContent);
+    } finally {
+      delete reg.ready;
+    }
+  });
+
+  await step('urlBase64ToUint8Array(): konversi VAPID public key (base64url) ke Uint8Array sesuai spesifikasi Push API, termasuk kasus perlu padding "="', () => {
+    // "AA" (base64url, 2 karakter, butuh 2x "=" padding supaya jadi multiple of 4) -> 1 byte.
+    const short = urlBase64ToUint8Array('AA');
+    if (!(short instanceof Uint8Array) || short.length !== 1) throw new Error('hasil salah untuk input pendek: ' + JSON.stringify(Array.from(short)));
+    // Pastikan karakter base64url '-'/'_' (bukan base64 standar '+'//') ditangani benar.
+    const withUrlSafeChars = urlBase64ToUint8Array('--__');
+    if (!(withUrlSafeChars instanceof Uint8Array) || withUrlSafeChars.length === 0) throw new Error('gagal decode karakter base64url "-_"');
+  });
+
   await step('appBranding: saveAppBranding()/loadAppBranding() persist & reload the developer-credit footer, and every nota builder (WA text, PDF lines, HTML) reflects it instead of the old hardcoded Tinggiran Tech Studio values', async () => {
     const savedBranding = { ...appBranding };
     try {

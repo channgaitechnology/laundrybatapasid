@@ -317,6 +317,191 @@ async function rejectPaymentRequest(id){
   await loadAdminData();
 }
 
+/* ===================== NOTIFIKASI ADMIN PLATFORM ===================== */
+/* Lonceng notifikasi khusus ADMIN_EMAILS (bukan admin toko/owner biasa) --
+   memberi tahu ada (1) payment_requests baru yang menunggu, dan (2) akun
+   toko baru terdaftar (baris baru di app_subscriptions, apa pun status
+   akhirnya -- trial atau langsung aktif lewat kode, lihat README). App ini
+   sama sekali tidak punya infrastruktur realtime (tidak ada
+   supabase.channel/postgres_changes di mana pun) -- dipilih POLLING
+   sederhana tiap ADMIN_NOTIF_POLL_MS, konsisten dengan pola app ini yang
+   lain (semua data admin selama ini cuma dimuat sekali per buka modal
+   Pengaturan lewat loadAdminData(), tidak pernah auto-refresh). */
+const ADMIN_NOTIF_POLL_MS = 60000;
+var adminNotifPollTimer = null;
+/* firstCheckDone sengaja dipisah dari sekadar "count masih 0" -- supaya
+   jumlah pending/akun baru yang SUDAH ada sejak sebelum admin login tetap
+   langsung kelihatan di badge saat pertama kali cek (tidak diam-diam
+   disembunyikan), TAPI tidak memicu toast "ada yang baru" di setiap
+   reload/login (toast cuma relevan untuk PERTAMBAHAN yang terjadi SELAGI
+   admin sedang pakai app). totalAccountsSeen dipakai openAdminNotifPanel()
+   buat tahu baseline count mana yang harus ditulis ke localStorage saat
+   akun baru itu "dianggap sudah dilihat". */
+var adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+/* payment_requests TIDAK butuh timestamp "sudah dilihat" terpisah --
+   count baris status='menunggu' SECARA ALAMI berkurang begitu admin
+   approve/tolak (lihat approvePaymentRequest()/approveRenewalRequest()/
+   rejectPaymentRequest() di atas, semuanya memanggil loadAdminData() lagi),
+   jadi badge ini sudah otomatis sinkron dengan state yang sebenarnya perlu
+   ditindaklanjuti -- tidak ada "akun baru" setara PR#19 (pengurangan
+   agregat) di sini karena ini cuma hitungan baris, bukan uang.
+   app_subscriptions sebaliknya TIDAK PERNAH "selesai diproses" (toko baru
+   ya tetap ada selamanya) -- makanya baris baru butuh baseline count
+   tersendiri (nk_adminLastSeenAccountCount di localStorage, PER PERANGKAT/
+   browser, bukan per-admin -- cukup untuk tim 1-2 admin seperti sekarang;
+   kalau admin ganti perangkat, badge akun baru akan hitung ulang dari 0
+   sekali saja di perangkat itu, bukan kesalahan data). */
+async function checkAdminNotifications(){
+  if(!currentUser || !isAdminEmail(currentUser.email)) return;
+  const [{ data: pending, error: e1 }, { data: allSubs, error: e2 }] = await Promise.all([
+    sb.from('payment_requests').select('id').eq('status','menunggu'),
+    sb.from('app_subscriptions').select('id'),
+  ]);
+  if(e1 || e2) return; // diamkan -- coba lagi di polling berikutnya, jangan sampai error jaringan sesaat bikin badge hilang/salah
+  const totalAccounts = (allSubs||[]).length;
+  // BUKAN Number(localStorage.getItem(...)) lalu cek isFinite -- Number(null)
+  // itu 0 (BUKAN NaN), jadi perangkat yang belum pernah cek sama sekali akan
+  // salah dianggap baseline-nya 0, bikin SEMUA toko yang sudah ada lama
+  // diam-diam ketagih sebagai "baru" di cek pertama. Baca string mentahnya
+  // dulu, baru convert kalau memang ada.
+  const rawLastSeen = localStorage.getItem('nk_adminLastSeenAccountCount');
+  let lastSeenAccounts = rawLastSeen===null ? NaN : Number(rawLastSeen);
+  if(!Number.isFinite(lastSeenAccounts)){
+    lastSeenAccounts = totalAccounts;
+    localStorage.setItem('nk_adminLastSeenAccountCount', String(totalAccounts));
+  }
+  const newPendingCount = (pending||[]).length;
+  const newAccountsCount = Math.max(0, totalAccounts - lastSeenAccounts);
+  if(adminNotifState.firstCheckDone){
+    if(newPendingCount > adminNotifState.pendingPayments) showToast(t('🔔 Ada permintaan pembayaran baru'));
+    if(newAccountsCount > adminNotifState.newAccounts) showToast(t('🔔 Ada akun toko baru terdaftar'));
+  }
+  adminNotifState.pendingPayments = newPendingCount;
+  adminNotifState.newAccounts = newAccountsCount;
+  adminNotifState.totalAccountsSeen = totalAccounts;
+  adminNotifState.firstCheckDone = true;
+  renderAdminNotifBadge();
+}
+function renderAdminNotifBadge(){
+  const badge = document.getElementById('adminNotifBadge');
+  if(!badge) return;
+  const total = adminNotifState.pendingPayments + adminNotifState.newAccounts;
+  badge.textContent = total > 99 ? '99+' : String(total);
+  badge.style.display = total > 0 ? 'flex' : 'none';
+}
+function startAdminNotifPolling(){
+  const btn = document.getElementById('btnAdminNotif');
+  if(btn) btn.style.display = 'flex';
+  checkAdminNotifications();
+  if(adminNotifPollTimer) clearInterval(adminNotifPollTimer);
+  adminNotifPollTimer = setInterval(checkAdminNotifications, ADMIN_NOTIF_POLL_MS);
+}
+function stopAdminNotifPolling(){
+  const btn = document.getElementById('btnAdminNotif');
+  if(btn) btn.style.display = 'none';
+  if(adminNotifPollTimer){ clearInterval(adminNotifPollTimer); adminNotifPollTimer = null; }
+  adminNotifState = { pendingPayments: 0, newAccounts: 0, totalAccountsSeen: null, firstCheckDone: false };
+}
+/* Diklik dari lonceng notifikasi -- akun baru dianggap "sudah dilihat"
+   begitu panelnya dibuka (badge-nya langsung hilang), TAPI permintaan
+   pembayaran TIDAK ditandai di sini -- itu baru hilang kalau benar-benar
+   ditindaklanjuti (approve/tolak), persis cara kerja daftarnya di bawah. */
+function openAdminNotifPanel(){
+  if(adminNotifState.totalAccountsSeen != null){
+    localStorage.setItem('nk_adminLastSeenAccountCount', String(adminNotifState.totalAccountsSeen));
+    adminNotifState.newAccounts = 0;
+    renderAdminNotifBadge();
+  }
+  openSettings();
+  openSettingsSub('admin');
+}
+
+/* ===================== NOTIFIKASI PUSH ADMIN PLATFORM (Web Push) ===================== */
+/* Lonceng + badge di atas cuma kelihatan SELAGI tab app ini terbuka --
+   kalau admin mau benar-benar dapat notifikasi gaya WhatsApp (muncul +
+   berbunyi walau app sedang tertutup/HP terkunci), perlu Web Push API:
+   browser (via FCM-nya Chrome dkk) yang kirim notifikasi, BUKAN polling
+   app ini. Alur: admin izinkan notifikasi -> browser bikin "subscription"
+   (endpoint unik + 2 kunci enkripsi) -> disimpan ke admin_push_subscriptions
+   -> netlify/functions/_web-push-send.js (dipanggil dari
+   notify-new-payment-request.js & notify-new-account.js, dipicu Supabase
+   Database Webhook) kirim notifikasi terenkripsi ke endpoint itu kapan pun
+   ada payment_requests/akun baru -- app ini SAMA SEKALI tidak perlu jalan/
+   terbuka saat itu terjadi, persis seperti WA. Key publik VAPID di bawah
+   AMAN ditaruh di kode browser (memang didesain publik, cuma identitas
+   "siapa pengirim push ini" -- yang rahasia cuma private key-nya, lihat
+   README & env var VAPID_PRIVATE_KEY di netlify/functions/). */
+const ADMIN_PUSH_VAPID_PUBLIC_KEY = 'BNF0plqfp5AN_QzTZqKY8MtATHIxkJ5Vy15hzt4rd2sMAOyn-ZjcGIO6S6WFwFTsESok4m0yxyk-hb7oEUuknzc';
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+async function enableAdminPushNotif(){
+  if(!currentUser || !isAdminEmail(currentUser.email)) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    showToast(t('Browser ini tidak mendukung notifikasi push'));
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ showToast(t('Izin notifikasi ditolak')); return; }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(ADMIN_PUSH_VAPID_PUBLIC_KEY) });
+    }
+    const json = sub.toJSON();
+    // upsert (bukan insert) -- endpoint UNIQUE di DB, admin bisa saja
+    // menekan tombol ini lagi di perangkat yang sama tanpa error duplikat.
+    const { error } = await sb.from('admin_push_subscriptions').upsert({
+      admin_email: currentUser.email, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth
+    }, { onConflict: 'endpoint' });
+    if(error){ showToast(t('Gagal menyimpan subscription push')); return; }
+    showToast(t('Notifikasi push diaktifkan 🔔'));
+  }catch(e){
+    showToast(t('Gagal mengaktifkan notifikasi push'));
+  }
+  renderAdminPushNotifStatus();
+}
+async function disableAdminPushNotif(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      await sb.from('admin_push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      await sub.unsubscribe();
+    }
+    showToast(t('Notifikasi push dimatikan'));
+  }catch(e){
+    showToast(t('Gagal mematikan notifikasi push'));
+  }
+  renderAdminPushNotifStatus();
+}
+/* Dipanggil tiap kali panel Admin Platform dibuka (openSettingsSub('admin'))
+   -- status subscription hidup di browser (reg.pushManager.getSubscription()),
+   BUKAN di variabel JS di memori, jadi harus dicek ulang tiap kali supaya
+   tombol yang ditampilkan selalu sesuai kondisi NYATA perangkat ini. */
+async function renderAdminPushNotifStatus(){
+  const statusEl = document.getElementById('adminPushNotifStatus');
+  const btnOn = document.getElementById('btnEnableAdminPush');
+  const btnOff = document.getElementById('btnDisableAdminPush');
+  if(!statusEl || !btnOn || !btnOff) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    statusEl.textContent = t('Browser ini tidak mendukung notifikasi push.');
+    btnOn.style.display = 'none'; btnOff.style.display = 'none';
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready.catch(()=>null);
+  const sub = reg ? await reg.pushManager.getSubscription().catch(()=>null) : null;
+  statusEl.textContent = sub ? t('Aktif di perangkat ini ✅') : t('Belum aktif di perangkat ini.');
+  btnOn.style.display = sub ? 'none' : 'block';
+  btnOff.style.display = sub ? 'block' : 'none';
+}
+
 async function initUserData(){
   try{
     // Sebelas query ini masing-masing independen (tabel & array globalnya
@@ -341,6 +526,12 @@ async function initUserData(){
     renderOutletSwitcherLabel();
     populateReportOutletFilter();
     renderAll();
+    // Lonceng notifikasi Admin Platform -- jalan untuk SEMUA role (owner
+    // maupun kasir) karena isAdminEmail() mengecek EMAIL login, bukan role;
+    // dalam praktiknya cuma akun pemilik aplikasi (ADMIN_EMAILS) yang akan
+    // benar-benar menyalakan polling-nya (lihat komentar lengkap di atas
+    // startAdminNotifPolling()).
+    if(isAdminEmail(currentUser.email)) startAdminNotifPolling(); else stopAdminNotifPolling();
   }catch(e){
     console.error('Gagal memuat data awal:', e);
   }finally{

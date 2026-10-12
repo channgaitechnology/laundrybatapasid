@@ -39,6 +39,23 @@ Supabase sungguhan (fetch di-mock). Jalankan dari root repo:
 node tests/test-midtrans-functions.mjs
 ```
 
+## Test lain: `test-push-notify-function.mjs`
+
+Juga test Node murni, untuk `netlify/functions/_web-push-send.js` +
+`notify-new-payment-request.js` (jalur push-nya) + `notify-new-account.js`
+(lihat README root, bagian "Notifikasi Push (Web Push)"). Butuh `web-push`
+benar-benar ter-install (symlink sementara `node_modules` di ROOT repo ->
+scratchpad, **WAJIB dihapus lagi sebelum commit**, sama seperti
+`tests/node_modules/{playwright,playwright-core}`). File ini pakai
+`createRequire()` + manual `require.cache` busting (BUKAN dynamic
+`import()` dengan query string) untuk test ulang file yang sama dengan
+kombinasi env var berbeda — lihat komentar panjang di awal file kalau mau
+tambah test serupa. Jalankan dari root repo:
+
+```bash
+node tests/test-push-notify-function.mjs
+```
+
 ## Catatan
 
 - Test ini sepenuhnya sinkron dengan data mock/fixture bertanggal tetap

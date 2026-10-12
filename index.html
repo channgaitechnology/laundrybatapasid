@@ -74,11 +74,17 @@
     background:rgba(255,255,255,0.16);border:none;border-radius:12px;
     min-width:44px;padding:6px 7px 5px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:2px;
-    color:#fff;cursor:pointer;
+    color:#fff;cursor:pointer;position:relative;
   }
   .icon-btn .icon-btn-emoji{font-size:23px;line-height:1;}
   .icon-btn .icon-btn-label{font-size:8.5px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:.1px;}
   .icon-btn:active{background:rgba(255,255,255,0.3);}
+  .icon-btn-badge{
+    position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 3px;
+    background:var(--danger);color:#fff;border-radius:999px;font-size:10px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;line-height:1;
+    box-shadow:0 0 0 2px rgba(255,255,255,0.4);
+  }
 
   main{max-width:520px;margin:0 auto;padding:16px 14px 24px;}
   .view{display:none;animation:fade .18s ease;}
@@ -469,6 +475,15 @@
     <button class="icon-btn owner-only" onclick="openSettings()" aria-label="Pengaturan toko">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       <span class="icon-btn-label">Pengaturan</span>
+    </button>
+    <!-- Khusus ADMIN_EMAILS (admin platform SaaS, bukan owner toko biasa) --
+         display:none default, ditampilkan/disembunyikan via JS murni oleh
+         startAdminNotifPolling()/stopAdminNotifPolling() (js/05-admin.js),
+         BUKAN class owner-only -- gerbangnya email login, bukan role. -->
+    <button class="icon-btn" id="btnAdminNotif" onclick="openAdminNotifPanel()" aria-label="Notifikasi Admin Platform" style="display:none;">
+      <span class="icon-btn-emoji">🔔</span>
+      <span class="icon-btn-label">Notifikasi</span>
+      <span id="adminNotifBadge" class="icon-btn-badge" style="display:none;">0</span>
     </button>
     <button class="icon-btn" onclick="openCatatan()" aria-label="Catatan">
       <span class="icon-btn-emoji" style="font-size:19px;white-space:nowrap;">📔<span style="font-size:0.62em;">✏️</span></span>
@@ -1209,6 +1224,12 @@
           </div>
           <div id="adminSubsOverview" style="max-height:240px;overflow-y:auto;margin-bottom:16px;"></div>
 
+          <b style="font-size:13px;">🔔 Notifikasi Push (Lonceng Seperti WA)</b>
+          <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Dapat notifikasi muncul + berbunyi di HP/komputer ini begitu ada permintaan pembayaran atau toko baru daftar — berlaku WALAU aplikasi sedang tertutup. Perlu dinyalakan terpisah di SETIAP perangkat yang dipakai.</p>
+          <p id="adminPushNotifStatus" style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Memeriksa...</p>
+          <button type="button" class="btn btn-accent btn-sm" id="btnEnableAdminPush" onclick="enableAdminPushNotif()" style="display:none;width:100%;margin-bottom:14px;">🔔 Nyalakan Notifikasi Push</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnDisableAdminPush" onclick="disableAdminPushNotif()" style="display:none;width:100%;margin-bottom:14px;">Matikan Notifikasi Push di Perangkat Ini</button>
+
           <b style="font-size:13px;">Permintaan Pembayaran Masuk</b>
           <div id="paymentReqList" style="max-height:220px;overflow-y:auto;margin:6px 0 14px;"></div>
 
@@ -1896,6 +1917,7 @@
       resolveRoleAndInit();
     } else {
       currentUser = null;
+      stopAdminNotifPolling(); // hentikan polling notifikasi admin & sembunyikan lonceng saat logout
       document.getElementById('authScreen').classList.remove('hidden');
     }
   });

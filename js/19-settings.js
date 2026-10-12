@@ -37,6 +37,7 @@ function openSettingsSub(id){
   };
   document.getElementById('settingsSubTitle').textContent = t(titles[id] || 'Pengaturan');
   if(id==='langganan') loadReferralCode();
+  if(id==='admin') renderAdminPushNotifStatus();
   if(id==='bahasa'){
     const btnId = document.getElementById('langBtnId');
     const btnEn = document.getElementById('langBtnEn');
