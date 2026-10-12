@@ -364,7 +364,12 @@ async function loadSettingsFromDB(){
   }
 }
 async function loadTransactionsFromDB(){
-  const { data, error } = await sb.from('transactions').select('*').eq('user_id', shopOwnerId).order('created_at', { ascending:true });
+  // fetchAllRows() (js/09-utils.js) WAJIB di sini -- tabel transactions tidak
+  // dibatasi jumlah baris sama sekali (beda dari subscription_usage yang sudah
+  // dipaginasi), jadi toko yang sudah lama pakai app & riwayatnya lebih dari
+  // ~1000 baris akan KEPOTONG diam-diam (tanpa error) kalau query ini tidak
+  // ikut lewat .range() berulang.
+  const { data, error } = await fetchAllRows(() => sb.from('transactions').select('*').eq('user_id', shopOwnerId).order('created_at', { ascending:true }));
   if(error){ showToast(t('Gagal memuat data transaksi')); return; }
   transactions = (data||[]).map(row => ({
     id: row.id, kode: row.kode, nama: row.nama, hp: row.hp,

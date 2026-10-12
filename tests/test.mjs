@@ -196,7 +196,7 @@ const result = await page.evaluate(async () => {
     // insert() echoes back the actual payload (plus a fake id/kode), like a real Supabase
     // .insert(row).select().single() round-trip, so assertions on total/dp/items are meaningful.
     const q = {
-      select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q,
+      select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q, range: () => q,
       insert: (row) => { q._inserted = { id: 'fake-tx-' + (++fakeTxCounter), kode: 'TX-TEST-' + fakeTxCounter, ...row }; return q; },
       single: () => Promise.resolve({ data: q._inserted, error: null }),
       then: (resolve) => resolve({ data: q._inserted ? [q._inserted] : [], error: null }),
@@ -773,6 +773,30 @@ const result = await page.evaluate(async () => {
     } finally {
       fakeUsageRows = originalFakeUsageRows;
       allWorkUsage = originalAllWorkUsage;
+    }
+  });
+
+  await step('REGRESI (audit): loadTransactionsFromDB() HARUS mengambil SEMUA baris lewat fetchAllRows()/.range() berulang, bukan cuma 1000 baris pertama (toko dengan riwayat banyak dulu kepotong diam-diam setiap buka app)', async () => {
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const totalRows = 1500; // > SUPABASE_PAGE_SIZE (1000), memaksa 2 halaman
+    const allFakeRows = Array.from({ length: totalRows }, (_, i) => ({
+      id: 'ltx-' + i, kode: 'LTX-' + i, nama: 'Pelanggan ' + i, hp: '', tanggal: '2026-01-01',
+      estimasi: null, items: [], diskon: 0, total: 1000, dp: 0, status: 'belum', lunas_at: null, catatan: '', work_status: 'belum', outlet_id: null
+    }));
+    try {
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, order: () => q,
+          range: (from, to) => Promise.resolve({ data: allFakeRows.slice(from, to + 1), error: null }) };
+        return q;
+      };
+      await loadTransactionsFromDB();
+      if (transactions.length !== totalRows) throw new Error(`REGRESI: expected all ${totalRows} transactions loaded across pages, got ${transactions.length} -- kepotong berarti fetchAllRows()/.range() tidak lagi terpakai`);
+      if (transactions[0].id !== 'ltx-0' || transactions[totalRows-1].id !== `ltx-${totalRows-1}`) throw new Error('rows out of order/incomplete across pages');
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
     }
   });
 
