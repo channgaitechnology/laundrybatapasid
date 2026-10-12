@@ -355,7 +355,7 @@ async function checkAdminNotifications(){
   if(!currentUser || !isAdminEmail(currentUser.email)) return;
   const [{ data: pending, error: e1 }, { data: allSubs, error: e2 }] = await Promise.all([
     sb.from('payment_requests').select('id').eq('status','menunggu'),
-    sb.from('app_subscriptions').select('id'),
+    sb.from('app_subscriptions').select('owner_id'),
   ]);
   if(e1 || e2) return; // diamkan -- coba lagi di polling berikutnya, jangan sampai error jaringan sesaat bikin badge hilang/salah
   const totalAccounts = (allSubs||[]).length;
