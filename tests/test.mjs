@@ -20,7 +20,7 @@ await page.addInitScript(() => {
   function fakeQuery(data) {
     const q = {
       select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
-      update: () => q, insert: () => q, delete: () => q,
+      update: () => q, insert: () => q, delete: () => q, gte: () => q, lt: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       then: (resolve) => resolve({ data, error: null }),
@@ -94,7 +94,7 @@ const result = await page.evaluate(async () => {
   function fakeQuery(data) {
     const q = {
       select: () => q, eq: () => q, in: () => q, order: () => q, limit: () => q, range: () => q,
-      update: () => q, insert: () => q, delete: () => q,
+      update: () => q, insert: () => q, delete: () => q, gte: () => q, lt: () => q,
       single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
       then: (resolve) => resolve({ data, error: null }),
@@ -197,6 +197,12 @@ const result = await page.evaluate(async () => {
     // .insert(row).select().single() round-trip, so assertions on total/dp/items are meaningful.
     const q = {
       select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, delete: () => q, range: () => q,
+      // gte/lt: loadTransactionsFromDB()/ensureAllTransactionsLoaded() (js/05-admin.js) memfilter
+      // tanggal lewat ini -- no-op di mock (selalu resolve [] lewat then() di bawah kalau bukan
+      // insert), supaya tidak TypeError ("...gte is not a function") begitu dipanggil lewat jalur
+      // initUserData()/openRekapPelanggan() dkk di tengah suite ini (bukan test backfill khusus
+      // yang sudah override sb.from sendiri).
+      gte: () => q, lt: () => q,
       insert: (row) => { q._inserted = { id: 'fake-tx-' + (++fakeTxCounter), kode: 'TX-TEST-' + fakeTxCounter, ...row }; return q; },
       single: () => Promise.resolve({ data: q._inserted, error: null }),
       then: (resolve) => resolve({ data: q._inserted ? [q._inserted] : [], error: null }),
@@ -429,6 +435,17 @@ const result = await page.evaluate(async () => {
   ];
   fakeUsageRows = currentUsageList.map(toDbRow);
   transactions = [];
+  // Semua test di file ini membangun `transactions` langsung di memori dan
+  // menganggap itu SUDAH data lengkap -- default-kan transactionsFullyLoaded=true
+  // di sini supaya awaitensureAllTransactionsLoaded() di
+  // renderPerPelangganReport()/renderLabaRugi()/renderPeringkatPelanggan()/
+  // showRekapNamaSuggest()/searchRekapPelanggan()/downloadWorkBoardImage() jadi
+  // no-op (early-return SYNCHRONOUS, tidak pernah masuk await) dan tidak
+  // memaksa test lama yang memanggilnya tanpa `await` jadi rusak. Test khusus
+  // untuk fitur lazy-load SENDIRI yang mau menguji jalur backfill wajib
+  // override ke false (+ set transactionsWindowStart) lalu restore di finally.
+  transactionsFullyLoaded = true;
+  transactionsWindowStart = null;
 
   await step('isTempo() detects tempo vs bulanan', () => {
     if (!isTempo(tempoSub)) throw new Error('expected tempoSub to be tempo');
@@ -779,6 +796,8 @@ const result = await page.evaluate(async () => {
   await step('REGRESI (audit): loadTransactionsFromDB() HARUS mengambil SEMUA baris lewat fetchAllRows()/.range() berulang, bukan cuma 1000 baris pertama (toko dengan riwayat banyak dulu kepotong diam-diam setiap buka app)', async () => {
     const originalFrom = sb.from;
     const savedTransactions = transactions;
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
     const totalRows = 1500; // > SUPABASE_PAGE_SIZE (1000), memaksa 2 halaman
     const allFakeRows = Array.from({ length: totalRows }, (_, i) => ({
       id: 'ltx-' + i, kode: 'LTX-' + i, nama: 'Pelanggan ' + i, hp: '', tanggal: '2026-01-01',
@@ -787,7 +806,7 @@ const result = await page.evaluate(async () => {
     try {
       sb.from = (table) => {
         if (table !== 'transactions') return originalFrom(table);
-        const q = { select: () => q, eq: () => q, order: () => q,
+        const q = { select: () => q, eq: () => q, order: () => q, gte: () => q,
           range: (from, to) => Promise.resolve({ data: allFakeRows.slice(from, to + 1), error: null }) };
         return q;
       };
@@ -797,6 +816,242 @@ const result = await page.evaluate(async () => {
     } finally {
       sb.from = originalFrom;
       transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+    }
+  });
+
+  await step('loadTransactionsFromDB(): hanya memuat window TRANSACTIONS_LOAD_MONTHS bulan terakhir (filter .gte(tanggal,...)), set transactionsWindowStart ke tanggal cutoff yang sama & transactionsFullyLoaded=false (riwayat lama BELUM ikut termuat)', async () => {
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
+    const recentRow = { id: 'win-recent', kode: 'WIN-R', nama: 'Recent', hp: '', tanggal: todayISO(),
+      estimasi: null, items: [], diskon: 0, total: 1000, dp: 0, status: 'belum', lunas_at: null, catatan: '', work_status: 'belum', outlet_id: null };
+    let capturedGte = null;
+    try {
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, order: () => q,
+          gte: (col, val) => { capturedGte = val; return q; },
+          range: (from) => Promise.resolve({ data: from === 0 ? [recentRow] : [], error: null }) };
+        return q;
+      };
+      await loadTransactionsFromDB();
+      const expectedCutoff = transactionsWindowStartDate();
+      if (capturedGte !== expectedCutoff) throw new Error(`REGRESI: loadTransactionsFromDB() harus filter .gte('tanggal', ${expectedCutoff}), dapat ${capturedGte} -- window default hilang, kembali memuat seluruh riwayat`);
+      if (transactionsWindowStart !== expectedCutoff) throw new Error(`transactionsWindowStart harus disetel ke cutoff ${expectedCutoff} yang sama dipakai query, dapat ${transactionsWindowStart}`);
+      if (transactionsFullyLoaded !== false) throw new Error('transactionsFullyLoaded harus false setelah load window default (riwayat sebelum window belum di memori)');
+      if (transactions.length !== 1 || transactions[0].id !== 'win-recent') throw new Error('transaksi dalam window tidak termuat dengan benar: ' + JSON.stringify(transactions));
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+    }
+  });
+
+  await step('ensureAllTransactionsLoaded(): backfill riwayat SEBELUM window digabung di DEPAN transaksi yang sudah di memori (urutan tanggal tetap benar), lalu set transactionsFullyLoaded=true & transactionsWindowStart=null; panggilan ulang jadi no-op (tidak fetch lagi)', async () => {
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
+    const oldRow = { id: 'old-1', kode: 'OLD-1', nama: 'Lama', hp: '', tanggal: '2020-01-01',
+      estimasi: null, items: [], diskon: 0, total: 5000, dp: 0, status: 'lunas', lunas_at: '2020-01-01', catatan: '', work_status: 'selesai', outlet_id: null };
+    let fetchCount = 0;
+    let capturedLt = null;
+    try {
+      // Simulasikan state SETELAH loadTransactionsFromDB(): 1 transaksi baru sudah di
+      // memori (dalam window), riwayat sebelum cutoff belum termuat.
+      transactions = [{ id: 'recent-1', kode: 'REC-1', nama: 'Baru', hp: '', tanggal: todayISO(), items: [], diskon: 0, total: 1000, dp: 0, status: 'belum', catatan: '', outletId: null, workStatus: 'belum' }];
+      transactionsWindowStart = '2026-01-01';
+      transactionsFullyLoaded = false;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        fetchCount++;
+        const q = { select: () => q, eq: () => q, order: () => q,
+          lt: (col, val) => { capturedLt = val; return q; },
+          range: (from) => Promise.resolve({ data: from === 0 ? [oldRow] : [], error: null }) };
+        return q;
+      };
+      await ensureAllTransactionsLoaded();
+      if (capturedLt !== '2026-01-01') throw new Error(`REGRESI: ensureAllTransactionsLoaded() harus filter .lt('tanggal', transactionsWindowStart), dapat ${capturedLt}`);
+      if (transactions.length !== 2) throw new Error('hasil backfill harus gabung baris lama + yang sudah di window, dapat ' + transactions.length);
+      if (transactions[0].id !== 'old-1' || transactions[1].id !== 'recent-1') throw new Error('REGRESI URUTAN: baris lama harus digabung SEBELUM baris yang sudah di window: ' + JSON.stringify(transactions.map(x=>x.id)));
+      if (transactionsFullyLoaded !== true) throw new Error('transactionsFullyLoaded harus true setelah backfill selesai');
+      if (transactionsWindowStart !== null) throw new Error('transactionsWindowStart harus null setelah fully loaded (seluruh riwayat sudah di memori)');
+
+      const fetchCountAfterFirst = fetchCount;
+      await ensureAllTransactionsLoaded();
+      if (fetchCount !== fetchCountAfterFirst) throw new Error('ensureAllTransactionsLoaded() harus no-op (tidak fetch ulang) kalau transactionsFullyLoaded sudah true, tapi fetch lagi');
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+    }
+  });
+
+  await step('ensureAllTransactionsLoaded(): panggilan BERSAMAAN (race -- mis. ketikan cepat di kotak cari Rekap Pelanggan) berbagi SATU fetch yang sama lewat guard _transactionsLoadingPromise, tidak duplikat baris', async () => {
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
+    const oldRow = { id: 'race-old-1', kode: 'RACE-1', nama: 'Race', hp: '', tanggal: '2020-01-01',
+      estimasi: null, items: [], diskon: 0, total: 5000, dp: 0, status: 'lunas', lunas_at: '2020-01-01', catatan: '', work_status: 'selesai', outlet_id: null };
+    let fetchCount = 0;
+    try {
+      transactions = [];
+      transactionsWindowStart = '2026-01-01';
+      transactionsFullyLoaded = false;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        fetchCount++;
+        const q = { select: () => q, eq: () => q, order: () => q, lt: () => q,
+          range: (from) => from === 0
+            ? new Promise(resolve => setTimeout(() => resolve({ data: [oldRow], error: null }), 10))
+            : Promise.resolve({ data: [], error: null }) };
+        return q;
+      };
+      await Promise.all([ensureAllTransactionsLoaded(), ensureAllTransactionsLoaded(), ensureAllTransactionsLoaded()]);
+      if (fetchCount !== 1) throw new Error(`REGRESI RACE CONDITION: 3 panggilan bersamaan harus berbagi 1 fetch lewat guard, dapat ${fetchCount} fetch terpisah`);
+      if (transactions.length !== 1) throw new Error(`REGRESI RACE CONDITION: baris lama terduplikat akibat concat berulang, dapat ${transactions.length} baris (harus 1)`);
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+    }
+  });
+
+  // Tiap fitur "dalam (deep)" di bawah ini HARUS memicu backfill otomatis (lihat
+  // README) begitu diakses selagi belum transactionsFullyLoaded -- beda dengan
+  // renderReport()/renderHistory() yang cuma backfill kalau filter/bulan yang
+  // dipilih user memang mundur ke sebelum window (diuji terpisah di bawah).
+  await step('Fitur yang butuh SELURUH riwayat (Laporan Per Pelanggan, Laba Rugi, Peringkat Pelanggan, cari Rekap Pelanggan, unduh JPG Papan Laundry) masing-masing memicu ensureAllTransactionsLoaded() otomatis begitu belum transactionsFullyLoaded', async () => {
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const originalHtml2canvas = window.html2canvas;
+    const savedOutlets = outlets, savedCurrentOutletId = currentOutletId, savedReportOutletFilter = reportOutletFilter;
+    const savedSubscriptions = subscriptions, savedAllWorkUsage = allWorkUsage;
+    const oldRow = { id: 'deep-old-1', kode: 'DEEP-1', nama: 'Abid', hp: '', tanggal: '2020-01-01',
+      estimasi: null, items: [], diskon: 0, total: 81000, dp: 30000, status: 'belum', lunas_at: null, catatan: '', work_status: 'belum', outlet_id: null };
+    function mockBackfill() {
+      transactionsWindowStart = '2026-01-01';
+      transactionsFullyLoaded = false;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        const q = { select: () => q, eq: () => q, order: () => q, lt: () => q,
+          range: (from) => Promise.resolve({ data: from === 0 ? [oldRow] : [], error: null }) };
+        return q;
+      };
+    }
+    try {
+      outlets = []; currentOutletId = null; reportOutletFilter = '';
+      subscriptions = []; allWorkUsage = [];
+      transactions = [{ id: 'win-1', kode: 'WIN-1', nama: 'Abid', hp: '', tanggal: '2026-09-11', estimasi: null, items: [], diskon: 0, total: 50000, dp: 50000, status: 'lunas', catatan: '', outletId: null }];
+
+      mockBackfill();
+      populatePerNamaSelect();
+      document.getElementById('perNama').value = 'Abid';
+      document.getElementById('perPeriodeType').value = 'custom';
+      togglePerPeriodeFields();
+      document.getElementById('perDari').value = '2019-01-01';
+      document.getElementById('perSampai').value = '2026-12-31';
+      await renderPerPelangganReport();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: renderPerPelangganReport() tidak memicu ensureAllTransactionsLoaded()');
+      if (!transactions.some(x => x.id === 'deep-old-1')) throw new Error('REGRESI: renderPerPelangganReport() tidak menunggu backfill selesai sebelum merender');
+
+      mockBackfill();
+      document.getElementById('lrPeriodeType').value = 'bulanan';
+      document.getElementById('lrBulan').value = '2026-09';
+      await renderLabaRugi();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: renderLabaRugi() tidak memicu ensureAllTransactionsLoaded()');
+
+      mockBackfill();
+      document.getElementById('rankPeriodeType').value = 'bulanan';
+      document.getElementById('rankBulan').value = '2026-09';
+      await renderPeringkatPelanggan();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: renderPeringkatPelanggan() tidak memicu ensureAllTransactionsLoaded()');
+
+      mockBackfill();
+      document.getElementById('rekapNamaInput').value = 'abid';
+      await showRekapNamaSuggest();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: showRekapNamaSuggest() tidak memicu ensureAllTransactionsLoaded()');
+
+      mockBackfill();
+      document.getElementById('rekapNamaInput').value = 'Abid';
+      await searchRekapPelanggan();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: searchRekapPelanggan() tidak memicu ensureAllTransactionsLoaded()');
+
+      mockBackfill();
+      window.html2canvas = async () => ({ width: 10, height: 10, toBlob: (cb) => cb(new Blob()) });
+      document.getElementById('papanUnduhDari').value = '2019-01-01';
+      document.getElementById('papanUnduhSampai').value = '2026-12-31';
+      await downloadWorkBoardImage();
+      if (transactionsFullyLoaded !== true) throw new Error('REGRESI: downloadWorkBoardImage() tidak memicu ensureAllTransactionsLoaded() untuk ekspor JPG rentang custom');
+    } finally {
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+      window.html2canvas = originalHtml2canvas;
+      outlets = savedOutlets; currentOutletId = savedCurrentOutletId; reportOutletFilter = savedReportOutletFilter;
+      subscriptions = savedSubscriptions; allWorkUsage = savedAllWorkUsage;
+    }
+  });
+
+  await step('renderReport()/renderHistory(): HANYA memicu backfill kalau bulan/filter tanggal yang dipilih mundur ke SEBELUM window (bukan tiap render) -- hemat fetch untuk pemakaian normal dalam window', async () => {
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
+    const originalFrom = sb.from;
+    const savedTransactions = transactions;
+    const savedOutlets = outlets, savedCurrentOutletId = currentOutletId, savedReportOutletFilter = reportOutletFilter;
+    const savedSubscriptions = subscriptions, savedAllWorkUsage = allWorkUsage;
+    let fetchCount = 0;
+    const oldRow = { id: 'window-old-1', kode: 'WOLD-1', nama: 'Lama', hp: '', tanggal: '2025-01-15',
+      estimasi: null, items: [], diskon: 0, total: 1000, dp: 1000, status: 'lunas', lunas_at: '2025-01-15', catatan: '', work_status: 'selesai', outlet_id: null };
+    try {
+      outlets = []; currentOutletId = null; reportOutletFilter = '';
+      subscriptions = []; allWorkUsage = [];
+      transactions = [{ id: 'cur-1', kode: 'CUR-1', nama: 'Baru', hp: '', tanggal: '2026-09-05', items: [], diskon: 0, total: 1000, dp: 1000, status: 'lunas', catatan: '', outletId: null }];
+      transactionsWindowStart = '2026-01-01';
+      transactionsFullyLoaded = false;
+      sb.from = (table) => {
+        if (table !== 'transactions') return originalFrom(table);
+        fetchCount++;
+        const q = { select: () => q, eq: () => q, order: () => q, lt: () => q,
+          range: (from) => Promise.resolve({ data: from === 0 ? [oldRow] : [], error: null }) };
+        return q;
+      };
+
+      // Bulan di DALAM window -> tidak boleh fetch.
+      document.getElementById('reportMonth').value = '2026-09';
+      await renderReport();
+      if (fetchCount !== 0) throw new Error('REGRESI: renderReport() memicu backfill untuk bulan yang masih di dalam window (pemborosan egress)');
+      if (transactionsFullyLoaded !== false) throw new Error('transactionsFullyLoaded tidak boleh berubah untuk bulan dalam window');
+
+      // Tanggal "Dari" Riwayat masih DI DALAM window -> tidak boleh fetch.
+      document.getElementById('historyDariFilter').value = '2026-02-01';
+      await renderHistory();
+      if (fetchCount !== 0) throw new Error('REGRESI: renderHistory() memicu backfill untuk filter tanggal yang masih di dalam window');
+
+      // Tanggal "Dari" Riwayat mundur ke SEBELUM window -> harus memicu backfill.
+      document.getElementById('historyDariFilter').value = '2025-01-01';
+      await renderHistory();
+      if (fetchCount !== 1) throw new Error('REGRESI: renderHistory() tidak memicu backfill untuk filter tanggal sebelum window, got fetchCount=' + fetchCount);
+      if (transactionsFullyLoaded !== true) throw new Error('transactionsFullyLoaded harus true setelah renderHistory() backfill');
+      if (!transactions.some(x => x.id === 'window-old-1')) throw new Error('riwayat lama tidak ikut termuat setelah backfill lewat renderHistory()');
+    } finally {
+      document.getElementById('historyDariFilter').value = '';
+      sb.from = originalFrom;
+      transactions = savedTransactions;
+      transactionsWindowStart = savedWindowStart;
+      transactionsFullyLoaded = savedFullyLoaded;
+      outlets = savedOutlets; currentOutletId = savedCurrentOutletId; reportOutletFilter = savedReportOutletFilter;
+      subscriptions = savedSubscriptions; allWorkUsage = savedAllWorkUsage;
     }
   });
 
@@ -4758,18 +5013,23 @@ const result = await page.evaluate(async () => {
       if (table === 'transactions') {
         const q = {
           select: () => q, eq: () => q, in: () => q, order: () => q, update: () => q, insert: () => q, delete: () => q,
+          gte: () => q, lt: () => q, range: () => q,
           then: (resolve) => pending.then(() => resolve({ data: [], error: null })),
         };
         return q;
       }
       return originalFrom(table);
     };
+    const savedWindowStart = transactionsWindowStart;
+    const savedFullyLoaded = transactionsFullyLoaded;
     const initPromise = initUserData();
     await new Promise(r => setTimeout(r, 30)); // let the other 10 parallel loads settle first
     switchTab('papan'); // user taps Daftar Tugas while transactions are still "loading"
     releaseTransactions();
     await initPromise;
     sb.from = originalFrom;
+    transactionsWindowStart = savedWindowStart;
+    transactionsFullyLoaded = savedFullyLoaded;
     if (currentTabName !== 'papan') throw new Error('initUserData() should not override a tab the user switched to during load, got currentTabName=' + currentTabName);
     if (!document.getElementById('view-papan').classList.contains('active')) throw new Error('view-papan should stay the active view after initUserData() resolves');
     const activeTabBtn = document.querySelector('.tab.active');

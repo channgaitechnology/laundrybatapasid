@@ -5,11 +5,17 @@ function resetHistoryFilter(){
   document.getElementById('historySampaiFilter').value = '';
   renderHistory();
 }
-function renderHistory(){
+async function renderHistory(){
   const q = (document.getElementById('searchInput').value||'').toLowerCase();
   const statusFilter = document.getElementById('historyStatusFilter').value;
   const dariFilter = document.getElementById('historyDariFilter').value;
   const sampaiFilter = document.getElementById('historySampaiFilter').value;
+  /* Default (tanpa filter "Dari") cukup window default loadTransactionsFromDB()
+     (js/05-admin.js) -- cuma kalau user eksplisit minta tanggal SEBELUM window
+     itu, backfill seluruh riwayat dulu (no-op kalau sudah pernah di sesi ini). */
+  if(!transactionsFullyLoaded && transactionsWindowStart && dariFilter && dariFilter < transactionsWindowStart){
+    await ensureAllTransactionsLoaded();
+  }
   const anyFilterActive = !!(statusFilter || dariFilter || sampaiFilter);
   document.getElementById('historyResetFilterBtn').style.display = anyFilterActive ? 'block' : 'none';
   const el = document.getElementById('historyList');

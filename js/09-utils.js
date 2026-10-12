@@ -26,6 +26,14 @@ function toISODateLocal(d){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function todayISO(){ return toISODateLocal(new Date()); }
+/* "2026-07" dikurangi 5 -> "2026-02" (dipakai Laporan buat tahu apakah tren
+   6-bulan butuh data lebih lama dari window yang sudah termuat). */
+function monthsBeforeYM(ym, n){
+  const [y,m] = ym.split('-').map(Number);
+  const total = (y*12 + (m-1)) - n;
+  const ny = Math.floor(total/12), nm = total%12;
+  return `${ny}-${String(nm+1).padStart(2,'0')}`;
+}
 /* Ambil SEMUA baris query Supabase lewat .range() berulang -- REST API
    Supabase diam-diam membatasi maksimal ~1000 baris per request (dibatasi di
    server, bukan oleh .limit() di client), jadi query tanpa paginasi KEPOTONG

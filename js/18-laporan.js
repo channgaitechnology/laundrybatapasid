@@ -1,9 +1,18 @@
 /* ===================== LAPORAN BULANAN ===================== */
-function renderReport(){
-  populatePerNamaSelect();
+async function renderReport(){
   const monthInput = document.getElementById('reportMonth');
   if(!monthInput.value) monthInput.value = todayISO().slice(0,7);
   const ym = monthInput.value; // "2026-07"
+  /* loadTransactionsFromDB() (js/05-admin.js) cuma muat beberapa bulan
+     terakhir secara default (hemat kuota) -- kalau bulan yang dipilih di
+     sini (ATAU tren 6-bulan renderOmzetTrend() di bawah, yang butuh sampai
+     5 bulan sebelum ym) jatuh SEBELUM window itu, backfill seluruh riwayat
+     dulu supaya angkanya tidak diam-diam kurang. No-op kalau sudah pernah
+     di-backfill sekali di sesi ini (transactionsFullyLoaded). */
+  if(!transactionsFullyLoaded && transactionsWindowStart && monthsBeforeYM(ym, 5) < transactionsWindowStart.slice(0,7)){
+    await ensureAllTransactionsLoaded();
+  }
+  populatePerNamaSelect();
   const list = visibleReportTransactions().filter(t=>t.tanggal && t.tanggal.slice(0,7)===ym);
 
   const totalTrx = list.length;
@@ -196,11 +205,15 @@ function subsOutstandingBlockHTML(s, bd){
   </div>`);
   return rows.join('');
 }
-function renderPerPelangganReport(){
+async function renderPerPelangganReport(){
   const nama = document.getElementById('perNama').value;
   if(!nama){ showToast(t('Pilih pelanggan dulu')); return; }
   const range = getPerPeriodeRange();
   if(!range){ showToast(t('Lengkapi periode laporan dulu')); return; }
+  // Rentang di sini bisa mode tahunan (jauh lebih lama dari window default
+  // loadTransactionsFromDB()) -- backfill seluruh riwayat dulu, no-op kalau
+  // sudah pernah (lihat README/js/05-admin.js).
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
 
   const list = visibleReportTransactions().filter(t=>t.nama===nama && t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const lunasList = list.filter(t=>t.status==='lunas');
@@ -383,7 +396,7 @@ function getLrPeriodeRange(){
   }
   return null;
 }
-function renderLabaRugi(){
+async function renderLabaRugi(){
   if(!document.getElementById('lrBulan').value) document.getElementById('lrBulan').value = todayISO().slice(0,7);
   const range = getLrPeriodeRange();
   const breakdownEl = document.getElementById('lrBreakdown');
@@ -395,6 +408,8 @@ function renderLabaRugi(){
     labaRugiCache = null;
     return;
   }
+  // Mode tahunan bisa jauh lebih lama dari window default -- backfill dulu.
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const trxList = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const expList = visibleReportExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai);
   /* PENTING: Laba Rugi harus berbasis kas (uang yang benar-benar diterima),
@@ -493,11 +508,14 @@ function getRankPeriodeRange(){
   }
   return null;
 }
-function renderPeringkatPelanggan(){
+async function renderPeringkatPelanggan(){
   if(!document.getElementById('rankBulan').value) document.getElementById('rankBulan').value = todayISO().slice(0,7);
   const range = getRankPeriodeRange();
   const el = document.getElementById('rankList');
   if(!range){ el.innerHTML = ''; peringkatPelangganCache = null; return; }
+  // Mode "Semua Waktu" (range.dari='0000-01-01') maupun tahunan butuh
+  // seluruh riwayat -- backfill dulu, no-op kalau sudah pernah.
+  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
   const list = visibleReportTransactions().filter(t=>t.tanggal>=range.dari && t.tanggal<=range.sampai);
   const byNama = {};
   /* "Pemasukan" -> kas yang benar-benar diterima (trxCashReceived()), bukan
