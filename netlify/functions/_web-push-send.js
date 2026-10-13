@@ -53,6 +53,10 @@ function createPushSender(webpush, config) {
         // data/dkk di sisi browser) -- bersihkan baris basi ini, SELAIN itu
         // (mis. error jaringan sesaat) diamkan saja, biarkan tetap tersimpan
         // untuk dicoba lagi di notifikasi berikutnya.
+        console.error(
+          '[push] sendNotification gagal, endpoint:', row.endpoint,
+          'statusCode:', e && e.statusCode, 'body:', e && e.body, 'message:', e && e.message
+        );
         if (e && (e.statusCode === 404 || e.statusCode === 410)) {
           await supabaseRest(`admin_push_subscriptions?endpoint=eq.${encodeURIComponent(row.endpoint)}`, { method: 'DELETE' });
           removed++;
