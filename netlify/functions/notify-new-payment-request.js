@@ -57,8 +57,14 @@ async function sendPushBestEffort(title, body) {
       supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
       vapidPublicKey: VAPID_PUBLIC_KEY, vapidPrivateKey: VAPID_PRIVATE_KEY, contactEmail: ADMIN_NOTIFY_EMAIL,
     });
-    await pushSender.sendPushToAdmins({ title, body, url: '/' });
-  } catch (e) { /* diamkan -- lihat komentar env var tambahan di atas */ }
+    const result = await pushSender.sendPushToAdmins({ title, body, url: '/' });
+    console.log('[push] notify-new-payment-request:', JSON.stringify(result));
+  } catch (e) {
+    // TETAP diamkan dari sisi pemanggil (lihat komentar env var tambahan di
+    // atas) -- tapi dicatat ke Netlify Function Logs supaya gagalnya push
+    // tidak lagi jadi misteri (sebelumnya catch ini kosong total).
+    console.error('[push] notify-new-payment-request gagal:', e && (e.stack || e.message || e));
+  }
 }
 
 exports.handler = async (event) => {

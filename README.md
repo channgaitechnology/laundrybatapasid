@@ -1751,6 +1751,24 @@ Push sejak iOS 16.4 DAN cuma untuk PWA yang sudah di-"Add to Home
 Screen" (tidak bisa dari tab Safari biasa) — browser lain (Chrome/Edge/
 Firefox, desktop maupun Android) mendukung penuh dari tab biasa.
 
+**Debug kalau push "sukses" (200/ok) tapi tidak muncul di device**: baik
+`notify-new-payment-request.js` maupun `notify-new-account.js` SENGAJA
+best-effort — error dari `webpush.sendNotification()` per-subscription
+(selain 404/410 yang auto-dibersihkan) DIAMKAN dari sisi response HTTP,
+supaya push yang gagal tidak ikut menggagalkan email/response yang sudah
+berhasil. Jadi status 200 di `net._http_response` TIDAK membuktikan push
+benar-benar terkirim ke device — cuma membuktikan request ke function-nya
+tidak error. Errornya TETAP dicatat (bukan benar-benar hilang) lewat
+`console.error()`/`console.log()` di `_web-push-send.js` dan kedua
+function pemanggilnya — cek di dashboard Netlify: **Functions** (atau
+**Logs → Function logs**) → pilih nama function-nya → lihat log invocation
+terbaru. Penyebab push gagal diterima walau server bilang sukses biasanya
+di sisi device/browser, BUKAN kode: subscription basi (coba
+nonaktifkan→aktifkan lagi tombol push di device itu), izin notifikasi
+Chrome di-disable di level OS Android (Settings → Apps → Chrome →
+Notifications), atau battery saver/Do Not Disturb yang memblokir
+notifikasi background.
+
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)

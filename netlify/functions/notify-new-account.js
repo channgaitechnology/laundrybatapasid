@@ -95,11 +95,12 @@ exports.handler = async (event) => {
       supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
       vapidPublicKey: VAPID_PUBLIC_KEY, vapidPrivateKey: VAPID_PRIVATE_KEY, contactEmail: ADMIN_NOTIFY_EMAIL,
     });
-    await pushSender.sendPushToAdmins({
+    const result = await pushSender.sendPushToAdmins({
       title: '🔔 Akun Toko Baru Terdaftar',
       body: shopName ? `${shopName} — ${statusLabel}` : `Toko baru — ${statusLabel}`,
       url: '/',
     });
+    console.log('[push] notify-new-account:', JSON.stringify(result));
   } catch (e) {
     return { statusCode: 502, body: `Gagal mengirim push: ${(e && e.message) || e}` };
   }
