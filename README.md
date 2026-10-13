@@ -1819,6 +1819,104 @@ Kalau tab BELUM terbuka sama sekali, `sw.js` buka tab baru lewat
 `history.replaceState()` membersihkan query-nya dari url, supaya refresh
 manual berikutnya tidak ikut membuka panel ini lagi).
 
+### KRITIS: `registration_codes` bisa dibatalkan/dicuri SIAPA SAJA lewat REST langsung — policy UPDATE lama dihapus
+
+Audit keamanan menyeluruh (13 Oktober 2026, diminta user secara eksplisit:
+"bertindak sebagai hacker... cari semua celah"). Dikonfirmasi lewat
+`pg_policies` live: policy UPDATE `"claim code on signup"`
+(`qual: status = 'aktif'`, `with_check: status = 'terpakai' AND used_by =
+auth.uid()`) **TIDAK membatasi row yang boleh ditarget SAMA SEKALI
+selain `status='aktif'`** — bukan kode MILIK user yang login, bukan ID
+spesifik yang dia tahu. Siapa saja yang SUDAH login (termasuk akun trial
+gratis baru) bisa langsung:
+
+```
+PATCH .../rest/v1/registration_codes?status=eq.aktif
+Body: {"status":"terpakai","used_by":"<uid miliknya sendiri>"}
+```
+
+— satu request ini mencocokkan & membakar **SEMUA** kode aktif sekaligus
+(kode admin yang sudah dibuat utk pelanggan yang baru saja bayar, DAN
+semua kode referral toko lain yang belum terpakai), menandainya
+"terpakai" oleh dirinya sendiri. Dampaknya murni sabotase/DoS platform
+(pelanggan yang sudah bayar tidak bisa lagi redeem kodenya karena sudah
+"terpakai" duluan) — BUKAN cara mengaktifkan langganan diri sendiri
+tanpa bayar (`app_subscriptions` tetap cuma terima `status='trial'` dari
+browser, lihat bagian KRITIS `app_subscriptions` di atas, jadi tidak ada
+privilege escalation lewat jalur ini).
+
+Dikonfirmasi lewat `grep` seluruh kode: **tidak ada satu pun** pemanggil
+di `js/*.js` yang memakai `.update()` langsung ke tabel ini — alur klaim
+kode sudah 100% lewat RPC `claim_registration_code_and_activate`
+(`security definer`, menembus RLS dari dalam, lihat bagian atas) sejak
+perbaikan sebelumnya. Policy ini persis seperti `"anyone read pending
+invite"`/`"employee claim invite"` di `team_members` yang sudah
+dibongkar duluan — peninggalan desain lama sebelum RPC ada, sekarang
+cuma jadi pintu belakang berbahaya. Aman dihapus total:
+
+```sql
+drop policy if exists "claim code on signup" on registration_codes;
+```
+
+### MEDIUM-TINGGI: `app_branding` (footer nota + saklar Midtrans SELURUH platform) bisa diubah SIAPA SAJA yang login
+
+Ditemukan di audit yang sama. Tabel `app_branding` cuma 1 baris (`id=1`)
+dipakai BERSAMA oleh SEMUA toko (footer "dikembangkan oleh..." di setiap
+nota, DAN saklar `midtrans_enabled` yang menentukan apakah tombol "Bayar
+Otomatis" muncul untuk SELURUH platform). Tombolnya ("Simpan Footer
+Nota", toggle Midtrans) memang cuma ditampilkan di panel Admin Platform
+yang disembunyikan dari non-admin di UI (`#adminPlatformSection`,
+`isAdminEmail()`) — TAPI policy RLS-nya (`"Semua user login bisa ubah
+footer nota"`, `ALL`, `qual: auth.role() = 'authenticated'`) mengizinkan
+**SEMUA user yang login** (termasuk akun trial baru, TANPA perlu jadi
+admin) menulis ke tabel ini langsung lewat REST/console browser — gatenya
+cuma di UI (client-side), tidak ada pagar di RLS-nya sama sekali. Siapa
+saja bisa:
+- Mengganti nomor WA/email di footer nota SEMUA toko (jadi nomor
+  attacker sendiri — berisiko disalahgunakan untuk phishing, pelanggan
+  mengira itu kontak resmi pengembang app).
+- Mematikan `midtrans_enabled` untuk SELURUH platform (semua toko
+  kehilangan opsi Bayar Otomatis tanpa pernah tahu kenapa).
+
+Perbaikan: ganti policy `ALL` lama (yang mencakup INSERT/UPDATE/DELETE)
+jadi admin-only, SELAIN policy SELECT terpisah (`"Semua user login bisa
+baca footer nota"`) yang TETAP dibiarkan terbuka untuk semua user login
+— itu memang perlu, supaya setiap nota semua toko bisa menampilkan
+footer ini saat dicetak:
+
+```sql
+drop policy if exists "Semua user login bisa ubah footer nota" on app_branding;
+
+create policy "admin_only_write_app_branding" on app_branding
+  for all
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'))
+  with check ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+```
+
+### MEDIUM: stored XSS lewat kategori pengeluaran (attribute breakout di `onmousedown`) — `js/14-pengeluaran.js`
+
+Ditemukan di audit yang sama. `showExpKategoriSuggest()` dulu menyuntik
+nama kategori pengeluaran (free-text, diketik bebas oleh kasir/owner)
+langsung ke dalam atribut `onmousedown="...selectExpKategoriSuggest('...')"`
+— cuma tanda kutip TUNGGAL yang di-escape manual
+(`k.replace(/'/g,"\\'")`), tanda kutip GANDA tidak sama sekali. Nama
+kategori seperti `" onmouseover="alert(1)//` memutus atribut HTML itu
+dan menyuntik event handler BARU — tersimpan permanen di `expenses.kategori`
+(stored XSS), tereksekusi begitu user LAIN di toko yang sama (termasuk
+owner) membuka daftar saran kategori dan mouse-nya lewat di atas baris
+itu. Berbeda dari celah stored-XSS yang sudah diperbaiki di PR #9 (nama
+layanan/satuan, yang sudah lewat `escapeHTML()` dengan benar) — ini bug
+TERPISAH, bukan di teks yang ditampilkan (yang sudah benar di-escape),
+tapi di atribut HTML-nya sendiri yang dibangun manual tanpa escaping
+yang benar sama sekali.
+
+Diperbaiki: ganti pola suntik-string-ke-atribut jadi pola index-ke-array
+(sama seperti `selectRekapNamaSuggest()`/`js/22-rekap-pelanggan.js`) —
+nama kategori sekarang TIDAK PERNAH masuk ke markup HTML selain lewat
+`escapeHTML()` di teks yang ditampilkan; `onmousedown`-nya cuma berisi
+angka index, tidak ada string apa pun dari user yang disuntikkan ke
+atribut.
+
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)

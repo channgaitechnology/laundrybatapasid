@@ -32,18 +32,33 @@ function distinctExpenseCategories(){
   expenses.forEach(e=>{ if(e.kategori) set.add(e.kategori); });
   return Array.from(set);
 }
+/* REGRESI KEAMANAN (audit 13 Okt 2026): dulu nama kategori mentah disuntik
+   langsung ke atribut onmousedown (cuma tanda kutip TUNGGAL yang di-escape
+   manual, tanda kutip GANDA tidak) -- kategori pengeluaran adalah free-text
+   bebas diketik kasir, jadi nilai seperti `" onmouseover="alert(1)` bisa
+   memutus atribut HTML dan menyuntik event handler baru, disimpan permanen
+   (stored XSS) lalu tereksekusi begitu user LAIN di toko yang sama (termasuk
+   owner) membuka saran kategori ini. Sekarang pakai pola index ke array
+   `expKategoriSuggestOptions` (sama seperti selectRekapNamaSuggest()/
+   js/22-rekap-pelanggan.js) -- onclick cuma berisi angka, nama kategori
+   sendiri tidak pernah masuk ke markup HTML sama sekali selain lewat
+   escapeHTML() di teks yang ditampilkan. */
+let expKategoriSuggestOptions = [];
 function showExpKategoriSuggest(){
   const val = document.getElementById('expKategori').value.trim().toLowerCase();
   const box = document.getElementById('expKategoriSuggestBox');
   const options = distinctExpenseCategories().filter(k=>!val || k.toLowerCase().includes(val));
+  expKategoriSuggestOptions = options;
   if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
-  box.innerHTML = options.map(k=>`<div class="suggest-item" onmousedown="event.preventDefault();selectExpKategoriSuggest('${k.replace(/'/g,"\\'")}')">${escapeHTML(k)}</div>`).join('');
+  box.innerHTML = options.map((k,i)=>`<div class="suggest-item" onmousedown="event.preventDefault();selectExpKategoriSuggest(${i})">${escapeHTML(k)}</div>`).join('');
   box.classList.add('show');
 }
 function hideExpKategoriSuggestDelayed(){
   setTimeout(()=>{ const box=document.getElementById('expKategoriSuggestBox'); if(box) box.classList.remove('show'); }, 150);
 }
-function selectExpKategoriSuggest(k){
+function selectExpKategoriSuggest(i){
+  const k = expKategoriSuggestOptions[i];
+  if(k===undefined) return;
   document.getElementById('expKategori').value = k;
   document.getElementById('expKategoriSuggestBox').classList.remove('show');
 }
