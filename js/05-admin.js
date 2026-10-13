@@ -416,6 +416,22 @@ function openAdminNotifPanel(){
   openSettingsSub('admin');
 }
 
+/* Klik notifikasi Web Push (OS-level, lihat notificationclick di sw.js)
+   SAAT tab app ini SUDAH terbuka -- sw.js fokus ke tab ini lalu kirim pesan
+   ini (BUKAN reload/navigate tab, supaya sesi & data yang sudah dimuat di
+   memori tidak hilang begitu saja) -- buka panel Admin Platform yang sama
+   persis seperti klik ikon lonceng dalam app. Kasus tab app BELUM terbuka
+   sama sekali ditangani terpisah di initUserData() (query `?adminNotif=1`
+   di url, lihat url yang dikirim notify-new-payment-request.js/
+   notify-new-account.js). */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if(event.data && event.data.type==='nk-push-click' && currentUser && isAdminEmail(currentUser.email)){
+      openAdminNotifPanel();
+    }
+  });
+}
+
 /* ===================== NOTIFIKASI PUSH ADMIN PLATFORM (Web Push) ===================== */
 /* Lonceng + badge di atas cuma kelihatan SELAGI tab app ini terbuka --
    kalau admin mau benar-benar dapat notifikasi gaya WhatsApp (muncul +
@@ -532,6 +548,18 @@ async function initUserData(){
     // benar-benar menyalakan polling-nya (lihat komentar lengkap di atas
     // startAdminNotifPolling()).
     if(isAdminEmail(currentUser.email)) startAdminNotifPolling(); else stopAdminNotifPolling();
+    // Tab BARU dibuka dari klik notifikasi Web Push saat app belum terbuka
+    // sama sekali (lihat self.clients.openWindow() di sw.js, url-nya berisi
+    // query ini) -- langsung buka panel Admin Platform begitu login & data
+    // awal selesai dimuat, lalu bersihkan query dari url (replaceState,
+    // BUKAN reload) supaya refresh manual berikutnya tidak ikut membuka
+    // panel ini lagi.
+    try{
+      if(isAdminEmail(currentUser.email) && new URLSearchParams(location.search).get('adminNotif')==='1'){
+        openAdminNotifPanel();
+        history.replaceState(null, '', location.pathname);
+      }
+    }catch(e){}
   }catch(e){
     console.error('Gagal memuat data awal:', e);
   }finally{

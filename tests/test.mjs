@@ -3705,6 +3705,92 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('listener message dari sw.js (klik notifikasi Web Push saat tab SUDAH terbuka): pesan {type:"nk-push-click"} langsung membuka panel Admin Platform TANPA reload tab', async () => {
+    const savedUser = currentUser;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      closeSettings();
+      closeSettingsSub();
+      if (document.getElementById('settingsModal').classList.contains('show')) throw new Error('setup sanity check gagal, modal settings harus tertutup dulu sebelum tes');
+
+      navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'nk-push-click', url: '/?adminNotif=1' } }));
+
+      if (!document.getElementById('settingsModal').classList.contains('show')) throw new Error('REGRESI: pesan nk-push-click dari sw.js harus langsung membuka panel Admin Platform');
+      if (!document.getElementById('settingsSub-admin').classList.contains('active')) throw new Error('REGRESI: harus langsung ke sub-panel Admin Platform, bukan grid kategori settings');
+    } finally {
+      currentUser = savedUser;
+      closeSettings();
+      closeSettingsSub();
+    }
+  });
+
+  await step('listener message dari sw.js: pesan dengan type lain ATAU bukan admin -> diabaikan, TIDAK membuka panel settings apa pun', async () => {
+    const savedUser = currentUser;
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      closeSettings();
+      closeSettingsSub();
+      navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'lain-lain' } }));
+      if (document.getElementById('settingsModal').classList.contains('show')) throw new Error('REGRESI: pesan selain nk-push-click tidak boleh membuka panel settings');
+
+      currentUser = { email: 'bukan-admin@example.com' };
+      navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'nk-push-click', url: '/?adminNotif=1' } }));
+      if (document.getElementById('settingsModal').classList.contains('show')) throw new Error('REGRESI: akun bukan admin tidak boleh ikut membuka panel Admin Platform cuma karena menerima pesan ini');
+    } finally {
+      currentUser = savedUser;
+      closeSettings();
+      closeSettingsSub();
+    }
+  });
+
+  await step('initUserData(): query `?adminNotif=1` di url (tab BARU dibuka dari klik notifikasi Web Push) -> langsung buka panel Admin Platform & bersihkan query dari url; tanpa query itu -> perilaku normal, tidak berubah', async () => {
+    // initUserData() memanggil 11 loader paralel yang menimpa variabel
+    // global BERSAMA (transactions, subscriptions, dkk, dipakai banyak test
+    // "feature smoke test" lain yang TIDAK set ulang datanya sendiri) --
+    // WAJIB snapshot & restore semuanya di sini (lihat konvensi testing di
+    // CLAUDE.md), kalau tidak test-test di belakang ikut gagal berantai.
+    const savedUser = currentUser;
+    const savedUrl = location.pathname + location.search + location.hash;
+    const saved = {
+      appBranding, settings, outlets, currentOutletId,
+      transactions, transactionsWindowStart, transactionsFullyLoaded,
+      serviceCatalog, subscriptions, allWorkUsage, savedContacts,
+      expenses, expenseCatalog, notes, currentTabName,
+    };
+    try {
+      currentUser = { email: ADMIN_EMAIL };
+      closeSettings();
+      closeSettingsSub();
+      history.pushState(null, '', '/?adminNotif=1');
+
+      await initUserData();
+
+      if (!document.getElementById('settingsModal').classList.contains('show')) throw new Error('REGRESI: query ?adminNotif=1 harus langsung membuka panel Admin Platform setelah initUserData() selesai');
+      if (!document.getElementById('settingsSub-admin').classList.contains('active')) throw new Error('REGRESI: harus langsung ke sub-panel Admin Platform');
+      if (location.search.includes('adminNotif')) throw new Error('REGRESI: query adminNotif harus dibersihkan dari url (replaceState) supaya refresh manual berikutnya tidak ikut membuka panel ini lagi, got ' + location.search);
+
+      closeSettings();
+      closeSettingsSub();
+      history.replaceState(null, '', '/');
+
+      await initUserData();
+
+      if (document.getElementById('settingsModal').classList.contains('show')) throw new Error('REGRESI: tanpa query adminNotif, initUserData() tidak boleh membuka panel settings sendiri');
+    } finally {
+      currentUser = savedUser;
+      closeSettings();
+      closeSettingsSub();
+      history.replaceState(null, '', savedUrl);
+      ({
+        appBranding, settings, outlets, currentOutletId,
+        transactions, transactionsWindowStart, transactionsFullyLoaded,
+        serviceCatalog, subscriptions, allWorkUsage, savedContacts,
+        expenses, expenseCatalog, notes, currentTabName,
+      } = saved);
+      renderAll();
+    }
+  });
+
   await step('startAdminNotifPolling()/stopAdminNotifPolling(): tampilkan/sembunyikan lonceng notifikasi & nyala/matikan interval polling-nya', async () => {
     const savedTimer = adminNotifPollTimer;
     const savedState = { ...adminNotifState };

@@ -17,7 +17,7 @@
  * auth/login & panggilan API selalu langsung ke jaringan, tidak pernah
  * lewat cache ini.
  */
-const CACHE_NAME = 'laundry-batapas-v9';
+const CACHE_NAME = 'laundry-batapas-v10';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -81,14 +81,23 @@ self.addEventListener('push', (event) => {
 
 /* Klik notifikasi -> fokus ke tab app yang sudah terbuka kalau ada (jangan
    buka tab baru lagi di atas tab yang sudah ada), baru buka tab baru kalau
-   belum ada sama sekali. */
+   belum ada sama sekali. Tab yang SUDAH terbuka SENGAJA tidak di-reload
+   (existing.navigate() akan reset seluruh state SPA di memori) -- kirim
+   postMessage() supaya js/05-admin.js (listener 'message') yang membuka
+   panel Admin Platform (openAdminNotifPanel()) sendiri, sama seperti klik
+   ikon lonceng dalam app. Tab BARU (belum ada sama sekali) baru pakai `url`
+   (berisi query `?adminNotif=1`) -- ditangkap initUserData() setelah login
+   selesai. */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
       const existing = clientsArr.find((c) => c.url.includes(self.location.origin));
-      if (existing) return existing.focus();
+      if (existing) {
+        existing.postMessage({ type: 'nk-push-click', url });
+        return existing.focus();
+      }
       return self.clients.openWindow(url);
     })
   );
