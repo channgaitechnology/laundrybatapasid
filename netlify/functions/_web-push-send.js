@@ -43,9 +43,19 @@ function createPushSender(webpush, config) {
     let sent = 0, removed = 0;
     await Promise.all(subs.map(async (row) => {
       try {
+        // urgency:'high' WAJIB -- tanpa ini, web-push default ke 'normal',
+        // yang menurut dokumentasi resmi FCM ("Setting the priority of a
+        // message") DITUNDA pengirimannya kalau device Android sedang Doze
+        // mode (layar mati/idle), baru benar-benar sampai begitu device
+        // "bangun" (user buka app/unlock HP) -- persis gejala nyata yang
+        // ditemukan saat tes: notifikasi baru muncul SETELAH app dibuka,
+        // bukan spontan walau server sudah sukses kirim (200/sent). 'high'
+        // membuat FCM "attempts to deliver high priority messages
+        // immediately even if the device is in Doze mode".
         await webpush.sendNotification(
           { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
-          JSON.stringify(payload)
+          JSON.stringify(payload),
+          { urgency: 'high' }
         );
         sent++;
       } catch (e) {

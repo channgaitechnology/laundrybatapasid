@@ -56,7 +56,7 @@ await step('createPushSender(): mengirim push ke SEMUA subscription yang ada, pa
   let vapidArgs = null;
   const fakeWebpush = {
     setVapidDetails: (...args) => { vapidArgs = args; },
-    sendNotification: async (sub, payload) => { sent.push({ sub, payload }); },
+    sendNotification: async (sub, payload, options) => { sent.push({ sub, payload, options }); },
   };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, json: async () => ([
@@ -72,6 +72,7 @@ await step('createPushSender(): mengirim push ke SEMUA subscription yang ada, pa
     assert.strictEqual(sent[0].sub.endpoint, 'https://push.example/1');
     assert.strictEqual(sent[0].sub.keys.p256dh, 'p1');
     assert.strictEqual(JSON.parse(sent[0].payload).title, 'Judul');
+    assert.strictEqual(sent[0].options && sent[0].options.urgency, 'high', 'REGRESI: harus kirim urgency:"high" -- tanpa ini FCM menunda pengiriman saat device Android Doze mode (lihat dokumentasi resmi FCM, root cause nyata notifikasi baru muncul setelah app dibuka)');
   } finally {
     globalThis.fetch = originalFetch;
   }
