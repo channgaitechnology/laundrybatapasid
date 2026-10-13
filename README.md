@@ -1917,6 +1917,75 @@ nama kategori sekarang TIDAK PERNAH masuk ke markup HTML selain lewat
 angka index, tidak ada string apa pun dari user yang disuntikkan ke
 atribut.
 
+### MEDIUM: `payment_requests` bisa di-spam tanpa batas SIAPA SAJA tanpa login — rate limit lewat trigger
+
+Ditemukan di audit lanjutan (13 Oktober 2026, atas permintaan user
+sendiri untuk melanjutkan cek fitur lain). Policy INSERT
+`payment_requests` (`with_check: true`) memang SENGAJA terbuka untuk
+siapa saja termasuk anon (form "Pendaftaran Baru" diisi SEBELUM user
+punya akun) — tapi TIDAK ADA pembatasan jumlah sama sekali. Siapa saja
+bisa POST langsung ke REST API (bukan lewat app) berkali-kali tanpa
+henti, dan SETIAP baris baru memicu **email** (Resend, kuota gratis
+terbatas) DAN **Web Push ke HP admin** (lihat bagian Notifikasi Push di
+atas) — bisa dipakai membanjiri notifikasi admin/menghabiskan kuota
+email asli sampai tidak terkirim.
+
+Diputuskan (atas pilihan user): tambah rate limit sederhana lewat
+**trigger database**, BUKAN ubah tampilan form (tidak ada CAPTCHA/gesekan
+tambahan buat calon pelanggan) dan BUKAN ubah arsitektur (tetap INSERT
+langsung dari browser seperti sekarang, tidak perlu proxy Netlify
+Function baru). Batasnya global (SEMUA baris baru di tabel ini,
+digabung, bukan per-nomor WA — nomor WA bisa diganti-ganti bebas oleh
+penyerang jadi tidak berguna sebagai kunci pembatas) — 20 baris per 10
+menit, cukup longgar untuk lonjakan pendaftaran asli, tapi membatasi
+serangan flood otomatis jadi maksimal ~120/jam (dari sebelumnya tanpa
+batas sama sekali). **Sengaja mengecualikan Service Role Key**
+(`auth.role() = 'service_role'`) — `netlify/functions/midtrans-create-transaction.js`/
+`midtrans-webhook.js` juga insert ke tabel ini dari server, request itu
+TERPERCAYA (dari kode kita sendiri, bukan browser sembarang), jangan
+ikut kena limit ini walau kebetulan ramai pembayaran asli bersamaan.
+
+```sql
+create or replace function payment_requests_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_recent_count int;
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  select count(*) into v_recent_count
+  from payment_requests
+  where created_at > now() - interval '10 minutes';
+
+  if v_recent_count >= 20 then
+    raise exception 'Terlalu banyak permintaan, coba lagi beberapa menit lagi';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists payment_requests_rate_limit_trigger on payment_requests;
+create trigger payment_requests_rate_limit_trigger
+  before insert on payment_requests
+  for each row
+  execute function payment_requests_rate_limit();
+```
+
+Tidak perlu perubahan kode browser sama sekali — `submitPaymentRequest()`/
+`requestRenewal()` (`js/02-init-data.js`/`js/03-langganan.js`) sudah
+menangani `error` dari `.insert()` secara umum (toast "Gagal mengirim,
+coba lagi"), jadi begitu limit kena, pesannya otomatis muncul lewat
+jalur yang sudah ada, tidak crash. Angka `20`/`10 minutes` bisa diubah
+kapan saja lewat `create or replace function` ulang kalau ternyata
+terlalu longgar/ketat di penggunaan nyata.
+
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)
