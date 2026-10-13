@@ -1665,11 +1665,21 @@ create policy "admin_update_own_push_subscription" on admin_push_subscriptions
 create policy "admin_delete_own_push_subscription" on admin_push_subscriptions
   for delete
   using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
+
+create policy "admin_select_own_push_subscription" on admin_push_subscriptions
+  for select
+  using ((auth.jwt()->>'email') in ('mukhlispertama@gmail.com','dokterlaundromat@gmail.com'));
 ```
 
-Sengaja TIDAK ada policy SELECT untuk client (`anon`/`authenticated`) —
-baris-baris ini cuma pernah dibaca oleh Netlify Function lewat Service
-Role Key (lihat bagian 3), tidak pernah lewat sesi login browser.
+Policy SELECT di atas WAJIB ada meski client tidak pernah secara eksplisit
+SELECT baris ini sendiri (ketahuan dari error nyata: `42501 new row violates
+row-level security policy`) — `enableAdminPushNotif()` (`js/05-admin.js`)
+pakai `.upsert(..., {onConflict:'endpoint'})`, yang di Postgres diterjemahkan
+jadi `INSERT ... ON CONFLICT DO UPDATE`. Sejak perbaikan CVE-2017-15099,
+jalur UPDATE dari `ON CONFLICT DO UPDATE` **wajib** mengecek baris lama
+MAUPUN baris baru lewat policy SELECT, bukan cuma policy INSERT/UPDATE —
+tanpa policy SELECT ini, RLS menolak upsert-nya sama sekali walau
+INSERT/UPDATE policy-nya sendiri sudah benar.
 
 **2. Pasangan kunci VAPID** — identitas kriptografis aplikasi ini sebagai
 "pengirim push" (wajib menurut spesifikasi Web Push, 1 pasang kunci
