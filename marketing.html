@@ -613,7 +613,7 @@ function renderLeads(){
       <div class="comm-body">
         <b>${escapeHTML(l.nama)}</b>
         <div class="comm-meta">
-          ${l.daerah ? escapeHTML(l.daerah) : ''}${l.sumber_link ? ' · <a href="'+escapeHTML(l.sumber_link)+'" target="_blank" rel="noopener">Sumber ↗</a>' : ''}
+          ${l.daerah ? escapeHTML(l.daerah) : ''}${l.sumber_link ? ' · <a href="'+escapeHTML(safeHref(l.sumber_link))+'" target="_blank" rel="noopener">Sumber ↗</a>' : ''}
         </div>
         ${l.catatan ? `<div class="comm-note">${escapeHTML(l.catatan)}</div>` : ''}
         <div class="lead-links">
