@@ -98,6 +98,20 @@ function buildAllWorkItemsRaw(){
   });
   return trxItems.concat(usageItems, beratItems);
 }
+/* Nota manual (mis. backfill nota kertas lama yang baru sempat diinput)
+   sering dicatat dengan TANGGAL TRANSAKSI yang sudah lama lewat, tapi
+   workStatus-nya masih "belum"/"sedang" karena pemilik lupa/tidak sempat
+   update status saat input -- kartunya jadi menumpuk terus di papan aktif
+   padahal jelas bukan kerjaan yang masih perlu dikerjakan sekarang.
+   papanAktifMinDate() dihitung ULANG setiap render (bukan dicek sekali
+   saat input) berdasarkan tanggal HARI INI, jadi kartu otomatis "turun"
+   dari papan begitu umurnya lewat 3 hari -- tidak perlu tindakan manual
+   (beda dari PAPAN_KERJA_MULAI_TANGGAL yang tanggalnya tetap/fixed). */
+function papanAktifMinDate(){
+  const d = new Date(todayISO()+'T00:00:00');
+  d.setDate(d.getDate()-3);
+  return toISODateLocal(d);
+}
 /* Daftar Tugas menggabungkan tiga sumber data jadi satu daftar kerjaan
    seragam: transaksi reguler (transactions), kunjungan Paket Bulanan/Tempo
    bertipe layanan_tambahan, DAN timbangan kg polos Paket Bulanan (type
@@ -106,7 +120,8 @@ function buildAllWorkItemsRaw(){
    harga pasti (baru ditagih di akhir periode/kalau lebih kuota), jadi
    kartunya menampilkan berat (kg) sebagai ganti harga. */
 function buildWorkItems(){
-  return buildAllWorkItemsRaw().filter(it=>(it.workStatus||'belum')!=='diambil' && it.tanggal >= PAPAN_KERJA_MULAI_TANGGAL);
+  const minDate = papanAktifMinDate();
+  return buildAllWorkItemsRaw().filter(it=>(it.workStatus||'belum')!=='diambil' && it.tanggal >= PAPAN_KERJA_MULAI_TANGGAL && it.tanggal >= minDate);
 }
 /* Untuk unduhan JPG rentang tanggal: SEMUA kerjaan (termasuk yang sudah
    diambil & yang lebih lama dari cutoff papan aktif) yang hari Estimasi

@@ -2390,6 +2390,25 @@ const result = await page.evaluate(async () => {
     });
   });
 
+  /* Seluruh blok test Papan Laundry di bawah ini (sampai sebelum "expense
+     catalog") memakai tanggal fixture tetap di sekitar Agustus-September
+     2026 sebagai "tanggal baru/aktif" -- itu valid waktu test ini ditulis,
+     TAPI begitu buildWorkItems() (js/17-papan-laundry.js) menambah filter
+     BARU "tanggal transaksi tidak boleh lebih dari 3 hari dari HARI INI"
+     (fitur baru: sembunyikan nota manual lama dari papan aktif), fixture
+     setua itu otomatis ikut tersembunyi SETIAP kali test ini dijalankan di
+     tanggal sungguhan yang sudah lewat jauh dari Agustus 2026 -- bukan
+     salah testnya, tapi jam dinding yang terus maju. `todayISO()` di-pin
+     ke PAPAN_KERJA_MULAI_TANGGAL (25 Agustus 2026) SELAMA blok ini saja
+     (dikembalikan di finally) supaya filter 3-hari yang baru tidak pernah
+     jadi lebih ketat dari cutoff lama yang sudah ada -- test KHUSUS untuk
+     filter 3-hari itu sendiri (lihat di bawah, tanggal September) sengaja
+     pakai pin tanggal lokalnya sendiri yang lebih baru, supaya filter 25
+     Agustus tidak ikut menutupi filter 3-hari yang sedang diuji. */
+  const __papanAktifSavedTodayISO = todayISO;
+  todayISO = () => PAPAN_KERJA_MULAI_TANGGAL;
+  try {
+
   await step('renderWorkBoard() renders a fixed 7-column Senin->Ahad grid (columns always present, even empty), regardless of insertion order, showing ONLY nama/layanan/tanggal/harga on each card (no kode, no payment badge)', () => {
     allWorkUsage = [];
     transactions = [
@@ -2519,6 +2538,30 @@ const result = await page.evaluate(async () => {
     if (html.includes('Nota Lama')) throw new Error('transaction dated before the 2026-08-25 cutoff should be excluded from Papan Kerja: ' + html);
     if (!html.includes('Nota Baru')) throw new Error('transaction dated exactly on the cutoff (2026-08-25, inclusive) should still appear: ' + html);
     if (html.includes('Handuk Lama')) throw new Error('usage item dated before the 2026-08-25 cutoff should be excluded from Papan Kerja: ' + html);
+  });
+
+  await step('REGRESI: buildWorkItems()/renderWorkBoard() menyembunyikan nota manual yang TANGGAL TRANSAKSINYA sudah lewat dari 3 hari dari HARI INI -- bukan dari cutoff papan 25 Agustus -- supaya nota kertas lama yang baru sempat diinput (workStatus lupa di-update) tidak menumpuk terus di papan aktif', () => {
+    // Pin "hari ini" ke tanggal yang JAUH setelah PAPAN_KERJA_MULAI_TANGGAL
+    // (25 Agustus) supaya filter 3-hari yang baru ini BENAR-BENAR diuji --
+    // kalau dipin ke 25 Agustus seperti blok luar, cutoff lama (25 Agustus)
+    // akan selalu lebih ketat dan menutupi filter baru ini sama sekali.
+    const savedToday = todayISO;
+    todayISO = () => '2026-09-10';
+    try {
+      transactions = [
+        { id:'wb-4hari-lewat', kode:'WB-70', nama:'Nota 4 Hari Lalu', hp:'', tanggal:'2026-09-06', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:5000,subtotal:5000}], diskon:0, total:5000, dp:0, status:'belum', catatan:'', workStatus:'belum' },
+        { id:'wb-3hari-pas', kode:'WB-71', nama:'Nota Pas 3 Hari Lalu', hp:'', tanggal:'2026-09-07', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:5000,subtotal:5000}], diskon:0, total:5000, dp:0, status:'belum', catatan:'', workStatus:'belum' },
+        { id:'wb-hari-ini', kode:'WB-72', nama:'Nota Hari Ini', hp:'', tanggal:'2026-09-10', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:5000,subtotal:5000}], diskon:0, total:5000, dp:0, status:'belum', catatan:'', workStatus:'belum' },
+      ];
+      allWorkUsage = [];
+      renderWorkBoard();
+      const html = document.getElementById('workBoardGrid').innerHTML;
+      if (html.includes('Nota 4 Hari Lalu')) throw new Error('REGRESI: nota bertanggal LEBIH dari 3 hari lalu (06 Sep, "hari ini" di-pin ke 10 Sep) harus disembunyikan dari papan aktif walau workStatus-nya masih "belum": ' + html);
+      if (!html.includes('Nota Pas 3 Hari Lalu')) throw new Error('nota bertanggal PERSIS 3 hari lalu (batas inklusif) masih harus tampil: ' + html);
+      if (!html.includes('Nota Hari Ini')) throw new Error('nota bertanggal hari ini harus tetap tampil: ' + html);
+    } finally {
+      todayISO = savedToday;
+    }
   });
 
   await step('setWorkStatus()/markPickedUp() for source="usage" update subscription_usage (not transactions) and allWorkUsage in-memory', async () => {
@@ -2836,6 +2879,8 @@ const result = await page.evaluate(async () => {
     if (!html.includes('Cuci Setrika Super Ekspress') || !html.includes('Selimut Kecil') || !html.includes('Selimut Perlak')) throw new Error('kartu gabungan harus tetap menyebutkan ketiga layanan: ' + html);
     if (!html.includes('Rp90.900')) throw new Error('harga kartu gabungan harus dijumlahkan dari semua layanan (75900+5000+10000=90900): ' + html);
   });
+
+  } finally { todayISO = __papanAktifSavedTodayISO; }
 
   await step('expense catalog: add via addOrUpdateExpenseCatalogItem(), autocomplete fills harga/satuan, edit updates it', async () => {
     switchTab('pengeluaran');
