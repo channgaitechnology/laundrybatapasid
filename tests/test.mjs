@@ -2912,8 +2912,31 @@ const result = await page.evaluate(async () => {
     const box = document.getElementById('expKategoriSuggestBox');
     if (!box.innerHTML.includes('Listrik')) throw new Error('default categories should be suggested');
     if (!box.innerHTML.includes('Kategori Custom Saya')) throw new Error('previously-used custom category should also be suggested (extensible categories)');
-    selectExpKategoriSuggest('Kategori Custom Saya');
+    selectExpKategoriSuggest(expKategoriSuggestOptions.indexOf('Kategori Custom Saya'));
     if (document.getElementById('expKategori').value !== 'Kategori Custom Saya') throw new Error('selecting suggestion should fill the input');
+  });
+
+  await step('REGRESI KEAMANAN (audit 13 Okt 2026): showExpKategoriSuggest() tidak boleh bisa di-attribute-breakout -- nama kategori dengan tanda kutip GANDA dulu bisa menyuntik event handler baru lewat onmousedown (stored XSS), sekarang pakai index ke array, bukan string mentah', () => {
+    const payload = '" onmouseover="alert(1)//';
+    expenses = [{ id:'e-xss', tanggal:'2026-08-01', nama:'Beli X', qty:1, satuan:'pcs', harga:1000, jumlah:1000, kategori: payload, catatan:'' }];
+    document.getElementById('expKategori').value = '';
+    showExpKategoriSuggest();
+    const box = document.getElementById('expKategoriSuggestBox');
+    const items = Array.from(box.querySelectorAll('.suggest-item'));
+    const poisoned = items.find(el => el.textContent === payload);
+    if (!poisoned) throw new Error('REGRESI: suggestion untuk kategori payload tidak ditemukan sama sekali: ' + box.innerHTML);
+    // Cek lewat DOM API (properti elemen sungguhan), BUKAN substring di string
+    // HTML -- payload-nya SENGAJA berisi teks "onmouseover=" sebagai LABEL
+    // yang memang harus tetap tampil apa adanya (sudah benar di-escape lewat
+    // escapeHTML() jadi teks biasa), jadi substring check di .innerHTML akan
+    // selalu false-positive di sini. Yang benar-benar dicek: apakah elemen
+    // itu SUNGGUHAN punya atribut `onmouseover` tersuntik (artinya attribute
+    // breakout berhasil) -- harus null/tidak ada sama sekali.
+    if (poisoned.onmouseover !== null) throw new Error('REGRESI KRITIS: nama kategori berhasil menyuntik HANDLER onmouseover sungguhan ke elemen DOM (stored XSS): ' + poisoned.outerHTML);
+    if (poisoned.getAttribute('onmouseover') !== null) throw new Error('REGRESI KRITIS: nama kategori berhasil menyuntik ATRIBUT onmouseover sungguhan ke elemen DOM (stored XSS): ' + poisoned.outerHTML);
+    if (typeof poisoned.onmousedown !== 'function') throw new Error('setiap suggestion harus tetap bisa dipilih lewat onmousedown (berbasis index): ' + poisoned.outerHTML);
+    selectExpKategoriSuggest(expKategoriSuggestOptions.indexOf(payload));
+    if (document.getElementById('expKategori').value !== payload) throw new Error('memilih suggestion lewat index harus tetap mengisi nilai kategori yang benar apa adanya: ' + document.getElementById('expKategori').value);
   });
 
   await step('submitExpense() builds an itemized nota (nama+qty+satuan+harga -> jumlah), like a regular transaction', async () => {

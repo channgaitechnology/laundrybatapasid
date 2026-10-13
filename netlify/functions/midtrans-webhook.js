@@ -16,6 +16,7 @@
  * lihat komentar di file itu.
  */
 const crypto = require('crypto');
+const { verifyWebhookSecret } = require('./_verify-webhook-secret');
 
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -29,13 +30,10 @@ function verifySignature(body, serverKey) {
     .digest('hex');
   // Bandingkan pakai timingSafeEqual (bukan ===) -- jaga-jaga terhadap timing
   // attack (durasi perbandingan string biasa bisa sedikit bocorkan di
-  // karakter mana perbedaannya terjadi). timingSafeEqual WAJIB panjang buffer
-  // sama, jadi cek panjang dulu (aman -- SHA512 hex selalu tepat 128 karakter,
-  // bukan info yang bisa dimanfaatkan penyerang).
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const providedBuf = Buffer.from(String(body.signature_key || ''), 'utf8');
-  if (expectedBuf.length !== providedBuf.length) return false;
-  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+  // karakter mana perbedaannya terjadi). Dipakai bersama notify-new-*.js
+  // lewat _verify-webhook-secret.js (audit 13 Okt 2026 -- 2 file itu dulu
+  // masih pakai `!==` biasa, sekarang konsisten pakai pola yang sama).
+  return verifyWebhookSecret(body.signature_key, expected);
 }
 
 async function supabaseRest(path, options) {

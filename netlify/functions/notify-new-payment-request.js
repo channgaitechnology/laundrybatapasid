@@ -31,6 +31,8 @@
  * SENGAJA best-effort, gagal/belum disetel TIDAK BOLEH menggagalkan email
  * yang sudah berhasil terkirim.
  */
+const { verifyWebhookSecret } = require('./_verify-webhook-secret');
+
 const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL;
@@ -82,7 +84,7 @@ exports.handler = async (event) => {
 
   const headers = event.headers || {};
   const gotSecret = headers['x-webhook-secret'] || headers['X-Webhook-Secret'];
-  if (gotSecret !== PAYMENT_WEBHOOK_SECRET) {
+  if (!verifyWebhookSecret(gotSecret, PAYMENT_WEBHOOK_SECRET)) {
     // Sengaja balas 401 (bukan diam-diam 200) -- beda dari webhook Midtrans,
     // di sini tidak ada risiko "retry storm" karena Supabase Database
     // Webhooks tidak mengulang notifikasi gagal sekencang Midtrans.

@@ -35,6 +35,8 @@
  * tanpa notifikasi apa pun) supaya ketahuan dari log Netlify kalau ada
  * yang belum diisi.
  */
+const { verifyWebhookSecret } = require('./_verify-webhook-secret');
+
 const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
@@ -69,7 +71,7 @@ exports.handler = async (event) => {
 
   const headers = event.headers || {};
   const gotSecret = headers['x-webhook-secret'] || headers['X-Webhook-Secret'];
-  if (gotSecret !== PAYMENT_WEBHOOK_SECRET) {
+  if (!verifyWebhookSecret(gotSecret, PAYMENT_WEBHOOK_SECRET)) {
     return { statusCode: 401, body: 'Tidak diizinkan' };
   }
 
