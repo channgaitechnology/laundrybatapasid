@@ -95,10 +95,12 @@ exports.handler = async (event) => {
       supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
       vapidPublicKey: VAPID_PUBLIC_KEY, vapidPrivateKey: VAPID_PRIVATE_KEY, contactEmail: ADMIN_NOTIFY_EMAIL,
     });
+    // url `/?adminNotif=1` -- lihat komentar sama di notify-new-payment-request.js,
+    // membuka panel Admin Platform langsung saat notifikasi diklik.
     const result = await pushSender.sendPushToAdmins({
       title: '🔔 Akun Toko Baru Terdaftar',
       body: shopName ? `${shopName} — ${statusLabel}` : `Toko baru — ${statusLabel}`,
-      url: '/',
+      url: '/?adminNotif=1',
     });
     console.log('[push] notify-new-account:', JSON.stringify(result));
   } catch (e) {

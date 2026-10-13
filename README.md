@@ -1767,7 +1767,26 @@ di sisi device/browser, BUKAN kode: subscription basi (coba
 nonaktifkan→aktifkan lagi tombol push di device itu), izin notifikasi
 Chrome di-disable di level OS Android (Settings → Apps → Chrome →
 Notifications), atau battery saver/Do Not Disturb yang memblokir
-notifikasi background.
+notifikasi background. Ditemukan nyata di Poco X6 Pro (HyperOS/MIUI) —
+battery saver khusus app "Dokter Laundry" (WebAPK hasil "Add to Home
+Screen") harus di-set "No restrictions"/"Tanpa batasan" dulu, baru push
+benar-benar muncul; HP dengan skin custom serupa (Oppo/Vivo/Realme dkk)
+biasanya punya menu battery/autostart serupa yang perlu dicek juga.
+
+**Klik notifikasi langsung membuka panel Admin Platform**: `url` yang
+dikirim kedua function (`/?adminNotif=1`, BUKAN cuma `/`) ditangkap 2
+tempat berbeda di `js/05-admin.js` tergantung tab app-nya sudah terbuka
+atau belum saat notifikasi diklik — `notificationclick` di `sw.js` CUMA
+`focus()` tab yang sudah ada (SENGAJA tidak `navigate()`/reload, supaya
+sesi & data yang sudah dimuat di memori tidak hilang), lalu
+`postMessage({type:'nk-push-click', url})` ke tab itu; listener
+`navigator.serviceWorker.addEventListener('message', ...)` di
+`js/05-admin.js` yang baru benar-benar memanggil `openAdminNotifPanel()`.
+Kalau tab BELUM terbuka sama sekali, `sw.js` buka tab baru lewat
+`clients.openWindow(url)` biasa, dan `initUserData()` yang membaca query
+`?adminNotif=1` itu begitu login & data awal selesai dimuat (lalu
+`history.replaceState()` membersihkan query-nya dari url, supaya refresh
+manual berikutnya tidak ikut membuka panel ini lagi).
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.

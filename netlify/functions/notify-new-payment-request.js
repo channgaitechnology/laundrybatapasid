@@ -57,7 +57,12 @@ async function sendPushBestEffort(title, body) {
       supabaseUrl: SUPABASE_URL, serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
       vapidPublicKey: VAPID_PUBLIC_KEY, vapidPrivateKey: VAPID_PRIVATE_KEY, contactEmail: ADMIN_NOTIFY_EMAIL,
     });
-    const result = await pushSender.sendPushToAdmins({ title, body, url: '/' });
+    // url `/?adminNotif=1` (BUKAN cuma '/') -- ditangkap js/05-admin.js
+    // (initUserData() utk tab baru, listener 'message' dari sw.js utk tab
+    // yang sudah terbuka) supaya klik notifikasi langsung membuka panel
+    // Admin Platform (openAdminNotifPanel()), bukan cuma buka app ke layar
+    // biasa lalu admin harus cari-cari menunya sendiri.
+    const result = await pushSender.sendPushToAdmins({ title, body, url: '/?adminNotif=1' });
     console.log('[push] notify-new-payment-request:', JSON.stringify(result));
   } catch (e) {
     // TETAP diamkan dari sisi pemanggil (lihat komentar env var tambahan di

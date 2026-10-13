@@ -165,6 +165,7 @@ await step('notify-new-payment-request.js: dengan VAPID_PUBLIC_KEY/PRIVATE_KEY l
     const pushBody = JSON.parse(pushSent[0].payload);
     assert.ok(pushBody.title.includes('Pendaftaran Baru'), 'judul push harus sama konteksnya dengan subjek email: ' + pushBody.title);
     assert.ok(pushBody.body.includes('Siti Laundry'), 'isi push harus menyebut nama pendaftar: ' + pushBody.body);
+    assert.strictEqual(pushBody.url, '/?adminNotif=1', 'REGRESI: url push harus bawa query adminNotif=1 supaya klik notifikasi langsung membuka panel Admin Platform (lihat sw.js notificationclick + initUserData()/js/05-admin.js)');
   } finally {
     globalThis.fetch = originalFetch;
     webpush.sendNotification = originalSend;
@@ -252,6 +253,7 @@ await step('notify-new-account.js: secret benar + konfigurasi lengkap -> lookup 
     assert.ok(pushBody.title.includes('Akun Toko Baru'), pushBody.title);
     assert.ok(pushBody.body.includes('Laundry Mawar'), 'harus menyebut nama toko hasil lookup settings: ' + pushBody.body);
     assert.ok(pushBody.body.includes('trial'), 'harus menyebut status trial: ' + pushBody.body);
+    assert.strictEqual(pushBody.url, '/?adminNotif=1', 'REGRESI: url push harus bawa query adminNotif=1 (lihat komentar di notify-new-payment-request.js)');
   } finally {
     globalThis.fetch = originalFetch;
     webpush.sendNotification = originalSend;
