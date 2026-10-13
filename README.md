@@ -1768,10 +1768,28 @@ nonaktifkan→aktifkan lagi tombol push di device itu), izin notifikasi
 Chrome di-disable di level OS Android (Settings → Apps → Chrome →
 Notifications), atau battery saver/Do Not Disturb yang memblokir
 notifikasi background. Ditemukan nyata di Poco X6 Pro (HyperOS/MIUI) —
-battery saver khusus app "Dokter Laundry" (WebAPK hasil "Add to Home
-Screen") harus di-set "No restrictions"/"Tanpa batasan" dulu, baru push
-benar-benar muncul; HP dengan skin custom serupa (Oppo/Vivo/Realme dkk)
-biasanya punya menu battery/autostart serupa yang perlu dicek juga.
+battery saver untuk KEDUA app "Dokter Laundry" (WebAPK hasil "Add to
+Home Screen") DAN "Chrome" (browser induknya, entri TERPISAH di menu
+battery/autostart HyperOS) harus di-set "No restrictions"/"Tanpa
+batasan"; HP dengan skin custom serupa (Oppo/Vivo/Realme dkk) biasanya
+punya menu battery/autostart serupa yang perlu dicek untuk keduanya juga.
+
+**Root cause KEDUA yang ditemukan di kasus nyata yang sama**: battery
+saver di atas sempat SUDAH benar, TAPI notifikasi masih baru muncul
+TEPAT SETELAH app dibuka manual (bukan spontan di background) --
+ternyata `webpush.sendNotification()` di `_web-push-send.js` TIDAK
+pernah menentukan `urgency` sama sekali, jadi defaultnya `'normal'`.
+Dikonfirmasi lewat dokumentasi resmi Firebase Cloud Messaging
+(firebase.google.com/docs/cloud-messaging/android-message-priority):
+*"Normal priority messages are delivered immediately when the device is
+not sleeping. When the device is in Doze mode, delivery may be delayed
+... until the device exits doze"* -- sedangkan *"FCM attempts to deliver
+high priority messages immediately even if the device is in Doze
+mode."* Ini PERSIS menjelaskan gejalanya: device Android yang sedang
+Doze (layar mati/idle, walau battery saver app-nya sudah "No
+restrictions") tetap menahan pesan push NORMAL sampai device aktif lagi
+-- bukan bug kode/RLS/dkk. Fix: kirim `{ urgency: 'high' }` sebagai
+parameter ketiga `sendNotification()`.
 
 **Klik notifikasi langsung membuka panel Admin Platform**: `url` yang
 dikirim kedua function (`/?adminNotif=1`, BUKAN cuma `/`) ditangkap 2
