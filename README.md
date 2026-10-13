@@ -171,6 +171,19 @@ Sebelum kolom ini ada, tab Daftar Tugas tetap terbuka tapi tombol ubah status
 akan gagal dengan toast error — transaksi tetap tersimpan normal, hanya
 fitur Daftar Tugas-nya yang belum aktif.
 
+**Nota dengan tanggal transaksi lebih dari 3 hari dari hari ini otomatis
+disembunyikan dari papan aktif** (`buildWorkItems()`/`js/17-papan-laundry.js`),
+walau `work_status`-nya masih `belum`/`sedang` — ditambahkan karena nota
+manual (backfill nota kertas lama yang baru sempat diinput) sering tercatat
+dengan tanggal jauh di masa lalu, dan pemiliknya tidak selalu sempat
+mengubah status kerjanya saat input, sehingga kartunya menumpuk terus di
+papan. Ambang batasnya DIHITUNG ULANG setiap render berdasarkan tanggal
+HARI INI (beda dari `PAPAN_KERJA_MULAI_TANGGAL` di atas, yang tanggalnya
+tetap/fixed) — jadi kartu otomatis "turun" sendiri dari papan begitu
+umurnya lewat 3 hari, tidak perlu tindakan manual apa pun. Transaksi/baris
+usage-nya sendiri TIDAK terhapus & TIDAK ikut tersembunyi di Riwayat/
+Laporan/unduhan JPG rentang tanggal — cuma tidak tampil di papan AKTIF.
+
 Supaya kerjaan **Paket Bulanan & Tempo** juga ikut muncul di Daftar Tugas
 (sebelumnya cuma transaksi reguler), tabel `subscription_usage` butuh 2
 kolom tambahan yang sama:
