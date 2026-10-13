@@ -1723,16 +1723,25 @@ terpisah). Tambahkan SATU LAGI, khusus toko baru:
 - **URL**: `https://<situs-kamu>.netlify.app/.netlify/functions/notify-new-account`
 - **HTTP Headers**: `X-Webhook-Secret: <nilai PAYMENT_WEBHOOK_SECRET yang sama>`
 
-**5. Dependency `web-push`** (`netlify/functions/package.json`) — Netlify
-otomatis `npm install` package.json ini sebelum bundling functions,
-TIDAK perlu langkah manual tambahan. Kalau deploy gagal dengan error
-`Cannot find module 'web-push'`, cek log build Netlify (kemungkinan
-butuh `npm install` dijalankan manual sekali atau cache build
-dibersihkan) — fungsi email (`notify-new-payment-request.js`) tetap
-jalan normal TANPA `web-push` terinstall sama sekali (require()-nya
-lazy, cuma dipanggil kalau `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` sudah
-diisi, lihat komentar di file itu) — yang gagal cuma jalur push-nya,
-bukan email yang sudah terbukti jalan sebelumnya.
+**5. Dependency `web-push`** (`package.json` di **ROOT repo**, BUKAN di
+`netlify/functions/`) — percobaan pertama menaruh `package.json` di
+dalam `netlify/functions/` TERBUKTI GAGAL di produksi (`Cannot find
+module 'web-push'` di log function, ketahuan lewat `net._http_response`
+status 502 saat tes trigger `app_subscriptions` sungguhan) — menurut
+dokumentasi resmi Netlify, `npm install` otomatis CUMA jalan untuk
+`package.json` di *base directory* situs (root repo), bahkan untuk
+situs statis tanpa `[build.command]` sekalipun; package.json di
+subfolder manapun (termasuk `netlify/functions/`) diam-diam diabaikan.
+Taruh di root (sudah dilakukan) dan Netlify otomatis `npm install`-kan
+sebelum bundling functions, TIDAK perlu `[build.command]` tambahan.
+App browser (`index.html`/`js/*.js`) TIDAK membaca `package.json` ini
+sama sekali — situs tetap statis murni, file ini cuma dipakai Netlify
+sebelum packaging functions. Fungsi email
+(`notify-new-payment-request.js`) tetap jalan normal TANPA `web-push`
+terinstall sama sekali (require()-nya lazy, cuma dipanggil kalau
+`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` sudah diisi, lihat komentar di
+file itu) — yang gagal cuma jalur push-nya, bukan email yang sudah
+terbukti jalan sebelumnya.
 
 **Keterbatasan yang perlu diketahui**: perlu dinyalakan TERPISAH di
 SETIAP perangkat/browser yang admin pakai (subscription-nya per-browser,
