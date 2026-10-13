@@ -312,6 +312,22 @@ function showToast(msg){
 function escapeHTML(s){
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+/* REGRESI KEAMANAN (audit 13 Okt 2026): escapeHTML() cuma meng-escape
+   karakter HTML (&<>"') -- itu TIDAK menghalangi skema URL berbahaya
+   seperti `javascript:alert(1)` yang sama sekali tidak mengandung
+   karakter itu, jadi lolos begitu saja ke atribut href. Link komunitas
+   (field `link`, diisi bebas manual) & hasil pencarian online (dari
+   Serper API, data pihak ketiga) sama-sama dipakai langsung sebagai
+   href -- validasi skemanya dulu di sini (cuma izinkan http/https),
+   baru escapeHTML() untuk karakter HTML-nya seperti biasa. Risiko di
+   alat ini sendiri rendah (cuma 2 akun ADMIN_EMAILS yang bisa akses,
+   lihat RLS marketing_communities/marketing_leads), tapi tetap pola
+   yang salah untuk dibiarkan. */
+function safeHref(url){
+  const s = String(url||'').trim();
+  if(!/^https?:\/\//i.test(s)) return '#';
+  return s;
+}
 
 async function handleLogin(){
   const email = document.getElementById('authEmail').value.trim();
@@ -417,7 +433,7 @@ function renderCommunities(){
     return `
     <div class="comm-item">
       ${resolved
-        ? `<a class="comm-plat" href="${escapeHTML(resolved.url)}" target="_blank" rel="noopener" title="${escapeHTML(resolved.label)}">${PLATFORM_ICON[c.platform]||'🔗'}</a>`
+        ? `<a class="comm-plat" href="${escapeHTML(safeHref(resolved.url))}" target="_blank" rel="noopener" title="${escapeHTML(resolved.label)}">${PLATFORM_ICON[c.platform]||'🔗'}</a>`
         : `<div class="comm-plat">${PLATFORM_ICON[c.platform]||'🔗'}</div>`}
       <div class="comm-body">
         <b>${escapeHTML(c.nama)}</b>
@@ -426,7 +442,7 @@ function renderCommunities(){
         </div>
         ${c.kontak_admin ? `<div class="comm-meta">Kontak: ${escapeHTML(c.kontak_admin)}</div>` : ''}
         ${c.catatan ? `<div class="comm-note">${escapeHTML(c.catatan)}</div>` : ''}
-        ${resolved ? `<a class="comm-open-btn" href="${escapeHTML(resolved.url)}" target="_blank" rel="noopener">${escapeHTML(resolved.label)} ↗</a>` : ''}
+        ${resolved ? `<a class="comm-open-btn" href="${escapeHTML(safeHref(resolved.url))}" target="_blank" rel="noopener">${escapeHTML(resolved.label)} ↗</a>` : ''}
       </div>
       <div class="comm-actions">
         <button class="icon-btn-sm" onclick="openCommModal('${c.id}')">✏️</button>
@@ -530,7 +546,7 @@ async function searchCommunitiesOnline(){
     resultsEl.innerHTML = lastSearchResults.map((r,idx)=>`
       <div class="search-result">
         <b>${escapeHTML(r.title)}</b>
-        <a class="sr-link" href="${escapeHTML(r.link)}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
+        <a class="sr-link" href="${escapeHTML(safeHref(r.link))}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
         <div class="sr-snippet">${escapeHTML(r.snippet)}</div>
         <button class="btn btn-primary" onclick="addSearchResultToDb(${idx})">+ Tambah ke Database</button>
       </div>`).join('');
@@ -712,7 +728,7 @@ async function searchLeadsOnline(){
     resultsEl.innerHTML = lastLeadResults.map((r,idx)=>`
       <div class="search-result">
         <b>${escapeHTML(r.title)}</b>
-        <a class="sr-link" href="${escapeHTML(r.link)}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
+        <a class="sr-link" href="${escapeHTML(safeHref(r.link))}" target="_blank" rel="noopener">${escapeHTML(r.link)}</a>
         <div class="sr-snippet">${escapeHTML(r.snippet)}</div>
         <div>
           ${r.phone ? `<span class="sr-detected">📱 ${escapeHTML(r.phone)}</span>` : ''}

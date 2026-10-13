@@ -1238,6 +1238,30 @@ ditolak & di-sign-out.
 
 Dibangun bertahap — fitur pertama yang sudah ada:
 
+### LOW: link komunitas/hasil pencarian bisa berupa `javascript:` URI — `safeHref()`
+
+Ditemukan di audit lanjutan (13 Oktober 2026). `marketing.html` punya
+`innerHTML`-nya SENDIRI (file terpisah dari `index.html`/`js/*.js`,
+TIDAK ikut tercakup audit XSS sebelumnya) — di 4 tempat, field `link`
+(diisi bebas manual lewat form "Tambah Komunitas", atau hasil pencarian
+online dari Serper API) dipakai langsung sebagai `href="${escapeHTML(...)}"`.
+`escapeHTML()` cuma meng-escape karakter HTML (`&<>"'`) — itu TIDAK
+menghalangi skema URL seperti `javascript:alert(1)` yang sama sekali
+tidak mengandung karakter itu, jadi lolos begitu saja ke atribut `href`
+dan tereksekusi saat link-nya diklik. Risiko di alat ini sendiri rendah
+(cuma 2 akun `ADMIN_EMAILS` yang bisa akses sama sekali, lihat RLS
+`marketing_communities`/`marketing_leads` — admin menyerang diri
+sendiri/admin lain, bukan celah publik), tapi tetap pola yang salah
+untuk dibiarkan.
+
+Diperbaiki: tambah `safeHref(url)` — cuma izinkan skema `http://`/`https://`,
+selain itu balik `'#'` (link mati, aman) — dipakai SEBELUM `escapeHTML()`
+di keempat tempat (`resolveCommLink()` punya `link` untuk komunitas,
+hasil pencarian `r.link` dari Serper API untuk komunitas maupun kontak
+laundry). Diverifikasi langsung lewat browser headless sungguhan:
+`javascript:`/`data:` URI diblokir jadi `'#'`, `http(s)://` (termasuk
+huruf besar) tetap lolos apa adanya.
+
 ### Riset Komunitas
 
 Daftar komunitas pemilik usaha laundry di Indonesia (asosiasi, grup
