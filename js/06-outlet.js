@@ -221,6 +221,13 @@ function handleLogoFileChange(event){
   const file = event.target.files && event.target.files[0];
   if(!file) return;
   if(!file.type.startsWith('image/')){ showToast(t('Pilih berkas gambar (JPG/PNG)')); event.target.value=''; return; }
+  // Hasil akhirnya selalu di-resize kecil (240x240), tapi TANPA cek ini
+  // berkas aslinya (apa pun ukurannya) tetap dibaca utuh ke memori lewat
+  // FileReader + didekode penuh oleh <img> SEBELUM sempat di-resize --
+  // berkas yang sangat besar (puluhan-ratusan MB, mis. foto panorama/RAW)
+  // bisa bikin tab browser nge-hang di HP yang RAM-nya kecil. Batas 15MB
+  // longgar untuk foto HP biasa (umumnya cuma beberapa MB).
+  if(file.size > 15*1024*1024){ showToast(t('Ukuran file terlalu besar (maks 15MB)')); event.target.value=''; return; }
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();

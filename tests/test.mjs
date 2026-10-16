@@ -1958,6 +1958,26 @@ const result = await page.evaluate(async () => {
     if (!appbarLogo.src.endsWith(SHOP_LOGO_B64)) throw new Error('appbar logo should revert to default SHOP_LOGO_B64 (' + SHOP_LOGO_B64 + '): ' + appbarLogo.src);
   });
 
+  await step('handleLogoFileChange()/insertNoteImage(): menolak file gambar >15MB SEBELUM dibaca ke memori lewat FileReader -- tanpa ini, berkas besar didekode penuh dulu sebelum di-resize, bisa bikin tab browser hang', () => {
+    const bigFakeFile = { type: 'image/jpeg', size: 16 * 1024 * 1024 };
+    const toastCalls = [];
+    const originalShowToast = window.showToast;
+    window.showToast = (msg) => toastCalls.push(msg);
+    try {
+      const fakeInput1 = { value: 'x', files: [bigFakeFile] };
+      handleLogoFileChange({ target: fakeInput1 });
+      if (!toastCalls.some(m => /besar/i.test(m))) throw new Error('handleLogoFileChange() harus menolak file >15MB dengan toast yang jelas, got: ' + JSON.stringify(toastCalls));
+      if (fakeInput1.value !== '') throw new Error('input file harus dikosongkan lagi setelah file besar ditolak');
+
+      toastCalls.length = 0;
+      const fakeInput2 = { value: 'x', files: [bigFakeFile] };
+      insertNoteImage({ target: fakeInput2 });
+      if (!toastCalls.some(m => /besar/i.test(m))) throw new Error('insertNoteImage() harus menolak file >15MB dengan toast yang jelas, got: ' + JSON.stringify(toastCalls));
+    } finally {
+      window.showToast = originalShowToast;
+    }
+  });
+
   await step('The auth-screen (login) logo is a separate hardcoded <img>, unaffected by shopLogoSrc()', () => {
     const authLogoImgs = document.querySelectorAll('#authScreen img');
     if (authLogoImgs.length === 0) throw new Error('expected at least one <img> inside #authScreen');
