@@ -272,6 +272,7 @@ async function openSubsDetail(id){
   document.getElementById('extraQty').value = '1';
   draftExtraItems = [];
   renderExtraDraftList();
+  resetExtraServiceEditUI();
   await refreshSubsDetail();
   document.getElementById('subsDetailModal').classList.add('show');
 }
@@ -460,7 +461,7 @@ function renderUsageList(){
   const pemakaianHTML = pemakaianList.map((u,i)=>`<div class="item-line" style="align-items:center;">
       ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — ${t('Laundry masuk')} ${u.catatan ? '('+escapeHTML(u.catatan)+')' : ''}`)}
       <span style="display:flex;align-items:center;gap:8px;flex:none;">${fmtKg(u.berat)} kg
-        <button onclick="openUsageNotaOptions('${u.id}')" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="${t('Kirim nota')}">🧾</button>
+        <button onclick="openUsageNotaOptions('${u.id}')" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="${t('Kirim nota')}">🧾 ${t('Nota')}</button>
         <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
       </span>
     </div>`).join('');
@@ -471,7 +472,8 @@ function renderUsageList(){
       return `<div class="item-line" style="align-items:center;">
         ${numberedLabel(i+1, `${fmtDate(u.tanggal)} — ${escapeHTML(u.layananNama)} (${u.qty} ${u.satuan})`)}
         <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(u.subtotal)}
-          <button onclick="openBatchUsageNotaOptions(['${u.id}'])" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="${t('Kirim nota')}">🧾</button>
+          <button onclick="editUsageGroup(['${u.id}'])" style="background:none;border:none;color:var(--ink-soft);font-size:14px;cursor:pointer;" title="${t('Edit')}">✏️</button>
+          <button onclick="openBatchUsageNotaOptions(['${u.id}'])" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="${t('Kirim nota')}">🧾 ${t('Nota')}</button>
           <button onclick="deleteUsage('${u.id}')" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;">✕</button>
         </span>
       </div>`;
@@ -487,7 +489,8 @@ function renderUsageList(){
       <div class="item-line" style="align-items:center;">
         ${numberedLabel(i+1, `${fmtDate(g.tanggal)} — ${t('Transaksi')} (${g.items.length} ${currentLang==='en' ? 'services' : t('layanan')})`)}
         <span style="display:flex;align-items:center;gap:8px;flex:none;">${rupiah(g.total)}
-          <button onclick="openBatchUsageNotaOptions([${ids}])" style="background:none;border:none;color:var(--suds);font-size:14px;cursor:pointer;" title="${t('Kirim nota')}">🧾</button>
+          <button onclick="editUsageGroup([${ids}])" style="background:none;border:none;color:var(--ink-soft);font-size:14px;cursor:pointer;" title="${t('Edit')}">✏️</button>
+          <button onclick="openBatchUsageNotaOptions([${ids}])" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="${t('Kirim nota')}">🧾 ${t('Nota')}</button>
         </span>
       </div>
       ${bulletsHTML}
@@ -615,25 +618,91 @@ function removeExtraDraftItem(idx){
   draftExtraItems.splice(idx,1);
   renderExtraDraftList();
 }
+/* Edit transaksi per nota Tempo yang sudah tersimpan -- satu nota = satu
+   kelompok baris subscription_usage (batch_id sama, atau satu baris lepas
+   tanpa batch_id, lihat groupExtrasIntoTransactions()). Dipanggil dari tombol
+   ✏️ di renderUsageList(). Memuat isinya ke draftExtraItems/form "Tambah
+   Layanan Lain" yang SAMA dengan alur tambah baru -- persis seperti
+   editTransaction() memuat nota reguler ke form Transaksi Baru -- supaya
+   submitExtraServiceBatch() di bawah tinggal tahu ini mode edit (lewat
+   editingUsageIds) dan mengganti baris lama dengan isi draft yang baru. */
+function editUsageGroup(ids){
+  const items = currentUsageList.filter(u=>ids.includes(u.id));
+  if(items.length===0) return;
+  editingUsageIds = ids.slice();
+  editingUsageBatchId = items[0].batchId || null;
+  draftExtraItems = items.map(u=>({ tanggal:u.tanggal, estimasi:u.estimasi||null, nama:u.layananNama, qty:u.qty, satuan:u.satuan, harga:u.harga, subtotal:u.subtotal }));
+  const lastDate = items.reduce((max,u)=> u.tanggal>max?u.tanggal:max, items[0].tanggal);
+  document.getElementById('extraTanggal').value = lastDate;
+  document.getElementById('extraEstimasi').value = items[0].estimasi || '';
+  renderExtraDraftList();
+  const submitBtn = document.getElementById('extraBatchSubmitBtn');
+  if(submitBtn) submitBtn.textContent = '💾 ' + t('Update Transaksi');
+  const cancelBtn = document.getElementById('cancelEditUsageBtn');
+  if(cancelBtn) cancelBtn.style.display = 'block';
+  document.getElementById('extraLayanan').focus();
+  showToast(t('Mode edit — ubah data lalu tekan Update Transaksi'));
+}
+function resetExtraServiceEditUI(){
+  editingUsageIds = null;
+  editingUsageBatchId = null;
+  const submitBtn = document.getElementById('extraBatchSubmitBtn');
+  if(submitBtn) submitBtn.textContent = '💾 ' + t('Simpan & Buat Nota');
+  const cancelBtn = document.getElementById('cancelEditUsageBtn');
+  if(cancelBtn) cancelBtn.style.display = 'none';
+}
+function cancelEditUsageGroup(){
+  draftExtraItems = [];
+  renderExtraDraftList();
+  resetExtraServiceEditUI();
+  showToast(t('Edit dibatalkan'));
+}
 async function submitExtraServiceBatch(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s || draftExtraItems.length===0){ showToast(t('Tambahkan minimal 1 layanan dulu')); return; }
-  const batchId = newBatchId();
+  const isEdit = !!(editingUsageIds && editingUsageIds.length>0);
+  // Mode edit: pertahankan batch_id lama (kalau ada) supaya nota ini tetap
+  // dikenali sebagai "transaksi yang sama" di Daftar Tugas/riwayat, bukan
+  // dianggap kunjungan baru yang terpisah.
+  const batchId = (isEdit && editingUsageBatchId) ? editingUsageBatchId : newBatchId();
   const insertedIds = [];
+  const insertedRows = [];
   for(const it of draftExtraItems){
     const { data, error } = await sb.from('subscription_usage').insert({
       subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,
       type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal,
       batch_id: batchId
     }).select().single();
-    if(error){ showToast(t('Gagal menyimpan salah satu layanan, coba lagi')); return; }
+    if(error){
+      showToast(t('Gagal menyimpan salah satu layanan, coba lagi'));
+      // Rollback baris baru yang sudah sempat masuk sebelum gagal di tengah --
+      // data LAMA (kalau mode edit) belum disentuh sama sekali di titik ini
+      // (insert selalu didahulukan, baris lama baru dihapus SETELAH semua
+      // baris baru sukses, lihat di bawah), jadi tidak ada data yang hilang.
+      // Dihapus satu per satu (bukan .in()) -- sama seperti deleteUsage(),
+      // supaya konsisten dengan pola filter .eq('id', ..) yang sudah dipakai
+      // di seluruh app ini untuk tabel subscription_usage.
+      await Promise.all(insertedIds.map(id=> sb.from('subscription_usage').delete().eq('id', id)));
+      return;
+    }
     insertedIds.push(data.id);
-    allWorkUsage.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum', batchId });
+    insertedRows.push({ id:data.id, subscriptionId:s.id, tanggal:data.tanggal, estimasi:data.estimasi||null, type:'layanan_tambahan', layananNama:data.layanan_nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, subtotal:Number(data.subtotal)||0, workStatus:'belum', batchId });
   }
+  if(isEdit){
+    const delResults = await Promise.all(editingUsageIds.map(id=> sb.from('subscription_usage').delete().eq('id', id)));
+    const delErr = delResults.find(r=>r && r.error);
+    if(delErr){
+      showToast(t('Transaksi baru tersimpan, tapi gagal menghapus data lama -- muat ulang sebelum mengubah apa pun lagi'));
+    } else {
+      allWorkUsage = allWorkUsage.filter(u=>!editingUsageIds.includes(u.id));
+    }
+  }
+  insertedRows.forEach(r=> allWorkUsage.push(r));
   draftExtraItems = [];
   renderExtraDraftList();
+  resetExtraServiceEditUI();
   await refreshSubsDetail();
-  showToast(t('Layanan tercatat'));
+  showToast(isEdit ? t('Transaksi diperbarui') : t('Layanan tercatat'));
   openBatchUsageNotaOptions(insertedIds);
 }
 async function deleteUsage(id){

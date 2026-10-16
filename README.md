@@ -2057,3 +2057,94 @@ kena masalah duplikat yang sama.
 - [ ] Multi-Outlet: pembatasan kasir ke outlet tertentu baru di level tampilan (client-side) — RLS `transactions`/`subscriptions`/`expenses` belum ikut memeriksa `team_members.outlet_id`, jadi bukan pagar keamanan yang ketat kalau kasir akses API Supabase langsung
 - [x] Laporan bulan yang "sudah ditutup" bisa berubah nilainya kapan pun ada pelunasan susulan (ditemukan lewat audit 9 Oktober 2026) — selesai 12 Oktober 2026, lihat bagian "Laporan bulan 'ditutup' berubah karena pelunasan susulan" di atas (Opsi A: kolom `lunas_at` + metrik baru "Kas Masuk Bulan Ini")
 - [x] Diskon/total transaksi 100% dipercaya dari input browser (`js/12-transaksi.js`), tidak dihitung ulang di server — ditinjau lewat audit 9 Oktober 2026, SENGAJA tidak diperbaiki: risikonya cuma ke toko sendiri (kasir nakal merugikan tokonya sendiri, bukan platform), dan merekalkulasi di server butuh memindahkan seluruh logika harga/katalog ke server — perubahan arsitektur besar yang tidak proporsional untuk risiko serendah ini.
+
+### Perbaikan UX Tab Transaksi, Edit Nota Tempo, Label Cetak, & Resolusi HD Nota (16 Oktober 2026)
+
+Empat permintaan perbaikan terpisah dari user dalam satu sesi:
+
+**1. Tab Transaksi langsung siap diketik.** `switchTab('baru')`
+(`js/12-transaksi.js`) sekarang selalu `window.scrollTo(0,0)` + fokus ke
+`#inNama` begitu tab Transaksi dibuka (termasuk saat app pertama kali
+dimuat — `initUserData()` sudah selalu memanggil `switchTab(lastTab)` di
+akhir, jadi satu titik ini cukup untuk kedua kasus). Form transaksi juga
+dipasangi navigasi Enter: `focusOnEnter(idSekarang, idBerikutnya)`
+mendaftarkan `keydown` per kolom supaya Enter pindah fokus ke kolom
+berikutnya tanpa ketuk manual — urutannya meniru urutan visual form
+(`inNama`→`inHP`→`inTanggal`→`inEstimasi`→`itNama`→`itQty`→`itSatuan`→
+`itHarga`). Kolom `itHarga` dikhususkan: Enter di sana langsung memanggil
+`addItem()` (sama seperti klik "+ Tambah Layanan") lalu fokus balik ke
+`itNama`, supaya kasir bisa input banyak layanan berturut-turut tanpa
+sentuh layar sama sekali.
+
+**2. Edit transaksi per nota di Paket Tempo.** Sebelumnya satu kunjungan
+Tempo (1 nota = sekelompok baris `subscription_usage` dengan `batch_id`
+sama, lihat `groupExtrasIntoTransactions()`) cuma bisa dihapus per-baris,
+tidak bisa diedit sama sekali. Ditambahkan `editUsageGroup(ids)`
+(`js/08-paket.js`), dipanggil dari tombol ✏️ baru di
+`renderUsageList()`: memuat ulang isi nota itu ke `draftExtraItems`/form
+"Tambah Layanan Lain" yang sama (persis seperti `editTransaction()`
+memuat nota reguler ke form Transaksi Baru), lalu `submitExtraServiceBatch()`
+mendeteksi mode edit lewat global baru `editingUsageIds`/
+`editingUsageBatchId` (`js/00-globals.js`) dan **mengganti isi nota itu**
+(bukan menambah baris baru terpisah): insert baris baru dulu dengan
+`batch_id` yang SAMA dengan nota lama (supaya tetap dikenali "transaksi
+yang sama" di Daftar Tugas/riwayat), baru setelah semuanya berhasil
+baris lama dihapus satu-per-satu lewat `.eq('id', id)` (bukan `.in()` —
+disengaja, lihat di bawah). Urutan insert-dulu-baru-hapus ini supaya
+kalau insert gagal di tengah jalan, data lama belum sempat tersentuh
+sama sekali (rollback cukup menghapus baris baru yang baru sempat masuk).
+Tombol "💾 Simpan & Buat Nota" berganti teks jadi "Update Transaksi" +
+tombol "Batal Edit" muncul selama mode edit, sama seperti pola
+`editTransaction()`/`cancelEditTransaction()` di form Transaksi Baru.
+
+Catatan teknis: mock test `fakeUsageQuery()` (`tests/test.mjs`) TIDAK
+pernah mengimplementasikan filter `.in()` (cuma `.eq()`) — bukan bug di
+app ini, tapi karena itu kode produksi sengaja ditulis memakai
+`Promise.all(ids.map(id => ...delete().eq('id', id)))` daripada
+`.delete().in('id', ids)` untuk hapus banyak baris sekaligus, konsisten
+dengan pola `.eq('id', id)` tunggal yang sudah dipakai `deleteUsage()` di
+seluruh file ini.
+
+**3. Label "Nota" di tombol cetak Tempo.** Tombol 🧾 di samping tiap
+baris "Rekap Riwayat Transaksi (Belum Ditagih)" (`renderUsageList()`,
+`js/08-paket.js`) cuma ikon tanpa teks — `title` tooltip-nya ("Kirim
+nota") tidak pernah kelihatan di HP (tooltip butuh hover, bukan tap).
+Ditambahkan teks "Nota" (lewat `t('Nota')`, sudah ada terjemahan
+Inggris-nya "Receipt") di sebelah ikon di ketiga tempat tombol itu
+dipakai (timbangan kg, nota 1-layanan, nota gabungan multi-layanan).
+
+**4. Investigasi "kualitas HD tidak tersedia" untuk nota panjang di
+WhatsApp.** User melaporkan sebagian nota (terutama nota Tempo yang
+isinya panjang — banyak kunjungan belum ditagih digabung jadi satu nota)
+gagal ditawari opsi "Kualitas HD" oleh WhatsApp sendiri saat dibagikan
+lewat tombol "Unduh / Bagikan Nota (JPG)" (`shareOrDownloadNotaImage()`
+→ `navigator.share()`, bukan tombol "Unduh JPG Kualitas HD via Dokumen
+WA" yang memang sengaja tidak pernah lewat `navigator.share()` sama
+sekali — lihat komentar panjang di atas `shareNotaImageAsDocument()`).
+
+Bukan soal kompresi di app ini — riset publik mengonfirmasi WhatsApp
+sendiri membatasi opsi HD-nya ke resolusi sekitar 4096px di sisi
+terpanjang foto; kalau dilampaui, WA bukan mengompres lebih keras tapi
+MENOLAK menawarkan opsi HD sama sekali. `buildNotaCanvas()`
+(`js/10-nota-cetak.js`) sebelumnya selalu memakai `SCALE=8` px/mm tetap
+tanpa peduli panjang kontennya — nota Tempo yang isinya banyak kunjungan
+jadi sangat tinggi secara piksel dan gampang melampaui ambang itu,
+padahal nota pendek (nota reguler/perpaket biasa) hampir tidak pernah
+kena.
+
+Diperbaiki dengan menurunkan `SCALE` efektif (bukan mengubah layout/isi
+nota) kalau sisi terpanjang hasil pada `SCALE` dasar (8 px/mm)
+diperkirakan melampaui 4000px (margin aman di bawah ~4096px WA):
+`layoutNotaCanvas(lines, pageWidthMm, scale)` dipisah dari
+`buildNotaCanvas()` supaya bisa dipanggil dua kali — sekali untuk
+"mengintip" ukuran pada `SCALE` dasar, sekali lagi dengan `SCALE` yang
+sudah diturunkan proporsional (lebar & tinggi sama-sama kena, jadi tidak
+mengubah proporsi/layout) kalau perlu. Nota pendek tidak terdampak sama
+sekali (tidak pernah mendekati ambang itu); nota panjang sekarang selalu
+di bawah ambang HD WhatsApp, meski resolusinya sedikit lebih rendah
+dibanding sebelumnya untuk kasus itu saja.
+
+Verifikasi: `tests/test.mjs` — `buildNotaCanvas()` dites dengan nota
+pendek (harus TIDAK pernah kena cap) dan nota 400 baris (harus kena cap,
+sisi terpanjang ≤4000px, tapi tetap lebih tinggi dari nota pendek —
+proporsinya tidak boleh rusak).

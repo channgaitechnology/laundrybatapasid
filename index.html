@@ -991,7 +991,8 @@
     <div id="extraDraftListWrap" style="display:none;">
       <p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;">Layanan yang sudah ditambahkan (belum tersimpan):</p>
       <div id="extraDraftList"></div>
-      <button class="btn btn-primary btn-sm" style="width:100%;margin-top:8px;margin-bottom:18px;" onclick="submitExtraServiceBatch()">💾 Simpan &amp; Buat Nota</button>
+      <button class="btn btn-primary btn-sm" id="extraBatchSubmitBtn" style="width:100%;margin-top:8px;margin-bottom:8px;" onclick="submitExtraServiceBatch()">💾 Simpan &amp; Buat Nota</button>
+      <button class="btn btn-ghost btn-sm" id="cancelEditUsageBtn" style="width:100%;margin-bottom:18px;display:none;" onclick="cancelEditUsageGroup()">Batal Edit</button>
     </div>
 
     <h2 style="font-size:14px;" id="usageListHeading">Riwayat Periode Ini</h2>
