@@ -103,6 +103,10 @@ function insertNoteImage(event){
   event.target.value = '';
   if(!file) return;
   if(!file.type.startsWith('image/')){ showToast(t('Pilih berkas gambar (JPG/PNG)')); return; }
+  // Sama seperti handleLogoFileChange() (js/06-outlet.js) -- hasil akhirnya
+  // selalu di-resize kecil (maks lebar 480px), tapi berkas aslinya tetap
+  // dibaca & didekode PENUH dulu sebelum di-resize kalau tidak dicek di sini.
+  if(file.size > 15*1024*1024){ showToast(t('Ukuran file terlalu besar (maks 15MB)')); return; }
   const reader = new FileReader();
   reader.onload = () => {
     const img = new Image();

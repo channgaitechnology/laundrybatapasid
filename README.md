@@ -2148,3 +2148,64 @@ Verifikasi: `tests/test.mjs` — `buildNotaCanvas()` dites dengan nota
 pendek (harus TIDAK pernah kena cap) dan nota 400 baris (harus kena cap,
 sisi terpanjang ≤4000px, tapi tetap lebih tinggi dari nota pendek —
 proporsinya tidak boleh rusak).
+
+### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
+
+User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah
+app ini punya salah satu "ciri web yang gampang kena serangan DoS"
+(endpoint mahal tanpa autentikasi, tidak ada rate-limit, tidak ada
+timeout, satu server tanpa CDN, validasi ukuran input kosong,
+regex/parsing yang bisa di-ReDoS, caching nol). Hasil audit per poin:
+
+- **Endpoint mahal tanpa autentikasi** — CLEAN. `midtrans-create-transaction.js`/
+  `search-communities.js` sudah mewajibkan token Supabase Auth valid +
+  cek kepemilikan (lihat audit sebelumnya); `midtrans-webhook.js`/
+  `notify-new-payment-request.js` memverifikasi signature/
+  `X-Webhook-Secret`. Satu-satunya insert anon-terbuka dengan efek mahal
+  (email+push), `payment_requests`, sudah ada rate-limit trigger (lihat
+  bagian rate-limit di atas).
+- **RPC anon tanpa rate-limit** (`get_registration_code_referrer`) —
+  ADA tapi risikonya rendah: cuma 1 `select` murah per panggilan (tidak
+  memicu email/push/proses berat), dan kode admin yang paling sensitif
+  (`genAdminRegCode()`, 10 karakter / 33^10 kombinasi) sudah disengaja
+  dibuat tahan brute-force lewat panjang kode, bukan lewat rate-limit
+  (lihat `js/05-admin.js`). Tidak diperbaiki — proporsional dengan
+  risikonya, sama seperti keputusan soal diskon/total yang dipercaya
+  dari browser.
+- **Query tanpa limit/pagination** — CLEAN, sudah ditangani di audit
+  performa sebelumnya (`fetchAllRows()` + `.range()` berulang,
+  `ensureAllTransactionsLoaded()`, paginasi `loadAllWorkUsage()`).
+- **Satu server tanpa CDN** — N/A, app ini di Netlify (sudah edge/CDN
+  bawaan) + Supabase (infrastruktur terkelola) — bukan tanggung jawab
+  kode app.
+- **Regex rawan ReDoS** — CLEAN, diperiksa SEMUA pemakaian
+  `.test()`/`.match()`/`new RegExp` di `js/*.js` dan `marketing.html`:
+  semuanya pola flat/dibatasi panjang (`{2,30}`, `{6,12}`, dst.), tidak
+  ada kuantifier bersarang yang bisa backtracking eksponensial.
+- **Validasi ukuran input — DITEMUKAN & DIPERBAIKI**: `handleLogoFileChange()`
+  (`js/06-outlet.js`, upload logo toko) dan `insertNoteImage()`
+  (`js/20-catatan.js`, sisip gambar di Catatan) membaca file apa pun
+  ukurannya LANGSUNG ke `FileReader` + decode penuh lewat `new Image()`
+  SEBELUM sempat di-resize kecil — walau hasil akhirnya selalu kecil
+  (240x240 / maks lebar 480px, disimpan sebagai data URI), proses
+  baca+decode berkas aslinya sendiri tidak dibatasi. Risikonya murni
+  client-side/self-inflicted (bisa bikin tab browser SI PENGUNGGAH
+  sendiri hang kalau pilih file puluhan-ratusan MB, mis. foto
+  panorama/RAW) — bukan vektor DoS ke server atau pengguna lain, tapi
+  tetap celah UX/robustness nyata. Diperbaiki: tolak file >15MB dengan
+  toast yang jelas SEBELUM `FileReader` dipanggil sama sekali, di kedua
+  fungsi.
+- **Caching nol** — tidak relevan untuk app transaksional seperti ini
+  (data harus selalu fresh untuk kasir), bukan celah.
+
+Ditambahkan juga konvensi baru di `CLAUDE.md` ("Konvensi Keamanan — Cek
+Risiko DoS di Fitur Baru"): tiap kali menambah/mengubah fitur yang
+menyentuh endpoint/RPC baru, form input baru, upload file, atau query
+baru, wajib cek 4 poin (autentikasi+efek mahal, limit query, validasi
+ukuran input, efek kalau dipanggil ribuan kali) dan perbaiki langsung
+kalau ketemu celah — bukan cuma dilaporkan.
+
+Verifikasi: `node --check` pada file yang diubah, suite Playwright
+penuh (206 langkah, 0 FAIL), termasuk test baru untuk guard ukuran file
+(`handleLogoFileChange()`/`insertNoteImage()` menolak file >15MB
+sebelum `FileReader` dipanggil).

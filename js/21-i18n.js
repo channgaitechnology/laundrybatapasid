@@ -696,6 +696,7 @@ const I18N_EN = {
   'Gagal reset logo — kolom logo_url mungkin belum ada di tabel settings': 'Failed to reset logo — the logo_url column may not exist in the settings table yet',
   'Logo dikembalikan ke default': 'Logo reset to default',
   'Pilih berkas gambar (JPG/PNG)': 'Choose an image file (JPG/PNG)',
+  'Ukuran file terlalu besar (maks 15MB)': 'File is too large (max 15MB)',
   'Gagal membaca gambar': 'Failed to read the image',
   'Gagal membaca berkas': 'Failed to read the file',
 

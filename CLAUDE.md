@@ -91,6 +91,37 @@ lewat suite Playwright (lihat `tests/test-midtrans-functions.mjs` dan
   nyata di browser headless (bukan cuma baca kode) untuk perubahan yang
   user-facing.
 
+# Konvensi Keamanan — Cek Risiko DoS di Fitur Baru
+
+Setiap kali menambah/mengubah fitur yang menyentuh salah satu dari ini —
+endpoint baru (Netlify Function atau RPC Supabase), form/kolom input
+baru, upload file, atau query database baru — **wajib cek 4 poin ini
+dan laporkan ke user kalau ada celah, lalu perbaiki (bukan cuma
+dilaporkan)**:
+
+1. **Butuh login?** Kalau endpoint/RPC itu bisa dipanggil tanpa
+   autentikasi (anon), apakah itu disengaja (seperti form publik
+   `payment_requests`) — dan kalau iya, apakah efeknya "mahal" (kirim
+   email/push, generate file besar, query berat)? Kalau mahal DAN tanpa
+   rate-limit, itu celah.
+2. **Query dibatasi?** Pastikan selalu pakai `LIMIT`/`.range()`/paginasi
+   (lihat `fetchAllRows()`, `ensureAllTransactionsLoaded()`) — jangan
+   sampai ada query baru yang menarik semua baris tanpa batas.
+3. **Validasi ukuran input?** Form teks (panjang), upload file (ukuran
+   byte — lihat contoh `handleLogoFileChange()`/`insertNoteImage()`,
+   `js/06-outlet.js`/`js/20-catatan.js`, cek SEBELUM `FileReader`/`Image`
+   memproses, bukan sesudah), maupun jumlah item (misal batch insert)
+   semuanya harus punya batas atas yang jelas.
+4. **Efek kalau dipanggil ribuan kali oleh 1 sumber?** Kuota pihak
+   ketiga (Resend/Serper/Midtrans) jebol? Database kebanjiran? Biaya
+   platform melonjak (DDoS jadi "Denial of Wallet")? Kalau jawabannya
+   "ya" dan belum ada rate-limit sama sekali, itu celah.
+
+Preseden rate-limit yang sudah ada: trigger `payment_requests_rate_limit_trigger`
+(lihat README bagian rate-limit) — pola yang sama (trigger database,
+global bukan per-user, pengecualian `service_role`) bisa dicontoh untuk
+tabel baru yang insert-nya terbuka untuk anon dan punya efek mahal.
+
 # Konvensi Git & Deploy
 
 - Branch kerja: `claude/flexible-payment-laundry-package-46lz4u`. Deploy
