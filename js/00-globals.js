@@ -159,6 +159,11 @@ var currentSubscriptionId = null;
 var currentUsageList = [];
 var draftExtraItems = [];
 var currentBatchUsageIds = null;
+// Dipakai editUsageGroup()/submitExtraServiceBatch() (js/08-paket.js) -- mode
+// edit transaksi per nota Tempo (beda dari editingTransactionId yang khusus
+// tabel `transactions`, bukan `subscription_usage`).
+var editingUsageIds = null;
+var editingUsageBatchId = null;
 var editingTransactionId = null;
 var editingSubscriptionId = null;
 var savedContacts = [];

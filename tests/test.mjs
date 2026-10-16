@@ -1774,6 +1774,7 @@ const result = await page.evaluate(async () => {
     if (numberMatches.length !== 1) throw new Error('expected exactly ONE numbered row (01.) for the merged transaction, found ' + numberMatches.length + ':\n' + html);
     if ((html.match(/•/g)||[]).length !== 2) throw new Error('expected 2 bullet sub-lines (one per service) inside the merged transaction:\n' + html);
     if (!html.includes('88.100')) throw new Error('merged transaction total (88.100) not shown:\n' + html);
+    if (!/🧾\s*Nota/.test(html)) throw new Error('tombol kirim nota harus menampilkan tulisan "Nota" di samping ikon 🧾 (supaya jelas fungsinya), got:\n' + html);
 
     // Legacy rows saved before batch_id existed must NOT be merged with each other.
     const legacyGroups = groupExtrasIntoTransactions([
@@ -2084,6 +2085,20 @@ const result = await page.evaluate(async () => {
       }
     }
     if (!foundGreen) throw new Error('expected to find WhatsApp-green (#25D366) pixels in the rendered canvas');
+  });
+
+  await step('buildNotaCanvas(): sisi terpanjang gambar dibatasi (~4000px) supaya WhatsApp tidak menolak opsi "Kualitas HD" untuk nota yang isinya panjang (REGRESI: Tempo dengan banyak kunjungan belum ditagih bisa jadi sangat tinggi secara piksel)', async () => {
+    const MAX_LONG_EDGE_PX = 4000;
+    const shortLines = [{ t: 'Nota pendek', c: true, s: 9 }];
+    const shortCanvas = await buildNotaCanvas(shortLines, 80);
+    if (Math.max(shortCanvas.width, shortCanvas.height) > MAX_LONG_EDGE_PX) throw new Error('nota pendek seharusnya tidak pernah kena cap resolusi sama sekali, got ' + shortCanvas.width + 'x' + shortCanvas.height);
+
+    const longLines = [];
+    for (let i = 0; i < 400; i++) longLines.push({ t: `${i+1}. Baris transaksi panjang nomor ${i+1} -- kunjungan belum ditagih`, s: 8 });
+    const longCanvas = await buildNotaCanvas(longLines, 80);
+    const longEdge = Math.max(longCanvas.width, longCanvas.height);
+    if (longEdge > MAX_LONG_EDGE_PX) throw new Error('nota panjang (400 baris, mis. rekap Tempo) harus di-downscale supaya sisi terpanjang <=' + MAX_LONG_EDGE_PX + 'px (ambang opsi HD WhatsApp), got ' + longEdge);
+    if (longCanvas.height <= shortCanvas.height) throw new Error('downscale tidak boleh membuat nota yang isinya lebih panjang malah tampil lebih pendek dari nota singkat -- proporsinya harus tetap terjaga, cuma resolusinya diturunkan');
   });
 
   // --- Regression: on desktop, "Unduh Gambar" opened the OS-level Share sheet (Windows/Mac),
@@ -2631,6 +2646,47 @@ const result = await page.evaluate(async () => {
     if (allWorkUsage.length !== 2) throw new Error('expected submitExtraServiceBatch (Tempo) to push 2 rows into allWorkUsage, got ' + allWorkUsage.length);
     if (!allWorkUsage.some(u=>u.layananNama==='Cuci Ekspress' && u.estimasi==='2026-08-25')) throw new Error('missing/mismatched Cuci Ekspress row: ' + JSON.stringify(allWorkUsage));
     if (!allWorkUsage.some(u=>u.layananNama==='Setrika Jaket' && u.estimasi==='2026-08-27')) throw new Error('missing/mismatched Setrika Jaket row: ' + JSON.stringify(allWorkUsage));
+  });
+
+  await step('editUsageGroup()/submitExtraServiceBatch(): fitur edit transaksi per nota Tempo yang sudah tersimpan -- mengganti isi batch lama (bukan menambah baris baru terpisah)', async () => {
+    currentSubscriptionId = 'sub-tempo-1';
+    fakeUsageRows = [
+      { id:'eg-1', subscription_id:'sub-tempo-1', tanggal:'2026-08-20', estimasi:'2026-08-22', type:'layanan_tambahan', layanan_nama:'Cuci Reguler', qty:1, satuan:'kg', harga:7000, subtotal:7000, batch_id:'batch-edit-1' },
+      { id:'eg-2', subscription_id:'sub-tempo-1', tanggal:'2026-08-20', estimasi:'2026-08-22', type:'layanan_tambahan', layanan_nama:'Setrika', qty:1, satuan:'pcs', harga:5000, subtotal:5000, batch_id:'batch-edit-1' },
+    ];
+    currentUsageList = fakeUsageRows.map(r => ({ id:r.id, tanggal:r.tanggal, estimasi:r.estimasi, berat:0, catatan:'', type:r.type, layananNama:r.layanan_nama, qty:r.qty, satuan:r.satuan, harga:r.harga, subtotal:r.subtotal, batchId:r.batch_id }));
+    allWorkUsage = currentUsageList.map(u => ({ ...u, subscriptionId:'sub-tempo-1', workStatus:'belum' }));
+    draftExtraItems = [];
+
+    // focus() tidak berpindah ke elemen yang sedang display:none -- modal detail
+    // paket harus "show" dulu, sama seperti test render lain di atas.
+    document.getElementById('subsDetailModal').classList.add('show');
+    editUsageGroup(['eg-1','eg-2']);
+    if (!editingUsageIds || editingUsageIds.length !== 2 || editingUsageBatchId !== 'batch-edit-1') throw new Error('editUsageGroup() harus menyimpan kedua id & batch_id yang sama: ' + JSON.stringify({editingUsageIds, editingUsageBatchId}));
+    if (draftExtraItems.length !== 2) throw new Error('editUsageGroup() harus memuat kedua layanan ke draftExtraItems, got ' + draftExtraItems.length);
+    if (document.getElementById('extraTanggal').value !== '2026-08-20') throw new Error('extraTanggal harus terisi dari data nota yang diedit');
+    if (!document.getElementById('extraBatchSubmitBtn').textContent.includes('Update Transaksi')) throw new Error('tombol submit harus berganti jadi "Update Transaksi" di mode edit');
+    if (document.getElementById('cancelEditUsageBtn').style.display !== 'block') throw new Error('tombol "Batal Edit" harus muncul di mode edit');
+    if (!document.activeElement || document.activeElement.id !== 'extraLayanan') throw new Error('editUsageGroup() harus fokus ke #extraLayanan');
+
+    // Pengguna mengubah harga salah satu layanan sebelum menyimpan ulang
+    draftExtraItems[0].harga = 9000;
+    draftExtraItems[0].subtotal = 9000;
+    renderExtraDraftList();
+
+    await submitExtraServiceBatch();
+
+    if (editingUsageIds !== null || editingUsageBatchId !== null) throw new Error('flag mode edit harus dibersihkan setelah disimpan');
+    if (document.getElementById('cancelEditUsageBtn').style.display !== 'none') throw new Error('tombol "Batal Edit" harus tersembunyi lagi setelah disimpan');
+    if (fakeUsageRows.some(r => r.id === 'eg-1' || r.id === 'eg-2')) throw new Error('baris lama harus terhapus dari DB setelah edit, got: ' + JSON.stringify(fakeUsageRows));
+    if (fakeUsageRows.length !== 2) throw new Error('harus tersisa persis 2 baris pengganti setelah edit, got ' + fakeUsageRows.length);
+    if (!fakeUsageRows.every(r => r.batch_id === 'batch-edit-1')) throw new Error('baris pengganti harus tetap pakai batch_id yang sama supaya tetap dikenali 1 nota: ' + JSON.stringify(fakeUsageRows));
+    const updatedRow = fakeUsageRows.find(r => r.layanan_nama === 'Cuci Reguler');
+    if (!updatedRow || updatedRow.harga !== 9000) throw new Error('perubahan harga harus ikut tersimpan: ' + JSON.stringify(fakeUsageRows));
+    if (allWorkUsage.some(u => u.id === 'eg-1' || u.id === 'eg-2')) throw new Error('baris lama harus hilang dari allWorkUsage (Daftar Tugas) setelah edit');
+    if (allWorkUsage.length !== 2) throw new Error('allWorkUsage harus berisi persis 2 baris pengganti, got ' + allWorkUsage.length);
+    closeUsageNotaOptions();
+    document.getElementById('subsDetailModal').classList.remove('show');
   });
 
   await step('deleteUsage() removes the row from allWorkUsage, and "Urungkan" restores it (preserving estimasi AND batch_id -- regresi: dulu batch_id ikut hilang saat diurungkan, melepas item dari kartu gabungannya)', async () => {
@@ -3302,6 +3358,74 @@ const result = await page.evaluate(async () => {
     resetTransactionForm();
     if (document.getElementById('inStatus').value !== 'belum') throw new Error('resetTransactionForm() should default inStatus to "belum", not "lunas": got ' + document.getElementById('inStatus').value);
     draftItems = [];
+  });
+
+  await step('switchTab("baru"): setiap kali tab Transaksi dibuka, halaman otomatis scroll ke atas dan langsung fokus ke kolom nama pelanggan', () => {
+    const scrollCalls = [];
+    const originalScrollTo = window.scrollTo;
+    window.scrollTo = (...args) => { scrollCalls.push(args); };
+    try {
+      switchTab('baru');
+    } finally {
+      window.scrollTo = originalScrollTo;
+    }
+    if (scrollCalls.length === 0) throw new Error('switchTab("baru") harus memanggil window.scrollTo() supaya halaman kembali ke atas');
+    if (!document.activeElement || document.activeElement.id !== 'inNama') throw new Error('switchTab("baru") harus langsung fokus ke #inNama, got: ' + (document.activeElement && document.activeElement.id));
+  });
+
+  await step('Form Transaksi Baru: tombol Enter di keyboard memindahkan fokus ke kolom berikutnya tanpa perlu ketuk manual, dan Enter di kolom Harga langsung menambahkan layanannya', () => {
+    const savedDraftItems = draftItems.slice();
+    try {
+      switchTab('baru');
+      draftItems = [];
+      renderDraftItems();
+      const pressEnter = (id) => document.getElementById(id).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+      document.getElementById('inNama').value = 'Pelanggan Enter Test';
+      document.getElementById('inNama').focus();
+      pressEnter('inNama');
+      if (!document.activeElement || document.activeElement.id !== 'inHP') throw new Error('Enter di #inNama harus pindah fokus ke #inHP, got: ' + (document.activeElement && document.activeElement.id));
+
+      pressEnter('inHP');
+      if (document.activeElement.id !== 'inTanggal') throw new Error('Enter di #inHP harus pindah fokus ke #inTanggal, got: ' + document.activeElement.id);
+
+      pressEnter('inTanggal');
+      if (document.activeElement.id !== 'inEstimasi') throw new Error('Enter di #inTanggal harus pindah fokus ke #inEstimasi, got: ' + document.activeElement.id);
+
+      pressEnter('inEstimasi');
+      if (document.activeElement.id !== 'itNama') throw new Error('Enter di #inEstimasi harus pindah fokus ke #itNama (kolom Layanan), got: ' + document.activeElement.id);
+
+      document.getElementById('itNama').value = 'Cuci Setrika';
+      pressEnter('itNama');
+      if (document.activeElement.id !== 'itQty') throw new Error('Enter di #itNama harus pindah fokus ke #itQty, got: ' + document.activeElement.id);
+
+      document.getElementById('itQty').value = '2';
+      pressEnter('itQty');
+      if (document.activeElement.id !== 'itSatuan') throw new Error('Enter di #itQty harus pindah fokus ke #itSatuan, got: ' + document.activeElement.id);
+
+      pressEnter('itSatuan');
+      if (document.activeElement.id !== 'itHarga') throw new Error('Enter di #itSatuan harus pindah fokus ke #itHarga, got: ' + document.activeElement.id);
+
+      document.getElementById('itHarga').value = '15000';
+      pressEnter('itHarga');
+      if (draftItems.length !== 1 || draftItems[0].nama !== 'Cuci Setrika' || draftItems[0].qty !== 2 || draftItems[0].harga !== 15000 || draftItems[0].subtotal !== 30000) {
+        throw new Error('Enter di #itHarga harus langsung menambahkan layanan (addItem()), got draftItems=' + JSON.stringify(draftItems));
+      }
+      if (document.activeElement.id !== 'itNama') throw new Error('Setelah Enter di #itHarga, fokus harus balik ke #itNama supaya bisa lanjut input layanan berikutnya, got: ' + document.activeElement.id);
+
+      document.getElementById('inDiskon').focus();
+      pressEnter('inDiskon');
+      if (document.activeElement.id !== 'inDP') throw new Error('Enter di #inDiskon harus pindah fokus ke #inDP, got: ' + document.activeElement.id);
+
+      pressEnter('inDP');
+      if (document.activeElement.id !== 'inStatus') throw new Error('Enter di #inDP harus pindah fokus ke #inStatus, got: ' + document.activeElement.id);
+
+      pressEnter('inStatus');
+      if (document.activeElement.id !== 'inCatatan') throw new Error('Enter di #inStatus harus pindah fokus ke #inCatatan, got: ' + document.activeElement.id);
+    } finally {
+      draftItems = savedDraftItems;
+      renderDraftItems();
+    }
   });
 
   // --- Multi-Outlet (opt-in): tanpa outlet, app harus jalan persis seperti sebelumnya ---

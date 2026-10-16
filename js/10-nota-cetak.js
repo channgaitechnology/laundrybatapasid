@@ -516,18 +516,41 @@ function wrapCanvasLines(ctx, lines, usableWidthPx, ptToPx){
   });
   return wrapped;
 }
-async function buildNotaCanvas(lines, pageWidthMm){
-  const SCALE = 8; // px per mm — cukup tajam untuk dibagikan lewat WhatsApp
-  const mmToPx = mm => mm*SCALE;
-  const ptToPx = pt => pt*0.3528*SCALE;
+/* Hitung ukuran kanvas nota (lebar/tinggi px, baris yang sudah dibungkus, dkk)
+   pada satu nilai SCALE (px per mm) tertentu -- dipisah dari buildNotaCanvas()
+   supaya bisa dipanggil 2x: sekali untuk "mengintip" apakah hasilnya akan
+   kepanjangan, sekali lagi dengan SCALE yang sudah disesuaikan kalau perlu. */
+function layoutNotaCanvas(lines, pageWidthMm, scale){
+  const mmToPx = mm => mm*scale;
+  const ptToPx = pt => pt*0.3528*scale;
   const widthPx = Math.round(mmToPx(pageWidthMm));
   const marginX = mmToPx(4), marginY = mmToPx(8), lh = mmToPx(4.6), logoSize = mmToPx(16);
   const usableWidthPx = widthPx - marginX*2;
-
   const measureCtx = document.createElement('canvas').getContext('2d');
   const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, ptToPx);
-
   const heightPx = Math.max(Math.round(wrapped.length*lh + marginY*2 + logoSize + mmToPx(4)), Math.round(mmToPx(40)));
+  return { mmToPx, ptToPx, widthPx, marginX, marginY, lh, logoSize, heightPx, wrapped };
+}
+async function buildNotaCanvas(lines, pageWidthMm){
+  const BASE_SCALE = 8; // px per mm — cukup tajam untuk dibagikan lewat WhatsApp
+  /* WhatsApp punya ambang resolusi SENDIRI untuk opsi "Kualitas HD" di dialog
+     Share-nya (hasil riset: sisi terpanjang foto dibatasi sekitar 4096px) --
+     kalau dilampaui, WA bukan mengompres lebih keras, tapi malah MENOLAK
+     menawarkan opsi HD sama sekali ("kualitas HD tidak tersedia"). Nota Tempo
+     yang isinya panjang (banyak kunjungan belum ditagih digabung satu nota)
+     jadi sangat tinggi secara piksel pada SCALE tetap, gampang melampaui itu
+     -- padahal nota pendek sama sekali tidak bermasalah. Ini bukan soal
+     kompresi di app ini; app cuma perlu tidak jadi SEBAB nota panjang
+     kehilangan opsi HD itu, jadi SCALE efektif diturunkan (proporsional,
+     lebar & tinggi sama-sama kena) kalau sisi terpanjang hasil pada SCALE
+     dasar diperkirakan tembus ambang itu. */
+  const MAX_LONG_EDGE_PX = 4000; // margin aman di bawah ~4096px
+  const probe = layoutNotaCanvas(lines, pageWidthMm, BASE_SCALE);
+  const longEdgeAtBase = Math.max(probe.widthPx, probe.heightPx);
+  const scale = longEdgeAtBase > MAX_LONG_EDGE_PX ? BASE_SCALE * (MAX_LONG_EDGE_PX / longEdgeAtBase) : BASE_SCALE;
+  const layout = scale === BASE_SCALE ? probe : layoutNotaCanvas(lines, pageWidthMm, scale);
+  const { mmToPx, ptToPx, widthPx, marginX, marginY, lh, logoSize, heightPx, wrapped } = layout;
+
   const canvas = document.createElement('canvas');
   canvas.width = widthPx;
   canvas.height = heightPx;

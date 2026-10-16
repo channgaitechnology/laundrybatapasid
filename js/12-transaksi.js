@@ -16,7 +16,46 @@ function switchTab(name){
   if(['baru','riwayat','paket','laporan','pengeluaran','papan'].includes(name)){
     try{ localStorage.setItem('nk_lastTab', name); }catch(e){}
   }
+  if(name==='baru'){
+    // Buka tab Transaksi selalu dari atas & siap diketik langsung -- dipanggil
+    // baik dari klik tab maupun dari initUserData() saat app baru dibuka.
+    window.scrollTo(0,0);
+    const inNamaEl = document.getElementById('inNama');
+    if(inNamaEl) inNamaEl.focus();
+  }
 }
+/* Navigasi form transaksi baru pakai tombol Enter (keyboard HP/eksternal)
+   supaya kasir bisa isi berurutan tanpa ketuk tiap kolom satu-satu. */
+function focusOnEnter(currentId, nextId){
+  const el = document.getElementById(currentId);
+  if(!el) return;
+  el.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    e.preventDefault();
+    const nextEl = document.getElementById(nextId);
+    if(nextEl) nextEl.focus();
+  });
+}
+focusOnEnter('inNama','inHP');
+focusOnEnter('inHP','inTanggal');
+focusOnEnter('inTanggal','inEstimasi');
+focusOnEnter('inEstimasi','itNama');
+focusOnEnter('itNama','itQty');
+focusOnEnter('itQty','itSatuan');
+focusOnEnter('itSatuan','itHarga');
+focusOnEnter('inDiskon','inDP');
+focusOnEnter('inDP','inStatus');
+focusOnEnter('inStatus','inCatatan');
+// Kolom harga adalah yang terakhir di satu baris layanan -- Enter di sini
+// langsung menambahkan layanannya (sama seperti klik "+ Tambah Layanan")
+// lalu fokus balik ke kolom nama layanan supaya bisa lanjut input baris
+// berikutnya tanpa ketuk apa pun.
+document.getElementById('itHarga').addEventListener('keydown', function(e){
+  if(e.key !== 'Enter') return;
+  e.preventDefault();
+  addItem();
+  document.getElementById('itNama').focus();
+});
 
 /* ===================== ITEM FORM (transaksi baru) ===================== */
 function addItem(){
