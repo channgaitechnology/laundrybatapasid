@@ -1238,6 +1238,30 @@ ditolak & di-sign-out.
 
 Dibangun bertahap — fitur pertama yang sudah ada:
 
+### LOW: link komunitas/hasil pencarian bisa berupa `javascript:` URI — `safeHref()`
+
+Ditemukan di audit lanjutan (13 Oktober 2026). `marketing.html` punya
+`innerHTML`-nya SENDIRI (file terpisah dari `index.html`/`js/*.js`,
+TIDAK ikut tercakup audit XSS sebelumnya) — di 4 tempat, field `link`
+(diisi bebas manual lewat form "Tambah Komunitas", atau hasil pencarian
+online dari Serper API) dipakai langsung sebagai `href="${escapeHTML(...)}"`.
+`escapeHTML()` cuma meng-escape karakter HTML (`&<>"'`) — itu TIDAK
+menghalangi skema URL seperti `javascript:alert(1)` yang sama sekali
+tidak mengandung karakter itu, jadi lolos begitu saja ke atribut `href`
+dan tereksekusi saat link-nya diklik. Risiko di alat ini sendiri rendah
+(cuma 2 akun `ADMIN_EMAILS` yang bisa akses sama sekali, lihat RLS
+`marketing_communities`/`marketing_leads` — admin menyerang diri
+sendiri/admin lain, bukan celah publik), tapi tetap pola yang salah
+untuk dibiarkan.
+
+Diperbaiki: tambah `safeHref(url)` — cuma izinkan skema `http://`/`https://`,
+selain itu balik `'#'` (link mati, aman) — dipakai SEBELUM `escapeHTML()`
+di keempat tempat (`resolveCommLink()` punya `link` untuk komunitas,
+hasil pencarian `r.link` dari Serper API untuk komunitas maupun kontak
+laundry). Diverifikasi langsung lewat browser headless sungguhan:
+`javascript:`/`data:` URI diblokir jadi `'#'`, `http(s)://` (termasuk
+huruf besar) tetap lolos apa adanya.
+
 ### Riset Komunitas
 
 Daftar komunitas pemilik usaha laundry di Indonesia (asosiasi, grup
@@ -1916,6 +1940,116 @@ nama kategori sekarang TIDAK PERNAH masuk ke markup HTML selain lewat
 `escapeHTML()` di teks yang ditampilkan; `onmousedown`-nya cuma berisi
 angka index, tidak ada string apa pun dari user yang disuntikkan ke
 atribut.
+
+### MEDIUM: `payment_requests` bisa di-spam tanpa batas SIAPA SAJA tanpa login — rate limit lewat trigger
+
+Ditemukan di audit lanjutan (13 Oktober 2026, atas permintaan user
+sendiri untuk melanjutkan cek fitur lain). Policy INSERT
+`payment_requests` (`with_check: true`) memang SENGAJA terbuka untuk
+siapa saja termasuk anon (form "Pendaftaran Baru" diisi SEBELUM user
+punya akun) — tapi TIDAK ADA pembatasan jumlah sama sekali. Siapa saja
+bisa POST langsung ke REST API (bukan lewat app) berkali-kali tanpa
+henti, dan SETIAP baris baru memicu **email** (Resend, kuota gratis
+terbatas) DAN **Web Push ke HP admin** (lihat bagian Notifikasi Push di
+atas) — bisa dipakai membanjiri notifikasi admin/menghabiskan kuota
+email asli sampai tidak terkirim.
+
+Diputuskan (atas pilihan user): tambah rate limit sederhana lewat
+**trigger database**, BUKAN ubah tampilan form (tidak ada CAPTCHA/gesekan
+tambahan buat calon pelanggan) dan BUKAN ubah arsitektur (tetap INSERT
+langsung dari browser seperti sekarang, tidak perlu proxy Netlify
+Function baru). Batasnya global (SEMUA baris baru di tabel ini,
+digabung, bukan per-nomor WA — nomor WA bisa diganti-ganti bebas oleh
+penyerang jadi tidak berguna sebagai kunci pembatas) — 20 baris per 10
+menit, cukup longgar untuk lonjakan pendaftaran asli, tapi membatasi
+serangan flood otomatis jadi maksimal ~120/jam (dari sebelumnya tanpa
+batas sama sekali). **Sengaja mengecualikan Service Role Key**
+(`auth.role() = 'service_role'`) — `netlify/functions/midtrans-create-transaction.js`/
+`midtrans-webhook.js` juga insert ke tabel ini dari server, request itu
+TERPERCAYA (dari kode kita sendiri, bukan browser sembarang), jangan
+ikut kena limit ini walau kebetulan ramai pembayaran asli bersamaan.
+
+```sql
+create or replace function payment_requests_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_recent_count int;
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  select count(*) into v_recent_count
+  from payment_requests
+  where created_at > now() - interval '10 minutes';
+
+  if v_recent_count >= 20 then
+    raise exception 'Terlalu banyak permintaan, coba lagi beberapa menit lagi';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists payment_requests_rate_limit_trigger on payment_requests;
+create trigger payment_requests_rate_limit_trigger
+  before insert on payment_requests
+  for each row
+  execute function payment_requests_rate_limit();
+```
+
+Tidak perlu perubahan kode browser sama sekali — `submitPaymentRequest()`/
+`requestRenewal()` (`js/02-init-data.js`/`js/03-langganan.js`) sudah
+menangani `error` dari `.insert()` secara umum (toast "Gagal mengirim,
+coba lagi"), jadi begitu limit kena, pesannya otomatis muncul lewat
+jalur yang sudah ada, tidak crash. Angka `20`/`10 minutes` bisa diubah
+kapan saja lewat `create or replace function` ulang kalau ternyata
+terlalu longgar/ketat di penggunaan nyata.
+
+### BUG NYATA: trigger duplikat `payment_requests` — email + push notifikasi terkirim 2x per pendaftaran
+
+Ditemukan 15 Oktober 2026 secara tidak sengaja saat verifikasi trigger
+rate-limit di atas (`select * from pg_trigger where tgrelid =
+'payment_requests'::regclass`). Tabel `payment_requests` ternyata punya
+**2 trigger terpisah** yang isinya 100% duplikat fungsional —
+`notify_admin_new_payment_request_trigger` (fungsi
+`notify_admin_new_payment_request()`) DAN `trg_notify_new_payment_request`
+(fungsi `notify_new_payment_request()`) — keduanya memanggil
+`net.http_post()` ke URL Netlify Function **yang sama persis**
+(`.../notify-new-payment-request`) dengan header `X-Webhook-Secret`
+yang sama, setiap kali ada baris baru di-insert. Akibatnya: **setiap
+pendaftaran/perpanjangan baru memicu email DAN Web Push notification 2
+KALI**, bukan 1 — ini juga retroaktif menjelaskan pola "selalu muncul 2
+baris" di `net._http_response` yang terlihat berulang kali selama sesi
+debug Web Push sebelumnya (sebelumnya dikira murni karena ada 2
+perangkat/subscription admin terdaftar — ternyata SEBAGIAN juga karena
+2 trigger terpisah memanggil function-nya masing-masing).
+
+Akar masalah: kedua trigger ini dibuat manual lewat Supabase SQL
+Editor saat mengerjakan workaround Database Webhook (wizard bawaan
+Supabase sempat error `schema "supabase_functions" does not exist`,
+lihat bagian Notifikasi Push di atas) — SQL trigger `pg_net`-nya tidak
+pernah tersimpan/terdokumentasi di README ini (dijalankan langsung di
+dashboard), jadi saat trigger-nya dibuat ulang dengan nama baru (versi
+`trg_notify_new_payment_request`, lebih lengkap — ada
+`timeout_milliseconds`), yang versi lama tidak ikut dihapus.
+
+Diperbaiki (user menjalankan langsung di SQL Editor, dikonfirmasi lewat
+`pg_trigger` ulang — tersisa cuma `trg_notify_new_payment_request` +
+`payment_requests_rate_limit_trigger`):
+
+```sql
+drop trigger if exists notify_admin_new_payment_request_trigger on payment_requests;
+drop function if exists notify_admin_new_payment_request();
+```
+
+`app_subscriptions` (notifikasi "akun toko baru") ikut dicek lewat
+query yang sama — cuma ada 1 trigger (`trg_notify_new_account`), TIDAK
+kena masalah duplikat yang sama.
 
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
