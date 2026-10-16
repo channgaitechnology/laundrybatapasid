@@ -2010,6 +2010,47 @@ jalur yang sudah ada, tidak crash. Angka `20`/`10 minutes` bisa diubah
 kapan saja lewat `create or replace function` ulang kalau ternyata
 terlalu longgar/ketat di penggunaan nyata.
 
+### BUG NYATA: trigger duplikat `payment_requests` — email + push notifikasi terkirim 2x per pendaftaran
+
+Ditemukan 15 Oktober 2026 secara tidak sengaja saat verifikasi trigger
+rate-limit di atas (`select * from pg_trigger where tgrelid =
+'payment_requests'::regclass`). Tabel `payment_requests` ternyata punya
+**2 trigger terpisah** yang isinya 100% duplikat fungsional —
+`notify_admin_new_payment_request_trigger` (fungsi
+`notify_admin_new_payment_request()`) DAN `trg_notify_new_payment_request`
+(fungsi `notify_new_payment_request()`) — keduanya memanggil
+`net.http_post()` ke URL Netlify Function **yang sama persis**
+(`.../notify-new-payment-request`) dengan header `X-Webhook-Secret`
+yang sama, setiap kali ada baris baru di-insert. Akibatnya: **setiap
+pendaftaran/perpanjangan baru memicu email DAN Web Push notification 2
+KALI**, bukan 1 — ini juga retroaktif menjelaskan pola "selalu muncul 2
+baris" di `net._http_response` yang terlihat berulang kali selama sesi
+debug Web Push sebelumnya (sebelumnya dikira murni karena ada 2
+perangkat/subscription admin terdaftar — ternyata SEBAGIAN juga karena
+2 trigger terpisah memanggil function-nya masing-masing).
+
+Akar masalah: kedua trigger ini dibuat manual lewat Supabase SQL
+Editor saat mengerjakan workaround Database Webhook (wizard bawaan
+Supabase sempat error `schema "supabase_functions" does not exist`,
+lihat bagian Notifikasi Push di atas) — SQL trigger `pg_net`-nya tidak
+pernah tersimpan/terdokumentasi di README ini (dijalankan langsung di
+dashboard), jadi saat trigger-nya dibuat ulang dengan nama baru (versi
+`trg_notify_new_payment_request`, lebih lengkap — ada
+`timeout_milliseconds`), yang versi lama tidak ikut dihapus.
+
+Diperbaiki (user menjalankan langsung di SQL Editor, dikonfirmasi lewat
+`pg_trigger` ulang — tersisa cuma `trg_notify_new_payment_request` +
+`payment_requests_rate_limit_trigger`):
+
+```sql
+drop trigger if exists notify_admin_new_payment_request_trigger on payment_requests;
+drop function if exists notify_admin_new_payment_request();
+```
+
+`app_subscriptions` (notifikasi "akun toko baru") ikut dicek lewat
+query yang sama — cuma ada 1 trigger (`trg_notify_new_account`), TIDAK
+kena masalah duplikat yang sama.
+
 - [x] Buat ulang `manifest.json` + ikon PWA yang hilang — selesai, lihat di atas
 - [x] Sambungkan repo ini ke Netlify — selesai 19 Agustus 2026, situs `laundrybatapasid.netlify.app` sekarang berlabel "Deploys from GitHub". Commit ini dipakai sebagai tes: kalau perubahan kecil di berkas ini muncul di situs live setelah push, berarti auto-deploy benar-benar aktif.
 - [x] Tinjauan menyeluruh arsitektur/keamanan/UX — selesai (lewat 3 agent paralel, laporan dipublikasikan sebagai artifact), 1 temuan KRITIS (stored XSS lewat nama layanan/satuan di nota) langsung diperbaiki (lihat PR #9)
