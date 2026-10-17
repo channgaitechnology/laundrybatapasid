@@ -57,6 +57,52 @@ document.getElementById('itHarga').addEventListener('keydown', function(e){
   document.getElementById('itNama').focus();
 });
 
+/* Navigasi PageUp/PageDown (atas-bawah) & Home/End (kanan-kiri) antar kolom
+   form Transaksi Baru -- tambahan di luar Enter di atas, buat kasir yang
+   pakai keyboard eksternal/numpad supaya bisa lompat ke kolom mana pun
+   tanpa harus urut lewat Enter satu-satu. Petanya mengikuti TATA LETAK
+   VISUAL form (lihat .row2/.item-row di index.html) -- kalau tata letak
+   form berubah, petanya di bawah ini harus ikut disesuaikan manual.
+   Home/End SELALU pindah fokus (tidak dicek posisi kursor teks dulu),
+   jadi di kolom Catatan (textarea) kedua tombol ini tidak lagi bisa
+   dipakai menggeser kursor ke awal/akhir teks -- disengaja, demi
+   konsistensi (supaya perilakunya sama di semua kolom, tidak ada kolom
+   yang "kadang jadi navigasi, kadang tidak"). */
+const TRX_FORM_GRID = [
+  ['inNama'],
+  ['inHP'],
+  ['inTanggal','inEstimasi'],
+  ['itNama','itQty','itSatuan','itHarga'],
+  ['inDiskon','inDP'],
+  ['inStatus'],
+  ['inCatatan'],
+];
+function trxGridPos(id){
+  for(let r=0;r<TRX_FORM_GRID.length;r++){
+    const c = TRX_FORM_GRID[r].indexOf(id);
+    if(c!==-1) return { r, c };
+  }
+  return null;
+}
+function trxFocusAt(r, c){
+  const row = TRX_FORM_GRID[r];
+  if(!row) return;
+  const el = document.getElementById(row[Math.min(c, row.length-1)]);
+  if(el) el.focus();
+}
+function trxGridKeyNav(e){
+  const pos = trxGridPos(e.target.id);
+  if(!pos) return;
+  if(e.key==='Home' && pos.c>0){ e.preventDefault(); trxFocusAt(pos.r, pos.c-1); }
+  else if(e.key==='End' && pos.c<TRX_FORM_GRID[pos.r].length-1){ e.preventDefault(); trxFocusAt(pos.r, pos.c+1); }
+  else if(e.key==='PageUp' && pos.r>0){ e.preventDefault(); trxFocusAt(pos.r-1, pos.c); }
+  else if(e.key==='PageDown' && pos.r<TRX_FORM_GRID.length-1){ e.preventDefault(); trxFocusAt(pos.r+1, pos.c); }
+}
+TRX_FORM_GRID.flat().forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('keydown', trxGridKeyNav);
+});
+
 /* ===================== ITEM FORM (transaksi baru) ===================== */
 function addItem(){
   const nama = document.getElementById('itNama').value.trim();
