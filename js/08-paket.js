@@ -562,6 +562,7 @@ function selectExtraLayananSuggest(id){
   document.getElementById('extraSatuan').value = match.satuan;
   document.getElementById('extraLayananSuggestBox').classList.remove('show');
 }
+attachSuggestKeyNav('extraLayanan','extraLayananSuggestBox');
 /* Untuk Tempo: "+ Tambah Layanan Ini" hanya menambah ke daftar draft (belum
    tersimpan ke database) supaya bisa input banyak layanan sekaligus dalam satu
    kunjungan, persis seperti Layanan di Transaksi Baru — baru benar-benar
