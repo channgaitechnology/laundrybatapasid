@@ -2209,3 +2209,58 @@ Verifikasi: `node --check` pada file yang diubah, suite Playwright
 penuh (206 langkah, 0 FAIL), termasuk test baru untuk guard ukuran file
 (`handleLogoFileChange()`/`insertNoteImage()` menolak file >15MB
 sebelum `FileReader` dipanggil).
+
+### Navigasi PageUp/PageDown (atas-bawah) & Home/End (kanan-kiri) di form Transaksi Baru (17 Oktober 2026)
+
+Permintaan user: selain Enter (sudah ada, lihat perbaikan sebelumnya),
+tambahkan PageUp/PageDown/Home/End sebagai tombol navigasi antar kolom
+form Transaksi Baru, supaya kasir dengan keyboard eksternal/numpad bisa
+lompat ke kolom mana pun tanpa harus urut lewat Enter satu-satu.
+
+Ditambahkan `TRX_FORM_GRID` (`js/12-transaksi.js`) — array 2 dimensi
+yang memetakan ID tiap kolom ke posisi baris/kolom sesuai **tata letak
+visual** form (cocokkan dengan `.row2`/`.item-row` di `index.html`):
+
+```js
+[
+  ['inNama'],
+  ['inHP'],
+  ['inTanggal','inEstimasi'],
+  ['itNama','itQty','itSatuan','itHarga'],
+  ['inDiskon','inDP'],
+  ['inStatus'],
+  ['inCatatan'],
+]
+```
+
+`trxGridKeyNav()` dipasang sebagai listener `keydown` di semua kolom
+itu: Home/End pindah fokus ke kolom kiri/kanan DALAM baris yang sama
+(diam kalau sudah di ujung), PageUp/PageDown pindah ke kolom dengan
+INDEX YANG SAMA di baris atas/bawah, di-clamp ke kolom terakhir kalau
+baris tujuan lebih pendek (mis. dari `itHarga` — index kolom 3 — ke
+baris Diskon/DP yang cuma 2 kolom, jatuh di `inDP`).
+
+**Trade-off yang disengaja** (disampaikan ke user): Home/End SELALU
+langsung pindah fokus, TIDAK dicek posisi kursor teks dulu — jadi di
+kolom Catatan (satu-satunya `<textarea>`, bisa berisi teks panjang),
+Home/End tidak lagi bisa dipakai untuk menggeser kursor ke
+awal/akhir teks saat mengedit, cuma untuk pindah kolom. Dipilih supaya
+perilakunya KONSISTEN di semua kolom (tidak ada kolom yang "kadang jadi
+navigasi, kadang tidak" tergantung posisi kursor) — kalau user merasa
+ini mengganggu pengeditan Catatan panjang, perlu direvisi jadi
+"Home/End cuma pindah kolom KALAU kursor sudah di ujung teks, kalau
+belum biarkan geser kursor dulu" (lebih kompleks, belum dikerjakan).
+
+Catatan implementasi: PageUp/PageUp TIDAK "mengingat" kolom asal lintas
+baris berbeda panjang — index kolom yang dipindahkan selalu index
+TUJUAN SAAT INI, bukan index sebelum di-clamp. Jadi PageDown dari
+`itHarga` (index 3) ke `inDP` (ter-clamp ke index 1), lalu PageUp balik
+dari `inDP` (index 1) akan jatuh ke `itQty` (index 1 di baris Layanan),
+BUKAN balik ke `itHarga` — ini perilaku grid yang disengaja/konsisten,
+bukan bug.
+
+Verifikasi: `node --check` lulus, suite Playwright penuh (207 langkah,
+0 FAIL) termasuk test baru untuk Home/End dalam baris 2 & 4 kolom,
+PageUp/PageDown menyusuri semua 7 baris, perilaku clamp kolom, dan
+batas atas/bawah/kiri/kanan (diam, tidak error) di baris/kolom
+pertama/terakhir.

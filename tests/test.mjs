@@ -3448,6 +3448,61 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Form Transaksi Baru: Home/End pindah fokus kanan-kiri dalam satu baris, PageUp/PageDown pindah atas-bawah antar baris (termasuk clamp kolom kalau baris tujuan lebih pendek)', () => {
+    switchTab('baru');
+    const press = (id, key) => document.getElementById(id).dispatchEvent(new KeyboardEvent('keydown', { key }));
+    const activeId = () => document.activeElement && document.activeElement.id;
+
+    // Home/End dalam baris 2 kolom (Tanggal <-> Estimasi)
+    document.getElementById('inTanggal').focus();
+    press('inTanggal', 'End');
+    if (activeId() !== 'inEstimasi') throw new Error('End di #inTanggal harus pindah ke #inEstimasi, got: ' + activeId());
+    press('inEstimasi', 'End');
+    if (activeId() !== 'inEstimasi') throw new Error('End di kolom TERAKHIR (#inEstimasi) tidak boleh pindah ke mana pun, got: ' + activeId());
+    press('inEstimasi', 'Home');
+    if (activeId() !== 'inTanggal') throw new Error('Home di #inEstimasi harus pindah balik ke #inTanggal, got: ' + activeId());
+    press('inTanggal', 'Home');
+    if (activeId() !== 'inTanggal') throw new Error('Home di kolom PERTAMA (#inTanggal) tidak boleh pindah ke mana pun, got: ' + activeId());
+
+    // Home/End dalam baris 4 kolom (Layanan/Qty/Satuan/Harga)
+    document.getElementById('itNama').focus();
+    press('itNama', 'End');
+    if (activeId() !== 'itQty') throw new Error('End di #itNama harus ke #itQty, got: ' + activeId());
+    press('itQty', 'End');
+    if (activeId() !== 'itSatuan') throw new Error('End di #itQty harus ke #itSatuan, got: ' + activeId());
+    press('itSatuan', 'End');
+    if (activeId() !== 'itHarga') throw new Error('End di #itSatuan harus ke #itHarga, got: ' + activeId());
+    press('itHarga', 'End');
+    if (activeId() !== 'itHarga') throw new Error('End di kolom TERAKHIR (#itHarga) tidak boleh pindah, got: ' + activeId());
+
+    // PageDown dari #itHarga (kolom index 3) ke baris Diskon/DP (cuma 2 kolom) -- harus di-clamp ke kolom terakhir (#inDP), bukan error/kolom hantu
+    press('itHarga', 'PageDown');
+    if (activeId() !== 'inDP') throw new Error('PageDown dari #itHarga (kolom index 3) ke baris 2-kolom harus di-clamp ke #inDP, got: ' + activeId());
+    // PageUp baliknya memakai index kolom #inDP SENDIRI di barisnya (index 1,
+    // bukan "mengingat" index 3 dari #itHarga tempat asal PageDown tadi) --
+    // index 1 di baris Layanan (4 kolom) jatuh di #itQty. Ini perilaku grid
+    // yang disengaja (index kolom tidak "diingat" lintas baris berbeda
+    // panjang), bukan harus balik ke kolom yang sama persis dengan asalnya.
+    press('inDP', 'PageUp');
+    if (activeId() !== 'itQty') throw new Error('PageUp dari #inDP (kolom index 1) harus jatuh ke kolom index 1 baris Layanan (#itQty), got: ' + activeId());
+
+    // PageUp/PageDown menyusuri SEMUA baris dari paling atas ke paling bawah
+    const order = ['inNama','inHP','inTanggal','itNama','inDiskon','inStatus','inCatatan'];
+    document.getElementById(order[0]).focus();
+    for (let i = 1; i < order.length; i++) {
+      press(order[i-1], 'PageDown');
+      if (activeId() !== order[i]) throw new Error(`PageDown dari #${order[i-1]} harus ke #${order[i]}, got: ` + activeId());
+    }
+    press('inCatatan', 'PageDown');
+    if (activeId() !== 'inCatatan') throw new Error('PageDown di baris PALING BAWAH (#inCatatan) tidak boleh pindah, got: ' + activeId());
+    for (let i = order.length - 1; i > 0; i--) {
+      press(order[i], 'PageUp');
+      if (activeId() !== order[i-1]) throw new Error(`PageUp dari #${order[i]} harus ke #${order[i-1]}, got: ` + activeId());
+    }
+    press('inNama', 'PageUp');
+    if (activeId() !== 'inNama') throw new Error('PageUp di baris PALING ATAS (#inNama) tidak boleh pindah, got: ' + activeId());
+  });
+
   // --- Multi-Outlet (opt-in): tanpa outlet, app harus jalan persis seperti sebelumnya ---
   await step('Multi-outlet is fully opt-in: with zero outlets, submitTransaction() sends no outlet_id and visibleTransactions()/visibleSubscriptions()/visibleExpenses() return everything unfiltered', async () => {
     outlets = []; currentOutletId = null;
