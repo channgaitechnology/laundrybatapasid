@@ -22,6 +22,7 @@ function selectExpenseCatalogSuggest(id){
   document.getElementById('expNamaSuggestBox').classList.remove('show');
   updateExpenseSubtotalPreview();
 }
+attachSuggestKeyNav('expNama','expNamaSuggestBox');
 function updateExpenseSubtotalPreview(){
   const qty = parseFloat(document.getElementById('expQty').value) || 0;
   const harga = parseFloat(document.getElementById('expHarga').value) || 0;
@@ -62,6 +63,7 @@ function selectExpKategoriSuggest(i){
   document.getElementById('expKategori').value = k;
   document.getElementById('expKategoriSuggestBox').classList.remove('show');
 }
+attachSuggestKeyNav('expKategori','expKategoriSuggestBox');
 
 /* ---- Katalog Barang/Jasa Pengeluaran (saran otomatis, mirip Katalog Layanan) ---- */
 function openExpenseCatalog(){

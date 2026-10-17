@@ -2264,3 +2264,62 @@ Verifikasi: `node --check` lulus, suite Playwright penuh (207 langkah,
 PageUp/PageDown menyusuri semua 7 baris, perilaku clamp kolom, dan
 batas atas/bawah/kiri/kanan (diam, tidak error) di baris/kolom
 pertama/terakhir.
+
+### Navigasi ArrowUp/ArrowDown + Enter di SEMUA dropdown saran/autocomplete (17 Oktober 2026)
+
+Permintaan user: tombol Up/Down buat menggulir pilihan di "setiap menu
+yang ada dropdown atau pilihan katalog", Enter buat pilih. App ini punya
+2 jenis "dropdown": `<select>` native (sudah otomatis dukung Up/Down+Enter
+dari browser, tidak perlu disentuh) dan dropdown saran/autocomplete
+custom (`.suggest-dropdown`/`.suggest-item`, dibangun manual lewat
+`<div>` + `onmousedown`) — SAMA SEKALI belum ada navigasi keyboard
+sebelum ini, cuma bisa diklik/disentuh. Ada 7 dropdown jenis ini: saran
+nama pelanggan (`inNama`+`subsNama`, dipakai bareng lewat
+`showContactSuggest()`), saran layanan katalog (`itNama`), saran layanan
+tambahan Tempo/Paket (`extraLayanan`), saran nama & kategori pengeluaran
+(`expNama`/`expKategori`), saran nama Rekap Pelanggan (`rekapNamaInput`).
+
+Ditambahkan 1 fungsi generik `attachSuggestKeyNav(inputId, boxId)`
+(`js/00-globals.js`, modul paling awal dimuat) yang dipasang SEKALI di
+top-level tiap modul pemilik widget-nya (`js/07-katalog.js`,
+`js/08-paket.js`, `js/11-kontak.js`, `js/14-pengeluaran.js`,
+`js/22-rekap-pelanggan.js`) — BUKAN di dalam `showXxxSuggest()` sendiri,
+supaya listener-nya tidak menumpuk ganda setiap kali fungsi itu dipanggil
+ulang tiap user mengetik (ditandai idempoten lewat `input.dataset.suggestNavBound`).
+
+- **ArrowUp/ArrowDown** menyorot item (pakai ulang class CSS
+  `.suggest-item.hover` yang SUDAH ADA di `index.html` sejak awal tapi
+  sebelumnya tidak pernah dipasang JS mana pun — bukan style baru),
+  wrap ke ujung satunya kalau sudah di item pertama/terakhir.
+- **Enter** memicu `onmousedown` BAWAAN item yang disorot (bukan menulis
+  ulang logic pilih — tiap `showXxxSuggest()` sudah memasang
+  `onmousedown` yang langsung memanggil `selectXxxSuggest(...)` dengan
+  argumen yang sudah benar per widget, generik ini cuma memanggil
+  fungsi itu lewat `items[idx].onmousedown({preventDefault(){}})`).
+  Kalau belum ada yang disorot (user belum tekan Arrow), Enter
+  dibiarkan jalan seperti biasa (pindah kolom/tambah item via
+  `focusOnEnter()`), TIDAK diam-diam memilih saran pertama.
+- **Escape** menutup dropdown-nya.
+
+**Konflik Enter dengan `focusOnEnter()`/`TRX_FORM_GRID`** (khusus
+`#inNama`/`#itNama`, satu-satunya kolom yang punya KEDUANYA — saran
+otomatis DAN navigasi Enter-pindah-kolom dari perbaikan sebelumnya):
+`attachSuggestKeyNav()` SENGAJA didefinisikan di `js/00-globals.js`
+(modul paling awal) dan DIPANGGIL di `js/07-katalog.js`/`js/11-kontak.js`
+(dimuat SEBELUM `js/12-transaksi.js` yang memasang `focusOnEnter()`) —
+urutan `<script src="...">` menentukan urutan listener `keydown`
+terdaftar di elemen yang sama, dan browser menjalankan listener sesuai
+urutan pendaftaran. Dengan listener ini terdaftar LEBIH DULU, dia bisa
+`e.stopImmediatePropagation()` untuk mencegah `focusOnEnter()` ikut
+jalan SAAT Enter benar-benar dipakai memilih saran (ada item disorot) —
+tapi membiarkan `focusOnEnter()` tetap jalan normal saat Enter dipakai
+tanpa menyorot apa pun dulu. Kalau urutan modul ini berubah di
+`index.html`, perilaku ini bisa rusak diam-diam — jangan pindahkan
+`js/12-transaksi.js` ke atas `js/07-katalog.js`/`js/11-kontak.js`.
+
+Verifikasi: `node --check` lulus, suite Playwright penuh (208 langkah,
+0 FAIL) termasuk test baru di 2 widget berbeda (`#itNama` — kasus
+konflik Enter paling rawan; `#expKategori` — pola index, file
+berbeda, buktikan genericity) menutupi ArrowDown/ArrowUp (termasuk
+wrap), Enter dengan & tanpa item disorot, Escape, dan isi field yang
+benar setelah dipilih.

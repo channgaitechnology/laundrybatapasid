@@ -121,4 +121,6 @@ function selectContactSuggest(inputId, boxId, contactId){
   if(hpFieldId && c.hp) document.getElementById(hpFieldId).value = c.hp;
   document.getElementById(boxId).classList.remove('show');
 }
+attachSuggestKeyNav('inNama','inNamaSuggestBox');
+attachSuggestKeyNav('subsNama','subsNamaSuggestBox');
 

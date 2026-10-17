@@ -3503,6 +3503,73 @@ const result = await page.evaluate(async () => {
     if (activeId() !== 'inNama') throw new Error('PageUp di baris PALING ATAS (#inNama) tidak boleh pindah, got: ' + activeId());
   });
 
+  await step('attachSuggestKeyNav(): ArrowUp/ArrowDown menyorot item dropdown saran, Enter memilih yang disorot (tanpa nyasar pindah kolom lewat focusOnEnter), Escape menutup -- diuji di #itNama (konflik Enter dgn focusOnEnter) dan #expKategori (pola index, file berbeda) untuk pastikan generik', async () => {
+    switchTab('baru');
+    const savedCatalog = serviceCatalog.slice();
+    const press = (id, key) => document.getElementById(id).dispatchEvent(new KeyboardEvent('keydown', { key }));
+    try {
+      serviceCatalog = [
+        { id:'svc-a', nama:'Cuci Reguler', type:'reguler', satuan:'kg', harga:7000 },
+        { id:'svc-b', nama:'Cuci Ekspres', type:'reguler', satuan:'kg', harga:12000 },
+        { id:'svc-c', nama:'Setrika Saja', type:'reguler', satuan:'pcs', harga:3000 },
+      ];
+      document.getElementById('itNama').value = '';
+      document.getElementById('itNama').focus(); // onfocus="showLayananSuggest()" harus mengisi box dengan 3 item di atas
+      const box = document.getElementById('layananSuggestBox');
+      if (!box.classList.contains('show')) throw new Error('focus #itNama (kosong) harus menampilkan box saran berisi semua layanan non-paket');
+      let items = () => Array.from(box.querySelectorAll('.suggest-item'));
+      if (items().length !== 3) throw new Error('expected 3 item saran, got ' + items().length);
+
+      // Enter TANPA menyorot dulu (curIdx<0) -- harus tetap jalan seperti biasa (pindah ke #itQty lewat focusOnEnter), BUKAN diam-diam memilih item pertama
+      press('itNama', 'Enter');
+      if (document.getElementById('itNama').value !== '') throw new Error('Enter tanpa menyorot saran tidak boleh mengisi #itNama dengan saran apa pun');
+      if (document.activeElement.id !== 'itQty') throw new Error('Enter tanpa menyorot saran harus tetap pindah fokus ke #itQty (perilaku focusOnEnter lama), got: ' + document.activeElement.id);
+
+      // Fokus ulang #itNama, sorot item ke-2 (Cuci Ekspres) lewat ArrowDown x2, lalu ArrowUp balik ke item ke-1
+      document.getElementById('itNama').focus();
+      press('itNama', 'ArrowDown');
+      if (!items()[0].classList.contains('hover')) throw new Error('ArrowDown pertama harus menyorot item ke-1');
+      press('itNama', 'ArrowDown');
+      if (!items()[1].classList.contains('hover')) throw new Error('ArrowDown kedua harus menyorot item ke-2 (Cuci Ekspres)');
+      press('itNama', 'ArrowUp');
+      if (!items()[0].classList.contains('hover')) throw new Error('ArrowUp harus balik menyorot item ke-1');
+      press('itNama', 'ArrowUp'); // dari item ke-1 (index 0), ArrowUp harus wrap ke item TERAKHIR (index 2)
+      if (!items()[2].classList.contains('hover')) throw new Error('ArrowUp di item PERTAMA harus wrap ke item TERAKHIR (Setrika Saja)');
+      press('itNama', 'Escape');
+      if (box.classList.contains('show')) throw new Error('Escape harus menutup box saran');
+
+      // #itNama sudah fokus dari sebelumnya (Escape tidak memindahkan fokus) -- panggil langsung
+      // showLayananSuggest() buat isi ulang box (.focus() TIDAK memicu event 'focus' baru kalau
+      // elemennya sudah fokus), lalu sorot item ke-2 (Cuci Ekspres), Enter harus memilihnya DAN
+      // fokus tetap di #itNama (TIDAK nyasar pindah ke #itQty)
+      showLayananSuggest();
+      press('itNama', 'ArrowDown');
+      press('itNama', 'ArrowDown');
+      press('itNama', 'Enter');
+      if (document.getElementById('itNama').value !== 'Cuci Ekspres') throw new Error('Enter saat item ke-2 disorot harus memilih "Cuci Ekspres", got: ' + document.getElementById('itNama').value);
+      if (document.getElementById('itHarga').value !== '12000') throw new Error('selectLayananSuggest() harus ikut mengisi #itHarga, got: ' + document.getElementById('itHarga').value);
+      if (box.classList.contains('show')) throw new Error('box saran harus tertutup lagi setelah Enter memilih item');
+      if (document.activeElement.id !== 'itNama') throw new Error('Enter yang memilih saran TIDAK BOLEH ikut memindahkan fokus ke #itQty (stopImmediatePropagation harus mencegah focusOnEnter lama ikut jalan), got: ' + document.activeElement.id);
+    } finally {
+      serviceCatalog = savedCatalog;
+      document.getElementById('itNama').value = '';
+      document.getElementById('itHarga').value = '';
+    }
+
+    // Widget berbeda (pola index, file js/14-pengeluaran.js) -- buktikan fungsi generiknya
+    // benar-benar dipakai ulang, bukan cuma kebetulan cocok di satu tempat.
+    switchTab('pengeluaran');
+    document.getElementById('expKategori').value = '';
+    document.getElementById('expKategori').focus();
+    const kategoriBox = document.getElementById('expKategoriSuggestBox');
+    if (!kategoriBox.classList.contains('show')) throw new Error('focus #expKategori (kosong) harus menampilkan box saran kategori default');
+    press('expKategori', 'ArrowDown');
+    press('expKategori', 'Enter');
+    if (document.getElementById('expKategori').value !== DEFAULT_EXPENSE_CATEGORIES[0]) throw new Error('Enter setelah ArrowDown pertama di #expKategori harus memilih kategori pertama ("' + DEFAULT_EXPENSE_CATEGORIES[0] + '"), got: ' + document.getElementById('expKategori').value);
+    if (kategoriBox.classList.contains('show')) throw new Error('box saran kategori harus tertutup lagi setelah Enter memilih');
+    document.getElementById('expKategori').value = '';
+  });
+
   // --- Multi-Outlet (opt-in): tanpa outlet, app harus jalan persis seperti sebelumnya ---
   await step('Multi-outlet is fully opt-in: with zero outlets, submitTransaction() sends no outlet_id and visibleTransactions()/visibleSubscriptions()/visibleExpenses() return everything unfiltered', async () => {
     outlets = []; currentOutletId = null;
