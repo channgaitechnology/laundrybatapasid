@@ -62,6 +62,7 @@ function selectRekapNamaSuggest(i){
   document.getElementById('rekapNamaSuggestBox').classList.remove('show');
   searchRekapPelanggan();
 }
+attachSuggestKeyNav('rekapNamaInput','rekapNamaSuggestBox');
 /* Nama yang belum punya transaksi sama sekali TETAP ditampilkan sebagai hasil
    (list kosong + tombol Tambah Transaksi Baru), bukan cuma toast lalu berhenti
    -- supaya nama yang datanya belum ada di database bisa langsung diisi dari sini. */

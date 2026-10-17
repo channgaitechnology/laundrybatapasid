@@ -14,6 +14,64 @@
   }catch(e){}
 })();
 
+/* ===================== NAVIGASI KEYBOARD DROPDOWN SARAN =====================
+   Satu fungsi generik dipasang ke SETIAP dropdown saran/autocomplete
+   (.suggest-dropdown) di app ini -- nama pelanggan, layanan katalog,
+   layanan tambahan Tempo/Paket, nama & kategori pengeluaran, nama Rekap
+   Pelanggan -- supaya tidak perlu menulis ulang logic navigasi di tiap
+   showXxxSuggest()/selectXxxSuggest() yang beda-beda per fitur.
+   ArrowUp/ArrowDown menyorot item (class 'hover' -- CSS-nya SUDAH ADA di
+   index.html tapi sebelumnya tidak pernah dipasang oleh JS mana pun, cuma
+   tertulis utk :active mouse), Enter memicu PILIHAN YANG SUDAH ADA di item
+   itu lewat onmousedown bawaannya sendiri (bukan menduplikasi logic pilih --
+   tiap showXxxSuggest() sudah memasang onmousedown yang memanggil
+   selectXxxSuggest(...) dengan argumen yang sudah benar), Escape menutup
+   dropdown-nya.
+
+   Dipasang SEKALI secara SINKRON di top-level modul masing-masing (bukan di
+   dalam showXxxSuggest(), supaya tidak menumpuk listener ganda setiap kali
+   fungsi itu dipanggil ulang tiap user mengetik) -- lihat pemanggilannya di
+   js/07-katalog.js, js/08-paket.js, js/11-kontak.js, js/14-pengeluaran.js,
+   js/22-rekap-pelanggan.js. SENGAJA dipasang di modul PALING AWAL (00) yang
+   dimuat SEBELUM semua pemanggil itu, supaya listener Enter di sini
+   terdaftar LEBIH DULU daripada focusOnEnter()/TRX_FORM_GRID
+   (js/12-transaksi.js, dimuat belakangan) untuk kolom #inNama/#itNama yang
+   dipakai bersama -- urutan ini WAJIB supaya stopImmediatePropagation() di
+   bawah benar-benar bisa mencegah Enter "nyasar" pindah kolom saat user
+   justru sedang memilih saran, bukan pindah fokus. */
+function attachSuggestKeyNav(inputId, boxId){
+  const input = document.getElementById(inputId);
+  const box = document.getElementById(boxId);
+  if(!input || !box || input.dataset.suggestNavBound) return;
+  input.dataset.suggestNavBound = '1';
+  input.addEventListener('keydown', function(e){
+    if(!box.classList.contains('show')) return;
+    const items = Array.from(box.querySelectorAll('.suggest-item'));
+    if(items.length===0) return;
+    const curIdx = items.findIndex(el=>el.classList.contains('hover'));
+    if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const nextIdx = e.key==='ArrowDown'
+        ? (curIdx+1) % items.length
+        : (curIdx<=0 ? items.length-1 : curIdx-1);
+      items.forEach(el=>el.classList.remove('hover'));
+      items[nextIdx].classList.add('hover');
+      items[nextIdx].scrollIntoView({ block:'nearest' });
+    } else if(e.key==='Enter'){
+      // Belum ada saran yang disorot (user belum tekan Arrow) -- biarkan
+      // Enter berfungsi seperti biasa (pindah kolom/tambah item, dst.),
+      // JANGAN diam-diam memilih saran pertama tanpa sepengetahuan user.
+      if(curIdx<0) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if(typeof items[curIdx].onmousedown==='function') items[curIdx].onmousedown({ preventDefault(){} });
+    } else if(e.key==='Escape'){
+      box.classList.remove('show');
+    }
+  });
+}
+
 /* ===================== SUPABASE SETUP ===================== */
 const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';

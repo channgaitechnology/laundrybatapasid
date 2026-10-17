@@ -34,6 +34,7 @@ function selectLayananSuggest(id){
   document.getElementById('itSatuan').value = match.satuan;
   document.getElementById('layananSuggestBox').classList.remove('show');
 }
+attachSuggestKeyNav('itNama','layananSuggestBox');
 function toggleCatalogFields(){
   const isPaket = document.getElementById('catType').value === 'paket';
   document.getElementById('catRegulerFields').style.display = isPaket ? 'none' : 'grid';
