@@ -287,6 +287,13 @@ async function downloadRekapPelangganImage(){
   await shareOrDownloadNotaImage(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`);
   closeRekapPelangganShare();
 }
+/* Tombol "Kirim via WhatsApp" -- beda dari downloadRekapPelangganImage() (tombol
+   "Simpan sebagai Gambar") lewat parameter waPhone, lihat komentar
+   shareOrDownloadNotaImage() di js/10-nota-cetak.js. */
+async function sendRekapPelangganImageWA(){
+  await shareOrDownloadNotaImage(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`, rekapPelangganPhone());
+  closeRekapPelangganShare();
+}
 async function downloadRekapPelangganPDF(){
   await shareOrDownloadNotaPDF(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`);
   closeRekapPelangganShare();

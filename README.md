@@ -2351,6 +2351,45 @@ tombol) sengaja dipertahankan dulu sebagai dokumentasi perilaku,
 sampai ada keputusan eksplisit untuk benar-benar membuang fungsi &
 test-nya sekalian.
 
+### REGRESI: tombol "Kirim via WhatsApp" di desktop cuma download, tidak ada aksi WA sama sekali (21 Oktober 2026)
+
+Langsung ketahuan user begitu penyederhanaan menu di atas naik ke
+production: di **browser desktop**, klik tombol "📤 Kirim via
+WhatsApp" "malah jadi download nota" — tidak ada aksi WhatsApp apa
+pun. Sebabnya: tombol itu dulu memakai fungsi yang SAMA PERSIS dengan
+"💾 Simpan sebagai Gambar" (`downloadReceiptImage()` dkk.), dan
+`shareOrDownloadNotaImage()` di baliknya cuma mencoba
+`navigator.share()` kalau `isMobileDevice()` — di desktop dia SELALU
+jatuh ke unduh biasa tanpa WA apa pun. Sebelumnya tidak ketahuan
+karena tombol ini belum pernah benar-benar jadi tombol "Kirim via
+WhatsApp" yang asli (versi lama pakai `wa.me` berisi TEKS, bukan
+gambar) — begitu diganti ke fungsi share-gambar generik, baru
+ketahuan fungsi itu tidak pernah didesain untuk kasus desktop+WA sama
+sekali.
+
+Diperbaiki: `shareOrDownloadNotaImage()` (`js/10-nota-cetak.js`) dapat
+parameter baru `waPhone` (opsional). Kalau diisi DAN bukan mobile,
+SETELAH file berhasil diunduh, dia juga `openWA(waPhone, '')` —
+membuka tab WhatsApp Web ke nomor pelanggan yang benar (tanpa teks
+prefill, karena WA Web tidak bisa dipaksa lampir gambar lewat URL),
+supaya user tinggal lampirkan file yang baru saja diunduh — mirip
+pengalaman "pilih WhatsApp dari share sheet" di HP, bukan silent
+download. Ditambahkan 4 fungsi baru (`sendReceiptImageWA()` di
+`js/15-nota-receipt.js`, `sendUsageNotaImageWA()` di
+`js/10-nota-cetak.js`, `sendRekapPelangganImageWA()` di
+`js/22-rekap-pelanggan.js`, `sendSubsInvoiceImageWA()` di
+`js/08-paket.js`) yang memanggil `shareOrDownloadNotaImage()` dengan
+nomor pelanggan terisi — dipakai KHUSUS tombol "Kirim via WhatsApp".
+Tombol "Simpan sebagai Gambar" SENGAJA tetap memanggil fungsi lama
+(`downloadReceiptImage()` dkk., TANPA `waPhone`) — itu bukan tombol
+"kirim", jadi tidak boleh ikut membuka WA.
+
+Verifikasi: `node --check` lulus, suite Playwright penuh (215 langkah,
+0 FAIL — 2 test baru: `shareOrDownloadNotaImage(waPhone)` membuka
+`wa.me` ke nomor yang benar di desktop tapi TIDAK di mobile/pada
+"Simpan sebagai Gambar", dan ke-4 tombol "Kirim via WhatsApp"/"Simpan
+sebagai Gambar" memanggil fungsi yang benar — tidak tertukar).
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

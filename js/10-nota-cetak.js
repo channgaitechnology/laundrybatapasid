@@ -642,7 +642,16 @@ async function buildNotaJPEGBlob(lines, pageWidthMm){
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
   return await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
-async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
+/* waPhone (opsional): dipakai tombol "Kirim via WhatsApp" (BUKAN "Simpan sebagai
+   Gambar", yang memanggil fungsi ini tanpa waPhone) -- di desktop, navigator.share()
+   TIDAK PERNAH dipakai (gate isMobileDevice(), lihat CLAUDE.md), jadi tanpa ini
+   tombol "Kirim via WhatsApp" di desktop cuma unduh file tanpa aksi WA apa pun sama
+   sekali (regresi nyata dilaporkan user: "di browser desktop saat klik kirim wa
+   malah jadi download nota"). Dengan waPhone, desktop SEKARANG juga membuka tab
+   WhatsApp Web ke kontak yang benar (openWA tanpa teks -- WA Web tidak bisa
+   dipaksa lampir gambar lewat URL) supaya user tinggal lampirkan file yang baru
+   diunduh, mirip pengalaman "pilih WA dari share sheet" di HP. */
+async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle, waPhone){
   const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
@@ -659,6 +668,11 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  if(!isMobileDevice() && waPhone){
+    openWA(normalizePhone(waPhone), '');
+    showToast(t('Gambar nota diunduh & tab WhatsApp Web dibuka -- lampirkan file dari folder Download di sana.'));
+    return;
+  }
   showToast(isMobileDevice()
     ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
     : t('Gambar nota diunduh ke folder Download.'));
@@ -1166,6 +1180,28 @@ async function downloadUsageNotaImage(){
   const tempo = isTempo(s);
   const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
   await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
+  closeUsageNotaOptions();
+}
+/* Tombol "Kirim via WhatsApp" -- beda dari downloadUsageNotaImage() (tombol "Simpan
+   sebagai Gambar") lewat parameter waPhone, lihat komentar shareOrDownloadNotaImage(). */
+async function sendUsageNotaImageWA(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  let lines, tanggalForName;
+  if(currentBatchUsageIds){
+    const newItems = currentUsageList.filter(u=>currentBatchUsageIds.includes(u.id));
+    if(newItems.length===0) return;
+    lines = isTempo(s) ? buildTempoBatchUsageNotaPDFLines(newItems, s) : buildUsageBatchNotaPDFLines(newItems, s);
+    tanggalForName = newItems[0].tanggal;
+  } else {
+    const usage = currentUsageList.find(u=>u.id===currentUsageNotaId);
+    if(!usage) return;
+    lines = buildUsageNotaPDFLines(usage, s);
+    tanggalForName = usage.tanggal;
+  }
+  const tempo = isTempo(s);
+  const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
+  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`, s.hp);
   closeUsageNotaOptions();
 }
 /* Nomor nota diambil dari sequence di database (fungsi next_transaction_kode(),

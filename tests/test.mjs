@@ -2466,6 +2466,102 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // REGRESI (21 Okt 2026): user melaporkan di BROWSER DESKTOP, klik tombol "Kirim
+  // via WhatsApp" (hasil penyederhanaan menu di atas) "malah jadi download nota" --
+  // tidak ada aksi WhatsApp apa pun sama sekali. Sebabnya: shareOrDownloadNotaImage()
+  // cuma mencoba navigator.share() kalau isMobileDevice(), jadi di desktop dia
+  // SELALU jatuh ke unduh biasa -- dan tombol "Kirim via WhatsApp" dulu memakai
+  // fungsi yang SAMA PERSIS dengan "Simpan sebagai Gambar" (downloadReceiptImage()
+  // dkk.), jadi labelnya menjanjikan WA tapi tidak pernah benar2 membuka WA di
+  // desktop. Diperbaiki: shareOrDownloadNotaImage() dapat parameter waPhone baru
+  // (opsional) -- kalau diisi DAN bukan mobile, setelah unduh selesai dia juga
+  // openWA() ke nomor itu (tab WhatsApp Web, tanpa teks -- cuma untuk siapkan
+  // kontak yang benar, user tinggal lampirkan file yang baru diunduh). Tombol
+  // "Kirim via WhatsApp" sekarang pakai fungsi BARU (sendReceiptImageWA() dkk.,
+  // beda dari downloadReceiptImage() yang dipakai "Simpan sebagai Gambar") yang
+  // mengisi waPhone ini -- fungsi "Simpan sebagai Gambar" SENGAJA TIDAK diubah
+  // (tidak boleh ikut membuka WA, itu bukan tujuannya).
+  await step('shareOrDownloadNotaImage(waPhone): di desktop (bukan mobile) membuka tab WhatsApp Web ke nomor itu SETELAH unduh, tapi HD/mobile TIDAK terpengaruh; sendReceiptImageWA()/downloadReceiptImage() (tombol "Kirim via WhatsApp" vs "Simpan sebagai Gambar") beda perilaku desktop-nya persis karena ini', async () => {
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalOpen = window.open;
+    const originalCreateElement = document.createElement.bind(document);
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    let shareCalls, openedUrls, clickedDownloads;
+    navigator.canShare = () => true;
+    navigator.share = async (data) => { shareCalls.push(data); };
+    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    try {
+      const trx = { id:'test-wadesktop-trx-id', kode:'PF-WADESK-1', tanggal:'2026-10-21', nama:'Uji WA Desktop', hp:'081234567890', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      // Desktop + tombol "Kirim via WhatsApp" (sendReceiptImageWA) -> HARUS buka wa.me ke nomor pelanggan.
+      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      await sendReceiptImageWA();
+      if (clickedDownloads.length !== 1) throw new Error('desktop tetap harus mengunduh file gambarnya, got ' + JSON.stringify(clickedDownloads));
+      if (openedUrls.length !== 1 || !openedUrls[0].startsWith('https://wa.me/' + normalizePhone(trx.hp))) throw new Error('REGRESI: desktop "Kirim via WhatsApp" harus membuka tab WhatsApp Web ke nomor pelanggan, got ' + JSON.stringify(openedUrls));
+
+      // Desktop + tombol "Simpan sebagai Gambar" (downloadReceiptImage, TANPA waPhone) -> TIDAK BOLEH buka WA sama sekali.
+      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      await downloadReceiptImage();
+      if (clickedDownloads.length !== 1) throw new Error('"Simpan sebagai Gambar" tetap harus mengunduh file, got ' + JSON.stringify(clickedDownloads));
+      if (openedUrls.length !== 0) throw new Error('"Simpan sebagai Gambar" TIDAK BOLEH membuka WhatsApp apa pun, got ' + JSON.stringify(openedUrls));
+
+      // Mobile -- navigator.share() berhasil, jadi tidak boleh unduh ATAU buka WA sama sekali (share sheet OS yang urus).
+      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
+      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      await sendReceiptImageWA();
+      if (shareCalls.length !== 1) throw new Error('mobile seharusnya memakai navigator.share(), got ' + shareCalls.length);
+      if (openedUrls.length !== 0) throw new Error('mobile TIDAK BOLEH membuka tab WhatsApp Web terpisah (share sheet sudah cukup), got ' + JSON.stringify(openedUrls));
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      window.open = originalOpen;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+    }
+  });
+
+  await step('Tombol "Kirim via WhatsApp" (JPG lewat send*ImageWA(), isi nomor) vs "Simpan sebagai Gambar" (JPG lewat download*Image(), TANPA nomor) di ke-4 modal nota memanggil fungsi yang BENAR -- bukan tertukar/kembali ke fungsi lama', () => {
+    const waHandlers = {
+      receiptShareModal: 'sendReceiptImageWA()',
+      usageNotaModal: 'sendUsageNotaImageWA()',
+      rekapShareModal: 'sendRekapPelangganImageWA()',
+      subsInvoiceShareModal: 'sendSubsInvoiceImageWA()',
+    };
+    const saveHandlers = {
+      receiptShareModal: 'downloadReceiptImage()',
+      usageNotaModal: 'downloadUsageNotaImage()',
+      rekapShareModal: 'downloadRekapPelangganImage()',
+      subsInvoiceShareModal: 'downloadSubsInvoiceImage()',
+    };
+    for (const [modalId, expectedOnclick] of Object.entries(waHandlers)) {
+      const modal = document.getElementById(modalId);
+      const btn = Array.from(modal.querySelectorAll('button')).find(b => b.getAttribute('onclick') === expectedOnclick);
+      if (!btn) throw new Error(modalId + ' tombol "Kirim via WhatsApp" harus onclick="' + expectedOnclick + '"');
+    }
+    for (const [modalId, expectedOnclick] of Object.entries(saveHandlers)) {
+      const modal = document.getElementById(modalId);
+      const btn = Array.from(modal.querySelectorAll('button')).find(b => b.getAttribute('onclick') === expectedOnclick);
+      if (!btn) throw new Error(modalId + ' tombol "Simpan sebagai Gambar" harus onclick="' + expectedOnclick + '"');
+    }
+  });
+
   await step('buildReceiptHTML() includes clickable wa.me and mailto links with icon badges', () => {
     const html = buildReceiptHTML({ kode:'PF-4', tanggal:'2026-08-27', nama:'Uji HTML', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', catatan:'' });
     if (!html.includes('dikembangkan oleh Tinggiran Tech Studio')) throw new Error('HTML receipt missing studio name');
