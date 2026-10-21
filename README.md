@@ -2511,6 +2511,47 @@ mobile DAN desktop: `navigator.share()` tidak pernah dipanggil,
 `alert()` tampil sebelum `openWA()`, nomor terisi vs kosong, dan
 "Simpan sebagai Gambar" tidak terpengaruh sama sekali).
 
+### Perbesar huruf nota + kecilkan margin kiri-kanan (21 Oktober 2026)
+
+User minta tulisan nota diperbesar, dan secara eksplisit sudah
+mengidentifikasi sendiri akar masalahnya: "ternyata bukan soal tidak
+bisa menentukan ukuran cetak tapi karena memang dalam satu baris ada
+terlalu banyak kata. seandainya dengan jumlah kata yang sama tapi
+ukuran hurufnya diperbesar pasti tidak muat. dan juga margin di kanan
+kiri terlalu besar. buatkan mepet ke sisi supaya full tidak banyak
+area kosong." — jadi bukan soal ukuran fisik cetak (itu sudah beres
+lewat PDF di perbaikan-perbaikan sebelumnya), tapi soal tata letak:
+margin kiri-kanan memakan jatah lebar yang seharusnya bisa dipakai
+teks, dan menaikkan ukuran huruf begitu saja tanpa mengecilkan margin
+cuma akan membuat baris makin gampang tidak muat.
+
+Ditambahkan 2 konstanta baru di `js/10-nota-cetak.js`:
+`NOTA_FONT_SCALE = 1.15` (menaikkan SEMUA ukuran huruf 15% — dipakai
+di `ptToPx()` dalam `layoutNotaCanvas()` untuk JPG, dan di
+`doc.setFontSize()` dalam `buildNotaPDFBlob()` untuk PDF) dan
+`NOTA_MARGIN_X_MM = 2` (mengecilkan margin kiri-kanan dari 4mm/sisi
+jadi 2mm/sisi di KEDUA format — dipakai sebagai `marginX` di canvas &
+`marginMm` di PDF). Keduanya dinaikkan/dikecilkan BERSAMAAN supaya
+saling mengimbangi, bukan cuma salah satu — lebar ekstra dari margin
+yang lebih kecil itulah yang menampung huruf yang lebih besar. Baris
+yang tetap tidak muat sekalipun sudah begitu akan dibungkus ke baris
+baru seperti biasa (`wrapCanvasLines()`, sudah ada sejak awal) — nota
+jadi sedikit lebih tinggi, itu konsekuensi yang memang diterima user,
+bukan bug.
+
+SENGAJA tidak menyentuh `escposBytesFromLines()` (Bluetooth — cuma 3
+pilihan ukuran huruf diskrit bawaan printer thermal, bukan kontrol
+mm/px seperti JPG/PDF) atau `linesToPrintHTML()`/`printLinesViaBrowser()`
+(AirPrint — di luar laporan user kali ini, beda jalur cetak).
+
+Verifikasi: suite Playwright penuh (217 langkah, 0 FAIL — test baru
+memastikan `NOTA_FONT_SCALE>1`, `NOTA_MARGIN_X_MM<4` (margin lama),
+margin canvas sungguhan <4mm lewat `layoutNotaCanvas()`, dan
+`doc.setFontSize()` PDF menerima `line.s*NOTA_FONT_SCALE` bukan
+`line.s` mentah), plus verifikasi visual nyata (render nota contoh ke
+PNG di browser headless, dibandingkan manual) — teks terlihat jelas
+lebih besar dan margin kiri-kanan jauh lebih mepet ke tepi.
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

@@ -2147,6 +2147,42 @@ const result = await page.evaluate(async () => {
     if (megapixels < 1.2) throw new Error('nota pendek yang realistis (18 baris, mirip nota transaksi biasa) menghasilkan kanvas cuma ' + canvas.width + 'x' + canvas.height + ' (' + megapixels.toFixed(2) + ' MP) -- terlalu kecil, berisiko dianggap WhatsApp sebagai gambar kecil yang tidak layak ditawari "Kualitas HD", langsung kena kompresi standar yang merusak teks');
   });
 
+  // REGRESI (21 Okt 2026): user melaporkan tulisan nota kekecilan -- tapi dia sendiri
+  // yang mengidentifikasi akar masalahnya BUKAN soal ukuran cetak (itu sudah beres
+  // lewat PDF), melainkan margin kiri-kanan yang makan jatah lebar teks, DAN kalau
+  // huruf diperbesar begitu saja tanpa margin dikecilkan, satu baris jadi tidak
+  // muat. NOTA_FONT_SCALE/NOTA_MARGIN_X_MM (js/10-nota-cetak.js) menaikkan huruf
+  // SEKALIGUS mengecilkan margin biar saling mengimbangi, dipakai bareng oleh
+  // layoutNotaCanvas() (JPG) & buildNotaPDFBlob() (PDF).
+  await step('REGRESI (21 Okt 2026): NOTA_FONT_SCALE memperbesar huruf (JPG lewat ptToPx, PDF lewat doc.setFontSize()) SEKALIGUS NOTA_MARGIN_X_MM mengecilkan margin kiri-kanan (< margin lama 4mm/sisi) di kedua format, supaya lebih besar tanpa jadi gampang tidak muat', async () => {
+    if (!(NOTA_FONT_SCALE > 1)) throw new Error('REGRESI: NOTA_FONT_SCALE harus > 1 (huruf diperbesar dari ukuran dasar), got ' + NOTA_FONT_SCALE);
+    if (!(NOTA_MARGIN_X_MM < 4)) throw new Error('REGRESI: NOTA_MARGIN_X_MM harus < 4mm (margin lama) -- lebar ekstra inilah yang mengimbangi huruf yang lebih besar, got ' + NOTA_MARGIN_X_MM);
+
+    // JPG: margin kiri/kanan canvas (dalam mm, lepas dari scale berapa pun) harus < 4mm.
+    const probe = layoutNotaCanvas([{ t:'Baris uji', s:9 }], 80, 16);
+    const marginMmNow = probe.marginX / 16;
+    if (marginMmNow >= 4) throw new Error('REGRESI: margin kiri/kanan canvas harus lebih kecil dari margin lama (4mm), got ' + marginMmNow + 'mm');
+
+    // PDF: doc.setFontSize() harus menerima line.s*NOTA_FONT_SCALE, bukan line.s mentah.
+    const originalJspdf = window.jspdf;
+    const sizes = [];
+    class FakeJsPDF {
+      constructor(){}
+      setFont(){} setFontSize(s){ sizes.push(s); }
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(){} text(){}
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDF };
+    try {
+      await buildNotaPDFBlob([{ t: 'Baris uji', s:9 }], 80);
+      const expected = 9 * NOTA_FONT_SCALE;
+      if (sizes.length !== 1 || Math.abs(sizes[0] - expected) > 0.001) throw new Error('REGRESI: doc.setFontSize() harus dipanggil dengan line.s*NOTA_FONT_SCALE (' + expected + '), got ' + JSON.stringify(sizes));
+    } finally {
+      if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
   // --- Regression: on desktop, "Unduh Gambar" opened the OS-level Share sheet (Windows/Mac),
   // which only lists other apps to share to and has NO plain "save file" option -- so a desktop
   // user could never actually open the receipt image except by sending it through one of those
