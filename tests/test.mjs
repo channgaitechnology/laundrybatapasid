@@ -2466,33 +2466,51 @@ const result = await page.evaluate(async () => {
     }
   });
 
-  // REGRESI (21 Okt 2026): user melaporkan di BROWSER DESKTOP, klik tombol "Kirim
-  // via WhatsApp" (hasil penyederhanaan menu di atas) "malah jadi download nota" --
-  // tidak ada aksi WhatsApp apa pun sama sekali. Sebabnya: shareOrDownloadNotaImage()
-  // cuma mencoba navigator.share() kalau isMobileDevice(), jadi di desktop dia
-  // SELALU jatuh ke unduh biasa -- dan tombol "Kirim via WhatsApp" dulu memakai
-  // fungsi yang SAMA PERSIS dengan "Simpan sebagai Gambar" (downloadReceiptImage()
-  // dkk.), jadi labelnya menjanjikan WA tapi tidak pernah benar2 membuka WA di
-  // desktop. Diperbaiki: shareOrDownloadNotaImage() dapat parameter waPhone baru
-  // (opsional) -- kalau diisi DAN bukan mobile, setelah unduh selesai dia juga
-  // openWA() ke nomor itu (tab WhatsApp Web, tanpa teks -- cuma untuk siapkan
-  // kontak yang benar, user tinggal lampirkan file yang baru diunduh). Tombol
-  // "Kirim via WhatsApp" sekarang pakai fungsi BARU (sendReceiptImageWA() dkk.,
-  // beda dari downloadReceiptImage() yang dipakai "Simpan sebagai Gambar") yang
-  // mengisi waPhone ini -- fungsi "Simpan sebagai Gambar" SENGAJA TIDAK diubah
-  // (tidak boleh ikut membuka WA, itu bukan tujuannya).
-  await step('shareOrDownloadNotaImage(waPhone): di desktop (bukan mobile) membuka tab WhatsApp Web ke nomor itu SETELAH unduh, tapi HD/mobile TIDAK terpengaruh; sendReceiptImageWA()/downloadReceiptImage() (tombol "Kirim via WhatsApp" vs "Simpan sebagai Gambar") beda perilaku desktop-nya persis karena ini', async () => {
+  // REGRESI BERLAPIS di tombol "Kirim via WhatsApp" (21 Okt 2026), ditemukan
+  // berurutan lewat laporan nyata user:
+  // 1) Desktop: dulu cuma pakai fungsi yang SAMA PERSIS dengan "Simpan sebagai
+  //    Gambar" -- navigator.share() cuma dicoba kalau isMobileDevice(), jadi di
+  //    desktop SELALU jatuh ke unduh biasa tanpa WA apa pun ("malah jadi
+  //    download nota").
+  // 2) Nomor WA pelanggan kosong: toast-nya tidak pernah menyebut WhatsApp sama
+  //    sekali, user mengira tombolnya rusak padahal cuma nomornya belum diisi.
+  // 3) Nomor WA terisi: chat WhatsApp Web kebuka ke kontak yang benar TAPI
+  //    filenya tidak ikut terlampir ("cuma chat kosong") -- instruksi lampir
+  //    manual dulu cuma showToast() yang langsung terlewat begitu fokus
+  //    berpindah ke tab baru yang dibuka window.open().
+  // 4) Di HP: user melaporkan "yang muncul banyak pilihan, ada wa, download,
+  //    share dan lain-lain" -- ternyata tombol ini MASIH memanggil
+  //    navigator.share() di mobile (warisan shareOrDownloadNotaImage()),
+  //    menyerahkan pilihan ke share sheet OS generik, BUKAN langsung ke WA.
+  //    Permintaan tegas user: "harusnya hanya kirim lewat wa... langsung buka
+  //    wa, jika di nota ada nomornya langsung masuk ke chat, jika tidak ada
+  //    nomor cukup buka sampai halaman depan wa" -- behavior-nya harus SAMA
+  //    PERSIS di semua platform, tidak ada percabangan isMobileDevice() lagi.
+  //
+  // Diperbaiki TUNTAS lewat shareNotaViaWhatsApp() (js/10-nota-cetak.js) --
+  // fungsi BARU yang TERPISAH TOTAL dari shareOrDownloadNotaImage() (bukan lagi
+  // varian dengan parameter tambahan), dipakai KHUSUS tombol "Kirim via
+  // WhatsApp" di ke-4 modal nota, TIDAK PERNAH memanggil navigator.share() di
+  // platform apa pun: selalu unduh file -> alert() (modal, wajib di-OK, sebut
+  // WhatsApp) -> openWA() langsung (ke nomor kalau ada, ke halaman depan WA
+  // kalau tidak). shareOrDownloadNotaImage() sendiri DIKEMBALIKAN ke versi
+  // aslinya (tanpa parameter WA apa pun) -- cuma dipakai "Simpan sebagai
+  // Gambar", yang MASIH BOLEH pakai navigator.share() di mobile (itu memang
+  // tombol "simpan/bagikan ke mana saja", bukan "kirim WA").
+  await step('shareNotaViaWhatsApp()/sendReceiptImageWA(): TIDAK PERNAH memanggil navigator.share() (share sheet generik) di platform APA PUN -- selalu alert() panduan lampir manual SEBELUM openWA() langsung ke chat kontak (atau halaman depan WA kalau nomor kosong); downloadReceiptImage() ("Simpan sebagai Gambar") TIDAK terpengaruh sama sekali', async () => {
     const originalCanShare = navigator.canShare;
     const originalShare = navigator.share;
     const originalOpen = window.open;
+    const originalAlert = window.alert;
     const originalCreateElement = document.createElement.bind(document);
     const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
     const originalTransactions = transactions;
     const originalNotaShareTrxId = notaShareTrxId;
-    let shareCalls, openedUrls, clickedDownloads;
+    let shareCalls, openedUrls, clickedDownloads, alertMessages, callOrder;
     navigator.canShare = () => true;
     navigator.share = async (data) => { shareCalls.push(data); };
-    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    window.open = (url) => { openedUrls.push(url); callOrder.push('open:' + url); return { closed: false }; };
+    window.alert = (msg) => { alertMessages.push(msg); callOrder.push('alert'); };
     document.createElement = (tag) => {
       const el = originalCreateElement(tag);
       if (tag === 'a') {
@@ -2501,91 +2519,68 @@ const result = await page.evaluate(async () => {
       }
       return el;
     };
+    const UAS = {
+      desktop: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      mobile: 'Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36',
+    };
     try {
-      const trx = { id:'test-wadesktop-trx-id', kode:'PF-WADESK-1', tanggal:'2026-10-21', nama:'Uji WA Desktop', hp:'081234567890', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      const trx = { id:'test-wadesktop-trx-id', kode:'PF-WADESK-1', tanggal:'2026-10-21', nama:'Uji WA', hp:'081234567890', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
       transactions = transactions.slice();
       transactions.push(trx);
       notaShareTrxId = trx.id;
 
-      // Desktop + tombol "Kirim via WhatsApp" (sendReceiptImageWA) -> HARUS buka wa.me ke nomor pelanggan.
-      setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
-      await sendReceiptImageWA();
-      if (clickedDownloads.length !== 1) throw new Error('desktop tetap harus mengunduh file gambarnya, got ' + JSON.stringify(clickedDownloads));
-      if (openedUrls.length !== 1 || !openedUrls[0].startsWith('https://wa.me/' + normalizePhone(trx.hp))) throw new Error('REGRESI: desktop "Kirim via WhatsApp" harus membuka tab WhatsApp Web ke nomor pelanggan, got ' + JSON.stringify(openedUrls));
+      // REGRESI 1 & 4: "Kirim via WhatsApp" dengan nomor terisi -> di DESKTOP
+      // MAUPUN MOBILE harus SAMA: TIDAK PERNAH navigator.share(), langsung
+      // openWA() ke nomor pelanggan, alert() panduan (sebut WhatsApp) SEBELUM itu.
+      for (const [platform, ua] of Object.entries(UAS)) {
+        setUA(ua);
+        shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = []; callOrder = [];
+        await sendReceiptImageWA();
+        if (shareCalls.length !== 0) throw new Error(`REGRESI (${platform}): "Kirim via WhatsApp" TIDAK BOLEH memanggil navigator.share() (share sheet generik) sama sekali, got ` + shareCalls.length);
+        if (clickedDownloads.length !== 1) throw new Error(`(${platform}) tetap harus mengunduh file gambarnya, got ` + JSON.stringify(clickedDownloads));
+        if (openedUrls.length !== 1 || !openedUrls[0].startsWith('https://wa.me/' + normalizePhone(trx.hp))) throw new Error(`REGRESI (${platform}): harus langsung membuka WhatsApp ke nomor pelanggan, got ` + JSON.stringify(openedUrls));
+        if (alertMessages.length !== 1 || !alertMessages[0].toLowerCase().includes('whatsapp')) throw new Error(`REGRESI (${platform}): harus ada alert() panduan yang menyebut WhatsApp SEBELUM WA dibuka, got ` + JSON.stringify(alertMessages));
+        if (callOrder.join(',') !== 'alert,open:' + openedUrls[0]) throw new Error(`REGRESI (${platform}): alert() harus tampil SEBELUM openWA() -- urutan salah, got ` + JSON.stringify(callOrder));
+      }
 
-      // Desktop + tombol "Simpan sebagai Gambar" (downloadReceiptImage, TANPA waPhone) -> TIDAK BOLEH buka WA sama sekali.
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      // REGRESI 2: nomor WA pelanggan kosong -> TETAP unduh (tidak diblokir),
+      // alert() tetap menyebut WhatsApp (bukan toast generik yang bikin user
+      // mengira tombolnya rusak), TAPI openWA()-nya ke HALAMAN DEPAN WA
+      // (wa.me/?text=, bukan ke nomor acak) -- konsisten di semua platform juga.
+      trx.hp = '';
+      for (const [platform, ua] of Object.entries(UAS)) {
+        setUA(ua);
+        shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = []; callOrder = [];
+        await sendReceiptImageWA();
+        if (shareCalls.length !== 0) throw new Error(`REGRESI (${platform}, nomor kosong): TIDAK BOLEH memanggil navigator.share(), got ` + shareCalls.length);
+        if (clickedDownloads.length !== 1) throw new Error(`(${platform}, nomor kosong): REGRESI -- tidak boleh memblokir unduhan gambarnya, got ` + JSON.stringify(clickedDownloads));
+        if (openedUrls.length !== 1 || openedUrls[0] !== 'https://wa.me/?text=') throw new Error(`REGRESI (${platform}, nomor kosong): harus tetap buka halaman depan WhatsApp (wa.me/?text=, biar user pilih kontak sendiri), got ` + JSON.stringify(openedUrls));
+        if (alertMessages.length !== 1 || !alertMessages[0].toLowerCase().includes('whatsapp')) throw new Error(`REGRESI (${platform}, nomor kosong): alert() tetap harus menyebut WhatsApp, got ` + JSON.stringify(alertMessages));
+      }
+      trx.hp = '081234567890';
+
+      // "Simpan sebagai Gambar" (downloadReceiptImage) SENGAJA TIDAK diubah sama
+      // sekali oleh refactor ini -- mobile MASIH pakai navigator.share() (benar,
+      // itu tombol "simpan/bagikan ke mana saja"), desktop MASIH unduh polos
+      // tanpa alert()/WA apa pun.
+      setUA(UAS.mobile);
+      shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = [];
       await downloadReceiptImage();
-      if (clickedDownloads.length !== 1) throw new Error('"Simpan sebagai Gambar" tetap harus mengunduh file, got ' + JSON.stringify(clickedDownloads));
-      if (openedUrls.length !== 0) throw new Error('"Simpan sebagai Gambar" TIDAK BOLEH membuka WhatsApp apa pun, got ' + JSON.stringify(openedUrls));
+      if (shareCalls.length !== 1) throw new Error('"Simpan sebagai Gambar" di mobile seharusnya TETAP memakai navigator.share(), got ' + shareCalls.length);
+      if (openedUrls.length !== 0 || alertMessages.length !== 0) throw new Error('"Simpan sebagai Gambar" TIDAK BOLEH membuka WA atau menampilkan alert() apa pun, got ' + JSON.stringify({openedUrls, alertMessages}));
 
-      // Mobile -- navigator.share() berhasil, jadi tidak boleh unduh ATAU buka WA sama sekali (share sheet OS yang urus).
-      setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
-      await sendReceiptImageWA();
-      if (shareCalls.length !== 1) throw new Error('mobile seharusnya memakai navigator.share(), got ' + shareCalls.length);
-      if (openedUrls.length !== 0) throw new Error('mobile TIDAK BOLEH membuka tab WhatsApp Web terpisah (share sheet sudah cukup), got ' + JSON.stringify(openedUrls));
+      setUA(UAS.desktop);
+      shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = [];
+      await downloadReceiptImage();
+      if (clickedDownloads.length !== 1) throw new Error('"Simpan sebagai Gambar" di desktop tetap harus mengunduh file, got ' + JSON.stringify(clickedDownloads));
+      if (openedUrls.length !== 0 || alertMessages.length !== 0) throw new Error('"Simpan sebagai Gambar" di desktop TIDAK BOLEH membuka WA atau menampilkan alert() apa pun, got ' + JSON.stringify({openedUrls, alertMessages}));
     } finally {
       transactions = originalTransactions;
       notaShareTrxId = originalNotaShareTrxId;
       navigator.canShare = originalCanShare;
       navigator.share = originalShare;
       window.open = originalOpen;
-      document.createElement = originalCreateElement;
-      delete navigator.userAgent;
-    }
-  });
-
-  // REGRESI KEDUA (21 Okt 2026, ditemukan user lewat screenshot nyata SETELAH
-  // perbaikan di atas): kalau transaksinya TIDAK punya No. WhatsApp pelanggan
-  // (trx.hp kosong), tombol "Kirim via WhatsApp" di desktop tetap cuma jatuh ke
-  // toast generik ("Gambar nota diunduh ke folder Download.") yang SAMA SEKALI
-  // tidak menyebut WhatsApp -- user salah paham tombolnya "masih belum bisa
-  // kirim ke WA" padahal sebenarnya cuma karena nomor pelanggannya belum
-  // diisi. Diperbaiki: shareOrDownloadNotaImage() membedakan waPhone==='' (tombol
-  // WA dipakai TAPI nomor kosong -- toast WAJIB sebut WhatsApp & jelaskan
-  // kenapa) dari waPhone===undefined (BUKAN tombol WA sama sekali, mis. "Simpan
-  // sebagai Gambar" -- toast generik seperti biasa, tidak boleh berubah).
-  await step('shareOrDownloadNotaImage(waPhone=""): desktop TETAP mengunduh gambarnya (tidak diblokir) saat nomor WA pelanggan kosong, TIDAK membuka tab WA apa pun, TAPI toast-nya HARUS menyebut WhatsApp (beda dari toast generik "Simpan sebagai Gambar")', async () => {
-    const originalCanShare = navigator.canShare;
-    const originalShare = navigator.share;
-    const originalOpen = window.open;
-    const originalCreateElement = document.createElement.bind(document);
-    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
-    const originalTransactions = transactions;
-    const originalNotaShareTrxId = notaShareTrxId;
-    let openedUrls, clickedDownloads;
-    navigator.canShare = () => true;
-    navigator.share = async () => { throw new Error('tidak boleh dipanggil di desktop'); };
-    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
-    document.createElement = (tag) => {
-      const el = originalCreateElement(tag);
-      if (tag === 'a') {
-        const originalClick = el.click.bind(el);
-        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
-      }
-      return el;
-    };
-    setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-    try {
-      const trx = { id:'test-wanophone-trx-id', kode:'PF-WANOPHONE-1', tanggal:'2026-10-21', nama:'Uji WA Tanpa Nomor', hp:'', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
-      transactions = transactions.slice();
-      transactions.push(trx);
-      notaShareTrxId = trx.id;
-
-      openedUrls = []; clickedDownloads = [];
-      await sendReceiptImageWA();
-      if (clickedDownloads.length !== 1) throw new Error('REGRESI: nomor WA kosong TIDAK BOLEH memblokir unduhan gambarnya, got ' + JSON.stringify(clickedDownloads));
-      if (openedUrls.length !== 0) throw new Error('nomor WA kosong -- tidak ada kontak yang jelas, TIDAK BOLEH membuka tab WA apa pun, got ' + JSON.stringify(openedUrls));
-      const toastMsg = document.getElementById('toast').textContent;
-      if (!toastMsg.toLowerCase().includes('whatsapp')) throw new Error('REGRESI: toast untuk tombol "Kirim via WhatsApp" dengan nomor kosong HARUS tetap menyebut WhatsApp (supaya user tidak mengira tombolnya rusak), got: ' + toastMsg);
-    } finally {
-      transactions = originalTransactions;
-      notaShareTrxId = originalNotaShareTrxId;
-      navigator.canShare = originalCanShare;
-      navigator.share = originalShare;
-      window.open = originalOpen;
+      window.alert = originalAlert;
       document.createElement = originalCreateElement;
       delete navigator.userAgent;
     }

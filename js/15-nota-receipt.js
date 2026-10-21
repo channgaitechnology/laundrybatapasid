@@ -103,12 +103,13 @@ async function downloadReceiptImage(){
   await shareOrDownloadNotaImage(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`);
   closeReceiptShareOptions();
 }
-/* Tombol "Kirim via WhatsApp" -- beda dari downloadReceiptImage() (tombol "Simpan
-   sebagai Gambar") lewat parameter waPhone, lihat komentar shareOrDownloadNotaImage(). */
+/* Tombol "Kirim via WhatsApp" -- pakai shareNotaViaWhatsApp() (js/10-nota-cetak.js),
+   BUKAN shareOrDownloadNotaImage() yang dipakai downloadReceiptImage() (tombol
+   "Simpan sebagai Gambar") -- lihat komentar shareNotaViaWhatsApp() kenapa dipisah. */
 async function sendReceiptImageWA(){
   const trx = transactions.find(t=>t.id===notaShareTrxId);
   if(!trx){ showToast(t('Nota tidak ditemukan')); return; }
-  await shareOrDownloadNotaImage(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, `${t('Nota')} ${trx.kode}`, trx.hp || '');
+  await shareNotaViaWhatsApp(buildReceiptPDFLines(trx), `Nota-${trx.kode}`, 80, trx.hp);
   closeReceiptShareOptions();
 }
 /* Lihat komentar di shareNotaImageAsDocument() (js/10-nota-cetak.js) soal
