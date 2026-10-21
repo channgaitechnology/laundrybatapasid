@@ -5051,6 +5051,149 @@ const result = await page.evaluate(async () => {
     if (btPrinterDevice || btPrinterChar) throw new Error('no printer should end up connected when Web Bluetooth is unsupported');
   });
 
+  await step('connectBluetoothPrinter(): sambung ULANG ke device yang SAMA (gatt.connect(), tanpa requestDevice() lagi) kalau cuma BLE-nya sempat putus sendiri; tapi tetap minta pilih ulang lewat requestDevice() kalau device lama sudah tidak terjangkau atau user pakai "Putus Sambungan" manual', async () => {
+    const savedDevice = btPrinterDevice, savedServer = btPrinterServer, savedChar = btPrinterChar;
+    const originalBluetooth = navigator.bluetooth;
+    let requestDeviceCalls = 0;
+    let gattConnectFailuresRemaining = 0;
+    const writes = [];
+    const disconnectListeners = [];
+    const char = {
+      properties: { writeWithoutResponse: true, write: false },
+      writeValueWithoutResponse: async (chunk) => { writes.push(chunk); },
+    };
+    const service = { getCharacteristics: async () => [char] };
+    let connected = false;
+    const gatt = {
+      get connected() { return connected; },
+      connect: async () => {
+        if (gattConnectFailuresRemaining > 0) { gattConnectFailuresRemaining--; throw new Error('simulated: device out of range'); }
+        connected = true;
+        return gatt;
+      },
+      disconnect: () => { connected = false; },
+      // Printer palsu ini cuma punya SATU dari service UUID yang didaftarkan app -- menguji
+      // loop pencarian characteristic di connectBluetoothPrinter() ikut tereksekusi beneran.
+      getPrimaryService: async (uuid) => {
+        if (uuid !== BT_PRINTER_SERVICE_UUIDS[1]) throw new Error('printer palsu ini tidak punya service itu');
+        return service;
+      },
+    };
+    const fakeDevice = {
+      name: 'Printer Uji',
+      gatt,
+      addEventListener: (type, cb) => { if (type === 'gattserverdisconnected') disconnectListeners.push(cb); },
+    };
+    navigator.bluetooth = { requestDevice: async () => { requestDeviceCalls++; return fakeDevice; } };
+    btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
+    try {
+      // 1) Sambungan PERTAMA -- belum ada device sebelumnya, harus lewat requestDevice()
+      const ok1 = await connectBluetoothPrinter();
+      if (!ok1) throw new Error('koneksi pertama ke printer palsu seharusnya berhasil');
+      if (requestDeviceCalls !== 1) throw new Error('koneksi pertama harus memanggil requestDevice() tepat sekali, got ' + requestDeviceCalls);
+      if (disconnectListeners.length !== 1) throw new Error('harus terpasang persis 1 listener gattserverdisconnected setelah koneksi pertama, got ' + disconnectListeners.length);
+      if (btPrinterChar !== char) throw new Error('btPrinterChar harus terisi characteristic hasil penemuan service');
+
+      // 2) Simulasikan printer auto-sleep/putus sendiri (BUKAN "Putus Sambungan" manual
+      //    dari user -- itu diuji terpisah di langkah 5)
+      connected = false;
+      disconnectListeners.forEach(cb => cb());
+      if (btPrinterServer !== null || btPrinterChar !== null) throw new Error('setelah gattserverdisconnected, btPrinterServer/btPrinterChar harus dikosongkan lagi');
+      if (btPrinterDevice === null) throw new Error('REGRESI: btPrinterDevice TIDAK BOLEH ikut dikosongkan cuma karena BLE-nya putus sendiri (beda dari disconnect manual) -- kalau ikut null, sambung ulang di langkah 3 akan salah jatuh ke requestDevice() lagi');
+
+      // 3) Coba sambung lagi -- harus REUSE device yang sama (device.gatt.connect()), TANPA requestDevice() lagi
+      const ok2 = await connectBluetoothPrinter();
+      if (!ok2) throw new Error('sambung ulang ke device yang sama seharusnya berhasil');
+      if (requestDeviceCalls !== 1) throw new Error('REGRESI: sambung ulang setelah BLE putus sendiri TIDAK BOLEH memunculkan dialog pilih printer lagi (requestDevice()) -- total panggilan requestDevice() jadi ' + requestDeviceCalls + ', harus tetap 1');
+      if (disconnectListeners.length !== 1) throw new Error('listener gattserverdisconnected TIDAK BOLEH dipasang dobel saat sambung ulang ke device yang sama (menumpuk jadi dipanggil berkali-kali tiap disconnect berikutnya), got ' + disconnectListeners.length);
+
+      // 4) Simulasikan device lama BENAR-BENAR sudah tidak terjangkau (gatt.connect() gagal) --
+      //    harus fallback ke requestDevice() lagi, bukan diam-diam menyerah
+      connected = false;
+      disconnectListeners.forEach(cb => cb());
+      gattConnectFailuresRemaining = 1; // percobaan reconnect ke device LAMA gagal sekali ini saja
+      const ok3 = await connectBluetoothPrinter();
+      if (!ok3) throw new Error('kalau device lama tidak terjangkau, harus fallback ke requestDevice() dan tetap berhasil, bukan menyerah');
+      if (requestDeviceCalls !== 2) throw new Error('kalau reconnect ke device lama gagal, HARUS fallback memanggil requestDevice() lagi, got total panggilan ' + requestDeviceCalls);
+
+      // 5) "Putus Sambungan" manual (tombol di Pengaturan) -- device HARUS ikut dikosongkan,
+      //    beda dari auto-sleep di langkah 2 -- connect berikutnya WAJIB lewat requestDevice() lagi
+      disconnectBluetoothPrinter();
+      if (btPrinterDevice !== null) throw new Error('disconnectBluetoothPrinter() (manual) harus ikut mengosongkan btPrinterDevice, beda dari gattserverdisconnected otomatis');
+      const ok4 = await connectBluetoothPrinter();
+      if (!ok4) throw new Error('connect lagi setelah "Putus Sambungan" manual seharusnya tetap berhasil');
+      if (requestDeviceCalls !== 3) throw new Error('setelah "Putus Sambungan" manual, connect berikutnya HARUS lewat requestDevice() lagi (bukan diam-diam reuse), got total panggilan ' + requestDeviceCalls);
+
+      // 6) Pastikan jalur cetak sungguhan (bukan cuma connect) benar-benar menulis byte ke printer palsu ini
+      await printLinesViaBluetooth([{ t: 'Tes cetak', s:9 }]);
+      if (writes.length === 0) throw new Error('printLinesViaBluetooth() harus menulis byte ke characteristic printer yang tersambung');
+    } finally {
+      navigator.bluetooth = originalBluetooth;
+      disconnectBluetoothPrinter();
+      btPrinterDevice = savedDevice; btPrinterServer = savedServer; btPrinterChar = savedChar;
+    }
+  });
+
+  await step('REGRESI (audit lanjutan): connectBluetoothPrinter() tidak boleh memunculkan 2 dialog requestDevice() sekaligus kalau dipanggil dobel (tap ganda tombol "Sambungkan Printer"), dan printLinesViaBluetooth() tidak boleh menulis 2 nota BERSAMAAN ke characteristic yang sama (tap ganda "Cetak Bluetooth" sebelum nota pertama selesai terkirim)', async () => {
+    const savedDevice = btPrinterDevice, savedServer = btPrinterServer, savedChar = btPrinterChar;
+    const originalBluetooth = navigator.bluetooth;
+    let requestDeviceCalls = 0;
+    const writes = [];
+    let writeDelayMs = 0;
+    const char = {
+      properties: { writeWithoutResponse: true, write: false },
+      writeValueWithoutResponse: async (chunk) => {
+        if (writeDelayMs) await new Promise(r => setTimeout(r, writeDelayMs));
+        writes.push(chunk);
+      },
+    };
+    const service = { getCharacteristics: async () => [char] };
+    const gatt = {
+      connected: true,
+      connect: async () => gatt,
+      disconnect: () => {},
+      getPrimaryService: async (uuid) => {
+        if (uuid !== BT_PRINTER_SERVICE_UUIDS[0]) throw new Error('printer palsu ini tidak punya service itu');
+        return service;
+      },
+    };
+    const fakeDevice = { name: 'Printer Uji 2', gatt, addEventListener: () => {} };
+    navigator.bluetooth = { requestDevice: async () => { requestDeviceCalls++; return fakeDevice; } };
+    try {
+      // 1) connectBluetoothPrinter() dipanggil DUA KALI tanpa menunggu yang pertama
+      //    (persis simulasi tap ganda) -- harus cuma 1 dialog requestDevice() yang
+      //    benar-benar terjadi, panggilan kedua menumpang hasil yang pertama.
+      btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
+      const p1 = connectBluetoothPrinter();
+      const p2 = connectBluetoothPrinter();
+      const [ok1, ok2] = await Promise.all([p1, p2]);
+      if (!ok1 || !ok2) throw new Error('kedua panggilan connectBluetoothPrinter() yang ditumpuk seharusnya sama-sama berhasil');
+      if (requestDeviceCalls !== 1) throw new Error('REGRESI: tap ganda tombol Sambungkan Printer TIDAK BOLEH memunculkan requestDevice() dua kali, got ' + requestDeviceCalls);
+
+      // 2) printLinesViaBluetooth() dipanggil DUA KALI tanpa menunggu yang pertama,
+      //    printer sudah tersambung -- panggilan kedua harus LANGSUNG ditolak
+      //    (bukan ikut menulis byte-nya sendiri bercampur dengan yang pertama).
+      writeDelayMs = 20; // beri jarak waktu nyata supaya panggilan kedua pasti masih "di tengah jalan" saat dicoba
+      const r1 = printLinesViaBluetooth([{ t: 'Nota A', s:9 }]);
+      const r2 = printLinesViaBluetooth([{ t: 'Nota B', s:9 }]);
+      const [printOk1, printOk2] = await Promise.all([r1, r2]);
+      if (!printOk1) throw new Error('panggilan PERTAMA printLinesViaBluetooth() seharusnya tetap berhasil mencetak');
+      if (printOk2) throw new Error('REGRESI: panggilan KEDUA yang ditumpuk SEBELUM yang pertama selesai harus ditolak (return false), bukan ikut mencetak bersamaan -- berisiko nota tercampur di kertas');
+      const textAfterFirstBatch = new TextDecoder().decode(concatBytes(writes));
+      if (!textAfterFirstBatch.includes('Nota A')) throw new Error('byte yang tertulis seharusnya isi "Nota A" dari panggilan pertama: ' + textAfterFirstBatch);
+      if (textAfterFirstBatch.includes('Nota B')) throw new Error('REGRESI: panggilan kedua yang seharusnya ditolak TIDAK BOLEH ikut menulis byte "Nota B" ke printer sama sekali: ' + textAfterFirstBatch);
+
+      // 3) Setelah nota pertama selesai (guard terlepas lagi), cetak baru harus normal lagi
+      writeDelayMs = 0;
+      const okAfter = await printLinesViaBluetooth([{ t: 'Nota C', s:9 }]);
+      if (!okAfter) throw new Error('setelah panggilan pertama selesai, printLinesViaBluetooth() berikutnya harus normal lagi (guard terlepas)');
+    } finally {
+      navigator.bluetooth = originalBluetooth;
+      disconnectBluetoothPrinter();
+      btPrinterDevice = savedDevice; btPrinterServer = savedServer; btPrinterChar = savedChar;
+    }
+  });
+
   await step('printReceiptViaBrowser()/printSubsInvoiceViaBrowser()/printUsageNotaViaBrowser() render the same nota lines into #printArea and call window.print() — the iPhone/AirPrint fallback since Web Bluetooth is unsupported on Safari', async () => {
     const originalPrint = window.print;
     let printCalls = 0;

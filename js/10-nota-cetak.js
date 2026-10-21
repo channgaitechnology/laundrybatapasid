@@ -912,17 +912,52 @@ function escposBytesFromLines(lines){
   chunks.push(new Uint8Array([0x0A,0x0A,0x0A])); // spasi buat sobek kertas
   return concatBytes(chunks);
 }
+// Kalau sudah ada percobaan sambung yang BERJALAN, panggilan berikutnya
+// (misal dari dua tombol "Cetak Bluetooth" yang ter-tap dobel sebelum
+// koneksi pertama selesai) cuma MENUNGGU promise yang sama, bukan mulai
+// requestDevice() KEDUA -- Chrome menolak requestDevice() baru selama
+// dialog pilih printer sebelumnya masih terbuka (InvalidStateError), jadi
+// tanpa guard ini salah satu panggilan akan gagal dengan toast error yang
+// membingungkan padahal usernya cuma tap dobel tanpa sadar.
+var btConnectPromise = null;
 async function connectBluetoothPrinter(){
+  if(btConnectPromise) return btConnectPromise;
+  btConnectPromise = connectBluetoothPrinterImpl();
+  try{ return await btConnectPromise; }
+  finally{ btConnectPromise = null; }
+}
+async function connectBluetoothPrinterImpl(){
   if(!isBluetoothPrintSupported()){
     showToast(t('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop'));
     return false;
   }
   try{
-    const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: BT_PRINTER_SERVICE_UUIDS
-    });
-    const server = await device.gatt.connect();
+    // Kalau printer ini sudah pernah dipilih di tab ini (biasanya kesininya
+    // lagi karena BLE sempat putus sendiri -- printer thermal murah umum
+    // auto-sleep kalau idle beberapa detik, lihat gattserverdisconnected di
+    // bawah), coba sambung ULANG ke device YANG SAMA dulu lewat gatt.connect()
+    // -- izin akses device itu masih berlaku selama tab ini belum di-refresh,
+    // jadi TIDAK PERLU memunculkan dialog pilih printer lagi (regresi UX
+    // nyata: sebelum ini requestDevice() selalu dipanggil ulang, user harus
+    // pilih printer yang SAMA dari dialog tiap kali mau cetak lagi setelah
+    // printer-nya sempat tidur). Kalau device lama itu sendiri sudah benar-
+    // benar tidak terjangkau (dimatikan/dilepas jauh), baru jatuh ke
+    // requestDevice() di bawah supaya user bisa pilih ulang/pilih printer lain.
+    let device = btPrinterDevice;
+    let isNewDevice = false;
+    if(device){
+      try{ await device.gatt.connect(); }
+      catch(e){ device = null; }
+    }
+    if(!device){
+      device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: BT_PRINTER_SERVICE_UUIDS
+      });
+      await device.gatt.connect();
+      isNewDevice = true;
+    }
+    const server = device.gatt;
     let writeChar = null;
     for(const uuid of BT_PRINTER_SERVICE_UUIDS){
       try{
@@ -935,14 +970,21 @@ async function connectBluetoothPrinter(){
     if(!writeChar){
       showToast(t('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain'));
       try{ device.gatt.disconnect(); }catch(e){}
+      if(device===btPrinterDevice) btPrinterDevice = null; // jangan diam-diam coba device yang sama lagi lain kali, biar requestDevice() tampil lagi
       renderBtPrinterStatus();
       return false;
     }
     btPrinterDevice = device; btPrinterServer = server; btPrinterChar = writeChar;
-    device.addEventListener('gattserverdisconnected', ()=>{
-      btPrinterServer = null; btPrinterChar = null;
-      renderBtPrinterStatus();
-    });
+    // Listener ini CUMA dipasang sekali per device baru (bukan tiap sambung
+    // ulang ke device yang SAMA) -- kalau dipasang lagi tiap reconnect,
+    // listener-nya menumpuk dan gattserverdisconnected berikutnya akan
+    // memanggil callback ini berkali-kali.
+    if(isNewDevice){
+      device.addEventListener('gattserverdisconnected', ()=>{
+        btPrinterServer = null; btPrinterChar = null;
+        renderBtPrinterStatus();
+      });
+    }
     showToast(`${t('Printer')} "${device.name||''}" ${t('tersambung')}`);
     renderBtPrinterStatus();
     return true;
@@ -958,11 +1000,24 @@ function disconnectBluetoothPrinter(){
   btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
   renderBtPrinterStatus();
 }
+// true selama satu printLinesViaBluetooth() masih mengirim byte ke printer --
+// mencegah 2 nota ketimpa/ketukar tulisannya di karakteristik BLE yang sama
+// kalau tombol "Cetak Bluetooth" tak sengaja ter-tap dobel (umum di touchscreen)
+// sebelum nota pertama selesai terkirim. Tanpa guard ini, dua panggilan
+// berjalan BERSAMAAN akan sama-sama menulis potongan byte-nya sendiri ke
+// karakteristik yang sama tanpa urutan terjamin -- berisiko nota yang keluar
+// di kertas jadi bercampur/acak dari 2 nota berbeda.
+var btPrintInFlight = false;
 async function printLinesViaBluetooth(lines){
+  if(btPrintInFlight){
+    showToast(t('Masih mengirim nota sebelumnya ke printer, tunggu sebentar'));
+    return false;
+  }
   if(!btPrinterChar || !btPrinterServer || !btPrinterServer.connected){
     const ok = await connectBluetoothPrinter();
     if(!ok) return false;
   }
+  btPrintInFlight = true;
   try{
     const bytes = escposBytesFromLines(lines);
     const CHUNK = 180; // kirim per potongan kecil, sesuai batas paket BLE khas
@@ -982,6 +1037,8 @@ async function printLinesViaBluetooth(lines){
     btPrinterServer = null; btPrinterChar = null;
     renderBtPrinterStatus();
     return false;
+  }finally{
+    btPrintInFlight = false;
   }
 }
 async function printReceiptBluetooth(){
