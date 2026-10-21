@@ -385,8 +385,14 @@ Batasan penting:
   terdeteksi Web Bluetooth API — kalau ada laporan printer tidak
   ditemukan, tambahkan UUID service printer tersebut ke daftar itu.
 - Koneksi Bluetooth-nya per-tab browser — tidak otomatis tersambung lagi
-  setelah refresh halaman, harus pilih printer lagi lewat dialog Bluetooth
-  bawaan browser (perlu gestur user, tidak bisa otomatis).
+  setelah REFRESH HALAMAN, harus pilih printer lagi lewat dialog Bluetooth
+  bawaan browser (perlu gestur user, tidak bisa otomatis). TAPI selama tab-nya
+  belum di-refresh, kalau printer sempat putus sendiri di tengah pemakaian
+  (umum terjadi — printer thermal murah banyak yang auto-sleep kalau idle
+  beberapa detik), `connectBluetoothPrinter()` otomatis coba sambung ULANG ke
+  device yang SAMA dulu (`device.gatt.connect()`, tanpa dialog pilih printer
+  lagi) sebelum jatuh ke `requestDevice()` — jadi cuma perlu pilih printer
+  sekali per sesi tab, bukan tiap kali mau cetak lagi setelah idle.
 - Emoji dan simbol unicode di nota (—, •, ✓, 🟢, 📧) otomatis dibuang/
   diganti ASCII sebelum dicetak (lewat `sanitizeForThermal()`) karena
   kebanyakan printer thermal murah cuma mendukung ASCII/CP437.

@@ -918,11 +918,32 @@ async function connectBluetoothPrinter(){
     return false;
   }
   try{
-    const device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: BT_PRINTER_SERVICE_UUIDS
-    });
-    const server = await device.gatt.connect();
+    // Kalau printer ini sudah pernah dipilih di tab ini (biasanya kesininya
+    // lagi karena BLE sempat putus sendiri -- printer thermal murah umum
+    // auto-sleep kalau idle beberapa detik, lihat gattserverdisconnected di
+    // bawah), coba sambung ULANG ke device YANG SAMA dulu lewat gatt.connect()
+    // -- izin akses device itu masih berlaku selama tab ini belum di-refresh,
+    // jadi TIDAK PERLU memunculkan dialog pilih printer lagi (regresi UX
+    // nyata: sebelum ini requestDevice() selalu dipanggil ulang, user harus
+    // pilih printer yang SAMA dari dialog tiap kali mau cetak lagi setelah
+    // printer-nya sempat tidur). Kalau device lama itu sendiri sudah benar-
+    // benar tidak terjangkau (dimatikan/dilepas jauh), baru jatuh ke
+    // requestDevice() di bawah supaya user bisa pilih ulang/pilih printer lain.
+    let device = btPrinterDevice;
+    let isNewDevice = false;
+    if(device){
+      try{ await device.gatt.connect(); }
+      catch(e){ device = null; }
+    }
+    if(!device){
+      device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: BT_PRINTER_SERVICE_UUIDS
+      });
+      await device.gatt.connect();
+      isNewDevice = true;
+    }
+    const server = device.gatt;
     let writeChar = null;
     for(const uuid of BT_PRINTER_SERVICE_UUIDS){
       try{
@@ -935,14 +956,21 @@ async function connectBluetoothPrinter(){
     if(!writeChar){
       showToast(t('Printer tersambung tapi tidak ditemukan layanan cetak yang cocok — coba merek/model printer lain'));
       try{ device.gatt.disconnect(); }catch(e){}
+      if(device===btPrinterDevice) btPrinterDevice = null; // jangan diam-diam coba device yang sama lagi lain kali, biar requestDevice() tampil lagi
       renderBtPrinterStatus();
       return false;
     }
     btPrinterDevice = device; btPrinterServer = server; btPrinterChar = writeChar;
-    device.addEventListener('gattserverdisconnected', ()=>{
-      btPrinterServer = null; btPrinterChar = null;
-      renderBtPrinterStatus();
-    });
+    // Listener ini CUMA dipasang sekali per device baru (bukan tiap sambung
+    // ulang ke device yang SAMA) -- kalau dipasang lagi tiap reconnect,
+    // listener-nya menumpuk dan gattserverdisconnected berikutnya akan
+    // memanggil callback ini berkali-kali.
+    if(isNewDevice){
+      device.addEventListener('gattserverdisconnected', ()=>{
+        btPrinterServer = null; btPrinterChar = null;
+        renderBtPrinterStatus();
+      });
+    }
     showToast(`${t('Printer')} "${device.name||''}" ${t('tersambung')}`);
     renderBtPrinterStatus();
     return true;
