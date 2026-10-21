@@ -2424,6 +2424,43 @@ Verifikasi: suite Playwright penuh (216 langkah, 0 FAIL — 1 test baru
 khusus kasus nomor kosong: tetap unduh, TIDAK buka tab WA apa pun,
 TAPI toast-nya harus menyebut "WhatsApp").
 
+### REGRESI KETIGA: chat WhatsApp Web kebuka ke nomor yang benar tapi filenya tidak ikut terlampir (21 Oktober 2026)
+
+Lanjutan lagi dari 2 perbaikan di atas: untuk nota yang nomor WA
+pelanggannya SUDAH terisi, user melaporkan "langsung buka wa dan
+langsung buka chat ke nomor di nota tapi file nota nya tidak ikut
+terlampir cuma chat kosong". **Ini separuh memang batasan platform
+yang TIDAK BISA diperbaiki dari kode** — WhatsApp Web tidak punya
+mekanisme apa pun (lewat URL atau API publik) untuk menerima lampiran
+file dari situs lain; satu-satunya cara melampirkan tetap manual lewat
+ikon 📎 di dalam WA Web sendiri. Itu sudah dicatat di komentar kode
+sejak perbaikan pertama ("WA Web tidak bisa dipaksa lampir gambar
+lewat URL").
+
+Tapi ada bug NYATA yang bikin instruksi "lampirkan manual" itu tidak
+pernah terbaca user: dulu dipakai `showToast()` di TAB ASAL, sedangkan
+`openWA()` sesudahnya memanggil `window.open()` yang LANGSUNG
+memindahkan fokus browser ke TAB BARU (WhatsApp Web) — toast di tab
+asal jadi hilang/tidak kelihatan sama sekali sebelum sempat dibaca.
+User cuma melihat WhatsApp Web kebuka dengan chat kosong, tanpa tahu
+sama sekali bahwa file-nya sudah ada di folder Download menunggu
+dilampirkan manual.
+
+Diperbaiki: `shareOrDownloadNotaImage()` sekarang menampilkan
+`alert()` (modal, WAJIB di-klik OK) berisi instruksi 2 langkah
+("1. Klik ikon lampiran 📎 di kotak chat, 2. Pilih gambar nota dari
+folder Download") **SEBELUM** `openWA()` dipanggil — jadi user pasti
+membaca instruksinya dulu selagi masih di tab asal, baru fokus pindah
+ke tab WhatsApp Web yang baru terbuka. Pola ini sama dengan
+`shareNotaImageAsDocument()` yang sudah lebih dulu memakai `alert()`
+untuk instruksi berlapis yang harus dibaca sampai selesai.
+
+Verifikasi: suite Playwright penuh (216 langkah, 0 FAIL — test
+"Kirim via WhatsApp" yang sudah ada diperluas memastikan `alert()`
+berisi kata "WhatsApp" tampil TEPAT SEBELUM `openWA()`/`window.open()`
+dipanggil, bukan setelahnya, dan `showToast()` generik lama tidak lagi
+dipakai untuk kasus ini).
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

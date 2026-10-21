@@ -2481,18 +2481,27 @@ const result = await page.evaluate(async () => {
   // beda dari downloadReceiptImage() yang dipakai "Simpan sebagai Gambar") yang
   // mengisi waPhone ini -- fungsi "Simpan sebagai Gambar" SENGAJA TIDAK diubah
   // (tidak boleh ikut membuka WA, itu bukan tujuannya).
-  await step('shareOrDownloadNotaImage(waPhone): di desktop (bukan mobile) membuka tab WhatsApp Web ke nomor itu SETELAH unduh, tapi HD/mobile TIDAK terpengaruh; sendReceiptImageWA()/downloadReceiptImage() (tombol "Kirim via WhatsApp" vs "Simpan sebagai Gambar") beda perilaku desktop-nya persis karena ini', async () => {
+  // REGRESI KETIGA (ditemukan user: chat WA kosong tanpa lampiran sama sekali,
+  // "cuma chat kosong"): WhatsApp Web memang TIDAK BISA dipaksa lampir file lewat
+  // URL apa pun -- ini batasan platform, bukan bug. Masalahnya instruksi "lampirkan
+  // manual" dulu cuma showToast() (hilang sebentar) di TAB ASAL, sementara openWA()
+  // langsung memindahkan fokus browser ke TAB BARU (window.open()) -- jadi user
+  // praktis tidak pernah sempat baca instruksinya sama sekali. Diperbaiki: alert()
+  // (modal, wajib di-OK) ditampilkan DI TAB ASAL SEBELUM openWA() dipanggil.
+  await step('shareOrDownloadNotaImage(waPhone): di desktop (bukan mobile) menampilkan alert() panduan lampir manual SEBELUM membuka tab WhatsApp Web (bukan showToast() yang hilang begitu fokus pindah tab), tapi HD/mobile TIDAK terpengaruh; sendReceiptImageWA()/downloadReceiptImage() (tombol "Kirim via WhatsApp" vs "Simpan sebagai Gambar") beda perilaku desktop-nya persis karena ini', async () => {
     const originalCanShare = navigator.canShare;
     const originalShare = navigator.share;
     const originalOpen = window.open;
+    const originalAlert = window.alert;
     const originalCreateElement = document.createElement.bind(document);
     const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
     const originalTransactions = transactions;
     const originalNotaShareTrxId = notaShareTrxId;
-    let shareCalls, openedUrls, clickedDownloads;
+    let shareCalls, openedUrls, clickedDownloads, alertMessages, callOrder;
     navigator.canShare = () => true;
     navigator.share = async (data) => { shareCalls.push(data); };
-    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    window.open = (url) => { openedUrls.push(url); callOrder.push('open:' + url); return { closed: false }; };
+    window.alert = (msg) => { alertMessages.push(msg); callOrder.push('alert'); };
     document.createElement = (tag) => {
       const el = originalCreateElement(tag);
       if (tag === 'a') {
@@ -2507,31 +2516,37 @@ const result = await page.evaluate(async () => {
       transactions.push(trx);
       notaShareTrxId = trx.id;
 
-      // Desktop + tombol "Kirim via WhatsApp" (sendReceiptImageWA) -> HARUS buka wa.me ke nomor pelanggan.
+      // Desktop + tombol "Kirim via WhatsApp" (sendReceiptImageWA) -> HARUS tampilkan
+      // alert() panduan (sebut WhatsApp & langkah lampir manual) SEBELUM buka wa.me.
       setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = []; callOrder = [];
       await sendReceiptImageWA();
       if (clickedDownloads.length !== 1) throw new Error('desktop tetap harus mengunduh file gambarnya, got ' + JSON.stringify(clickedDownloads));
       if (openedUrls.length !== 1 || !openedUrls[0].startsWith('https://wa.me/' + normalizePhone(trx.hp))) throw new Error('REGRESI: desktop "Kirim via WhatsApp" harus membuka tab WhatsApp Web ke nomor pelanggan, got ' + JSON.stringify(openedUrls));
+      if (alertMessages.length !== 1 || !alertMessages[0].toLowerCase().includes('whatsapp')) throw new Error('REGRESI: harus ada alert() panduan yang menyebut WhatsApp SEBELUM tab baru dibuka (showToast() terlewat begitu fokus pindah tab), got ' + JSON.stringify(alertMessages));
+      if (callOrder.join(',') !== 'alert,open:' + openedUrls[0]) throw new Error('REGRESI: alert() harus tampil SEBELUM openWA() (tab baru) -- urutan salah, got ' + JSON.stringify(callOrder));
 
       // Desktop + tombol "Simpan sebagai Gambar" (downloadReceiptImage, TANPA waPhone) -> TIDAK BOLEH buka WA sama sekali.
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = []; callOrder = [];
       await downloadReceiptImage();
       if (clickedDownloads.length !== 1) throw new Error('"Simpan sebagai Gambar" tetap harus mengunduh file, got ' + JSON.stringify(clickedDownloads));
       if (openedUrls.length !== 0) throw new Error('"Simpan sebagai Gambar" TIDAK BOLEH membuka WhatsApp apa pun, got ' + JSON.stringify(openedUrls));
+      if (alertMessages.length !== 0) throw new Error('"Simpan sebagai Gambar" TIDAK BOLEH menampilkan alert() panduan WA apa pun, got ' + JSON.stringify(alertMessages));
 
-      // Mobile -- navigator.share() berhasil, jadi tidak boleh unduh ATAU buka WA sama sekali (share sheet OS yang urus).
+      // Mobile -- navigator.share() berhasil, jadi tidak boleh unduh, buka WA, ATAU alert() sama sekali (share sheet OS yang urus).
       setUA('Mozilla/5.0 (Linux; Android 13; SM-A125F) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36');
-      shareCalls = []; openedUrls = []; clickedDownloads = [];
+      shareCalls = []; openedUrls = []; clickedDownloads = []; alertMessages = [];
       await sendReceiptImageWA();
       if (shareCalls.length !== 1) throw new Error('mobile seharusnya memakai navigator.share(), got ' + shareCalls.length);
       if (openedUrls.length !== 0) throw new Error('mobile TIDAK BOLEH membuka tab WhatsApp Web terpisah (share sheet sudah cukup), got ' + JSON.stringify(openedUrls));
+      if (alertMessages.length !== 0) throw new Error('mobile TIDAK BOLEH menampilkan alert() panduan WA apa pun (share sheet sudah cukup), got ' + JSON.stringify(alertMessages));
     } finally {
       transactions = originalTransactions;
       notaShareTrxId = originalNotaShareTrxId;
       navigator.canShare = originalCanShare;
       navigator.share = originalShare;
       window.open = originalOpen;
+      window.alert = originalAlert;
       document.createElement = originalCreateElement;
       delete navigator.userAgent;
     }

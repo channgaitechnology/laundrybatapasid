@@ -650,7 +650,8 @@ async function buildNotaJPEGBlob(lines, pageWidthMm){
    WA apa pun sama sekali (regresi nyata dilaporkan user: "di browser desktop saat
    klik kirim wa malah jadi download nota"). Dengan waPhone berisi nomor, desktop
    SEKARANG juga membuka tab WhatsApp Web ke kontak yang benar (openWA tanpa teks --
-   WA Web tidak bisa dipaksa lampir gambar lewat URL) supaya user tinggal
+   WA Web tidak bisa dipaksa lampir gambar lewat URL, lihat alert() di bawah soal
+   kenapa INI JUGA berarti user harus lampirkan manual) supaya user tinggal
    lampirkan file yang baru diunduh, mirip pengalaman "pilih WA dari share sheet"
    di HP. Kalau waPhone === '' (tombol "Kirim via WhatsApp" dipakai tapi nomor
    pelanggan belum diisi di transaksinya) -- regresi KEDUA yang ditemukan user
@@ -681,8 +682,19 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
       showToast(t('Gambar nota diunduh. No. WhatsApp pelanggan belum diisi -- buka WhatsApp Web manual lalu lampirkan dari folder Download.'));
       return;
     }
+    /* REGRESI KETIGA (ditemukan user lewat chat WA kosong tanpa lampiran sama
+       sekali): WhatsApp Web TIDAK BISA dipaksa lampir file lewat URL apa pun --
+       ini batasan platform, bukan bug yang bisa diperbaiki dari sisi kode. Dulu
+       instruksi "lampirkan manual" cuma lewat showToast() yang muncul SEBENTAR
+       di tab asal -- begitu openWA() membuka tab baru (window.open() langsung
+       pindah fokus browser ke tab itu), toast di tab asal langsung tidak
+       kelihatan lagi sama sekali, jadi user tidak sempat baca instruksinya dan
+       mengira filenya memang seharusnya ikut terlampir otomatis. Diperbaiki:
+       alert() (modal, WAJIB di-OK dulu) ditampilkan DI TAB ASAL SEBELUM openWA()
+       dipanggil -- user pasti baca instruksinya dulu sebelum fokus pindah ke
+       tab WhatsApp Web yang baru terbuka. */
+    alert(`${t('Gambar nota tersimpan ke folder Download.')}\n\n${t('WhatsApp Web TIDAK BISA otomatis melampirkan file dari sini -- setelah klik OK, tab WhatsApp Web ke pelanggan ini akan terbuka. Di sana:')}\n${t('1. Klik ikon lampiran (📎) di kotak chat')}\n${t('2. Pilih gambar nota yang baru tersimpan dari folder Download')}`);
     openWA(normalizePhone(waPhone), '');
-    showToast(t('Gambar nota diunduh & tab WhatsApp Web dibuka -- lampirkan file dari folder Download di sana.'));
     return;
   }
   showToast(isMobileDevice()
