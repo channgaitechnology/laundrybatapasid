@@ -2552,6 +2552,72 @@ margin canvas sungguhan <4mm lewat `layoutNotaCanvas()`, dan
 PNG di browser headless, dibandingkan manual) — teks terlihat jelas
 lebih besar dan margin kiri-kanan jauh lebih mepet ke tepi.
 
+### Pecah baris "TIMBANGAN SEKARANG" yang kepanjangan — ketahuan dari foto struk Bluetooth asli (21 Oktober 2026)
+
+Setelah perbaikan margin/font di atas naik, user kirim **foto nyata
+struk tercetak dari printer thermal Bluetooth** — tidak ada perubahan
+sama sekali, dan beliau menjelaskan ulang lebih spesifik: "tadi saya
+bilang dalam 1 baris tulisan terlalu banyak kata sehingga tulisan
+tidak bisa besar karena menampung terlalu banyak kata."
+
+**Kenapa perbaikan sebelumnya tidak kelihatan di foto ini**:
+`NOTA_FONT_SCALE`/`NOTA_MARGIN_X_MM` cuma menyentuh `layoutNotaCanvas()`
+(JPG) dan `buildNotaPDFBlob()` (PDF) — **bukan**
+`escposBytesFromLines()` (jalur Bluetooth, dipakai foto ini). Jalur
+Bluetooth itu TIDAK PERNAH melakukan word-wrap sama sekali (beda dari
+JPG/PDF yang sudah dibungkus `wrapCanvasLines()` berdasar lebar
+piksel) — dia cuma mengirim teks mentah ke printer, lalu printer-nya
+sendiri yang auto-wrap kalau kepanjangan, TANPA tahu soal
+indentasi/kata — itu sebabnya baris "TIMBANGAN SEKARANG" (`18 Okt 2026
+— sprei 180x200 1 set : 1 pcs x Rp20.000 = Rp20.000`, SATU baris
+raksasa gabungan tanggal+layanan+qty+harga+subtotal) tercetak padat
+dan berantakan persis di foto.
+
+**Diperbaiki di SUMBER datanya**, bukan menambah logic wrap baru
+khusus Bluetooth: baris raksasa itu dipecah jadi 2 baris pendek
+(`tanggal — layanan` / `qty x harga = subtotal`) di
+`buildTempoUsageNotaPDFLines()` & `buildTempoBatchUsageNotaPDFLines()`
+(`js/10-nota-cetak.js`), dan kasus serupa di `extraGroupLinesPDF()`
+(`js/08-paket.js`, cabang 1-layanan — sebelumnya cuma cabang
+multi-layanan yang sudah dipecah jadi baris bullet). Karena SEMUA
+format nota (JPG/PDF/Bluetooth/Browser-print) konsumsi array `lines`
+yang SAMA PERSIS, perbaikan di sumber ini otomatis ikut benar di
+SEMUA format sekaligus — bukan cuma Bluetooth. Baris pertama
+(`tanggal — layanan`) tetap bold ukuran `s:10` (jadi cetak dua-kali-
+tinggi di printer Bluetooth, `GS ! 0x01`), baris kedua (`qty x harga =
+subtotal`) bold `s:9`.
+
+Verifikasi: suite Playwright penuh (217 langkah, 0 FAIL — test baru
+memastikan baris "TIMBANGAN SEKARANG" & `extraGroupLinesPDF()` kasus
+1-layanan benar-benar terpecah 2 baris, bukan 1 baris gabungan lagi),
+plus simulasi nyata `escposBytesFromLines()` di browser headless —
+baris yang dulu satu gabungan raksasa sekarang jadi 2 baris pendek
+dengan perintah ukuran huruf (`GS !`) yang benar per baris.
+
+### Cetakan Bluetooth: tambah Double-Strike supaya baris bold tidak terlalu tipis (21 Oktober 2026)
+
+Masih dari struk Bluetooth yang sama: user melaporkan "ketebalan font
+kurang kelihatan terlalu tipis" untuk baris yang seharusnya tebal
+(`b:true`). Akar masalah: `escposBytesFromLines()` cuma mengirim
+**ESC E** (Emphasized Mode) untuk bold — di banyak printer thermal
+clone murah, efek ESC E sendirian SANGAT HALUS, nyaris tidak
+kelihatan beda dari teks normal (beda jauh dari "bold" di layar HP
+atau JPG/PDF, yang benar-benar pakai font weight berbeda, bukan
+sekadar "emphasis").
+
+Diperbaiki: ditambahkan **ESC G** (Double-Strike Mode, perintah
+ESC/POS standar Epson yang didukung luas printer clone) **BARENGAN**
+ESC E setiap kali baris bold — printer mencetak tiap titik dua kali
+(sedikit bergeser), hasilnya jauh lebih tebal & kontras tanpa perlu
+mengubah ukuran huruf sama sekali. Keduanya dimatikan lagi
+bersamaan di akhir dokumen (dan setiap kali baris berikutnya bukan
+bold) — simetris dengan cara ESC E dimatikan sebelumnya.
+
+Verifikasi: suite Playwright penuh (218 langkah, 0 FAIL — test baru
+memastikan ESC G 1 (double-strike ON) selalu dikirim BARENGAN ESC E 1
+sebelum baris bold, dan keduanya dimatikan lagi (ESC G 0 + ESC E 0)
+sebelum baris yang tidak bold maupun di akhir dokumen).
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

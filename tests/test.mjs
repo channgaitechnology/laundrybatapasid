@@ -625,6 +625,40 @@ const result = await page.evaluate(async () => {
     if (!detailLine.b || detailLine.s <= 9) throw new Error('detail line not bold/bigger: ' + JSON.stringify(detailLine));
   });
 
+  // REGRESI (21 Okt 2026): user mengirim FOTO NYATA struk Bluetooth tercetak --
+  // baris "TIMBANGAN SEKARANG" (tanggal+layanan+qty x harga=subtotal digabung 1
+  // baris) tercetak padat tidak terbaca. Akar masalah: escposBytesFromLines()
+  // (Bluetooth) TIDAK PERNA melakukan word-wrap sama sekali (beda dari JPG/PDF
+  // yang sudah dibungkus wrapCanvasLines()) -- cuma kirim teks mentah, dan
+  // printer auto-wrap firmware-nya sendiri tidak tahu soal indent, jadi hasilnya
+  // terpotong berantakan. Diperbaiki di SUMBER datanya (bukan nambah logic wrap
+  // baru di sisi Bluetooth): baris raksasa itu dipecah jadi 2 baris pendek
+  // (tanggal+layanan / qty x harga=subtotal) -- otomatis ikut benar di SEMUA
+  // format (JPG/PDF/Bluetooth/Browser-print) sekaligus, karena semuanya
+  // konsumsi array `lines` yang sama.
+  await step('REGRESI (21 Okt 2026): baris "TIMBANGAN SEKARANG" (buildTempoUsageNotaPDFLines/buildTempoBatchUsageNotaPDFLines) dipecah jadi 2 baris pendek (tanggal+layanan / qty x harga=subtotal), BUKAN 1 baris raksasa lagi -- supaya tidak terpotong berantakan saat dicetak Bluetooth (tidak ada word-wrap di jalur itu)', () => {
+    const usage = currentUsageList[1];
+    const L = buildUsageNotaPDFLines(usage, tempoSub);
+    const idx = L.findIndex(l => l.t === 'TIMBANGAN SEKARANG');
+    const headerLine = L[idx+1], detailLine = L[idx+2];
+    if (headerLine.t.includes(' x ') || headerLine.t.includes('=')) throw new Error('REGRESI: baris pertama (tanggal+layanan) tidak boleh ikut memuat "qty x harga=subtotal" lagi: ' + JSON.stringify(headerLine));
+    if (!detailLine.t.trim().match(/^[\d.,]+ \S+ x Rp/)) throw new Error('REGRESI: baris kedua (qty x harga=subtotal) harus terpisah sendiri: ' + JSON.stringify(detailLine));
+    if (!detailLine.b) throw new Error('baris detail (qty x harga=subtotal) harus tetap bold seperti sebelumnya: ' + JSON.stringify(detailLine));
+
+    // Versi batch (newItems.forEach) harus ikut dipecah per-item juga.
+    const s = subscriptions.find(x=>x.id==='sub-tempo-1');
+    const newItems = [{ id:'split-1', tanggal:'2026-08-25', layananNama:'Sprei 180x200 1 Set', qty:1, satuan:'pcs', harga:20000, subtotal:20000 }];
+    const Lb = buildTempoBatchUsageNotaPDFLines(newItems, s);
+    const idxB = Lb.findIndex(l => l.t === 'TIMBANGAN SEKARANG');
+    if (Lb[idxB+1].t.includes(' x ')) throw new Error('REGRESI (batch): baris pertama tidak boleh ikut memuat qty x harga lagi: ' + JSON.stringify(Lb[idxB+1]));
+    if (!Lb[idxB+2].t.includes('20.000')) throw new Error('REGRESI (batch): baris kedua (detail harga) tidak ditemukan: ' + JSON.stringify(Lb[idxB+2]));
+
+    // extraGroupLinesPDF() kasus 1 layanan per transaksi (REKAP RIWAYAT) -- risiko sama persis.
+    const pdfLines = extraGroupLinesPDF([{ tanggal:'2026-08-10', layananNama:'Cuci Setrika Ekspress Antar Jemput', qty:7, satuan:'kg', harga:15000, subtotal:105000, batchId:'rg-split-1' }]);
+    if (pdfLines.length < 2) throw new Error('REGRESI: extraGroupLinesPDF() kasus 1 layanan harus tetap dipecah jadi minimal 2 baris, got ' + JSON.stringify(pdfLines));
+    if (pdfLines[0].t.includes(' x ')) throw new Error('REGRESI: baris header extraGroupLinesPDF() tidak boleh ikut memuat qty x harga lagi: ' + JSON.stringify(pdfLines[0]));
+  });
+
   // --- Tempo: layanan bisa diketik manual + tombol "Tambah Layanan" bertahap (draft) sebelum jadi satu nota ---
   await step('showExtraLayananSuggest()/selectExtraLayananSuggest() autocomplete fills nama/harga/satuan from catalog', () => {
     document.getElementById('extraLayanan').value = 'Cuci';
@@ -698,8 +732,12 @@ const result = await page.evaluate(async () => {
     const L = buildTempoBatchUsageNotaPDFLines(newItems, s);
     const idx = L.findIndex(l => l.t === 'TIMBANGAN SEKARANG');
     if (idx === -1) throw new Error('TIMBANGAN SEKARANG header not found');
-    if (!L[idx+1].t.includes('Cuci Kilat') || !L[idx+1].b) throw new Error('first batch line not bold: ' + JSON.stringify(L[idx+1]));
-    if (!L[idx+2].t.includes('Setrika') || !L[idx+2].b) throw new Error('second batch line not bold: ' + JSON.stringify(L[idx+2]));
+    // REGRESI (21 Okt 2026): tiap item sekarang 2 baris (tanggal+layanan / qty x harga=subtotal)
+    // -- dulu 1 baris raksasa, dipecah supaya tidak "terlalu banyak kata dalam satu baris".
+    if (!L[idx+1].t.includes('Cuci Kilat') || !L[idx+1].b) throw new Error('first batch item header line not bold: ' + JSON.stringify(L[idx+1]));
+    if (!L[idx+2].t.includes('12.000') || !L[idx+2].b) throw new Error('first batch item detail line (qty x harga=subtotal) not bold: ' + JSON.stringify(L[idx+2]));
+    if (!L[idx+3].t.includes('Setrika') || !L[idx+3].b) throw new Error('second batch item header line not bold: ' + JSON.stringify(L[idx+3]));
+    if (!L[idx+4].t.includes('6.000') || !L[idx+4].b) throw new Error('second batch item detail line (qty x harga=subtotal) not bold: ' + JSON.stringify(L[idx+4]));
   });
 
   // Padanan non-Tempo dari test di atas -- sebelum ini, sendUsageNotaWA()/downloadUsageNotaImage()
@@ -5304,6 +5342,36 @@ const result = await page.evaluate(async () => {
     const centerCmdIdx = text.indexOf('\x1B\x61\x01');
     const firstTextIdx = text.indexOf('Laundry Uji');
     if (centerCmdIdx === -1 || centerCmdIdx > firstTextIdx) throw new Error('escposBytesFromLines() should emit ESC a 1 (center align) before a c:true line');
+  });
+
+  // REGRESI (21 Okt 2026): user melaporkan hasil cetak Bluetooth "ketebalan
+  // font kurang kelihatan terlalu tipis" untuk baris b:true -- ESC E
+  // (Emphasized) sendirian efeknya sangat halus di banyak printer thermal
+  // clone murah. Ditambahkan GS G (Double-Strike Mode) BARENGAN ESC E setiap
+  // kali bold, supaya hasil cetaknya jauh lebih tebal/kontras.
+  await step('REGRESI (21 Okt 2026): escposBytesFromLines() mengirim ESC G (Double-Strike) BARENGAN ESC E setiap kali baris bold (b:true), bukan ESC E sendirian -- supaya hasil cetak lebih tebal, dan keduanya dimatikan lagi di akhir', () => {
+    const lines = [
+      { t: 'Baris Tebal', b:true, s:9 },
+      { t: 'Baris Biasa', s:9 },
+    ];
+    const bytes = escposBytesFromLines(lines);
+    const text = new TextDecoder().decode(bytes);
+    const boldOnIdx = text.indexOf('\x1B\x45\x01');
+    const strikeOnIdx = text.indexOf('\x1B\x47\x01');
+    const tebalTextIdx = text.indexOf('Baris Tebal');
+    if (boldOnIdx === -1) throw new Error('REGRESI: ESC E 1 (emphasized ON) tidak ditemukan');
+    if (strikeOnIdx === -1) throw new Error('REGRESI: ESC G 1 (double-strike ON) tidak ditemukan -- harus dikirim BARENGAN ESC E supaya cetakan tidak tipis');
+    if (boldOnIdx > tebalTextIdx || strikeOnIdx > tebalTextIdx) throw new Error('ESC E/ESC G ON harus tampil SEBELUM teks "Baris Tebal": ' + JSON.stringify({boldOnIdx, strikeOnIdx, tebalTextIdx}));
+    const biasaTextIdx = text.indexOf('Baris Biasa');
+    const boldOffIdx = text.indexOf('\x1B\x45\x00', tebalTextIdx);
+    const strikeOffIdx = text.indexOf('\x1B\x47\x00', tebalTextIdx);
+    if (boldOffIdx === -1 || boldOffIdx > biasaTextIdx) throw new Error('ESC E harus dimatikan lagi (ESC E 0) sebelum baris biasa (b tidak true)');
+    if (strikeOffIdx === -1 || strikeOffIdx > biasaTextIdx) throw new Error('ESC G harus dimatikan lagi (ESC G 0) sebelum baris biasa (b tidak true)');
+    // Akhir dokumen juga harus mematikan keduanya (jaga-jaga kalau baris terakhir bold).
+    if (!text.endsWith('\x1B\x61\x00\n\n\n') ) throw new Error('urutan penutup (rata kiri + spasi sobek) berubah tak terduga: ' + JSON.stringify(text.slice(-20)));
+    const lastBoldOff = text.lastIndexOf('\x1B\x45\x00');
+    const lastStrikeOff = text.lastIndexOf('\x1B\x47\x00');
+    if (lastBoldOff === -1 || lastStrikeOff === -1) throw new Error('ESC E/ESC G harus tetap dimatikan di akhir dokumen');
   });
 
   await step('printReceiptBluetooth()/printSubsInvoiceBluetooth()/printUsageNotaBluetooth() degrade gracefully (no throw, no printer connected) when Web Bluetooth is unsupported, as in this headless browser', async () => {
