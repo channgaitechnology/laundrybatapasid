@@ -32,12 +32,22 @@ function openSettingsSub(id){
   const titles = {
     langganan:'💳 Langganan Aplikasi', profil:'🏪 Profil Toko', notifikasi:'🔔 Notifikasi',
     keamanan:'🔒 Keamanan Akun', kontak:'📇 Kontak Pelanggan', outlet:'🏬 Outlet / Cabang',
-    printer:'🖨️ Printer Bluetooth', karyawan:'👥 Karyawan / Kasir', bahasa:'🌐 Bahasa / Language',
+    printer:'🖨️ Printer Bluetooth', karyawan:'👥 Karyawan / Kasir', tema:'🌙 Tema Tampilan', bahasa:'🌐 Bahasa / Language',
     admin:'🔐 Admin Platform'
   };
   document.getElementById('settingsSubTitle').textContent = t(titles[id] || 'Pengaturan');
   if(id==='langganan') loadReferralCode();
   if(id==='admin') renderAdminPushNotifStatus();
+  if(id==='tema'){
+    const btnLight = document.getElementById('themeBtnLight');
+    const btnDark = document.getElementById('themeBtnDark');
+    const btnSystem = document.getElementById('themeBtnSystem');
+    [ [btnLight, currentTheme==='light'], [btnDark, currentTheme==='dark'], [btnSystem, currentTheme==='system'] ].forEach(([btn, active])=>{
+      if(!btn) return;
+      btn.style.background = active ? 'var(--mist)' : '';
+      btn.style.borderColor = active ? 'var(--suds)' : '';
+    });
+  }
   if(id==='bahasa'){
     const btnId = document.getElementById('langBtnId');
     const btnEn = document.getElementById('langBtnEn');
@@ -68,6 +78,14 @@ function applySettingsToUI(){
   const logoEl = document.getElementById('appbarLogo');
   if(logoEl) logoEl.src = shopLogoSrc();
 }
+function setThemeMode(mode){
+  currentTheme = mode;
+  try{ localStorage.setItem('nk_theme', mode); }catch(e){}
+  applyTheme(mode);
+  openSettingsSub('tema');
+  showToast(t('Tema tampilan diperbarui'));
+}
+
 function setAccountMsg(msg, ok){
   const el = document.getElementById('accountMsg');
   el.textContent = msg;

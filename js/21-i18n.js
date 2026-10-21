@@ -1006,6 +1006,13 @@ const I18N_EN = {
   'Jenis Pelanggan': 'Customer Type',
   'Pilih Paket': 'Choose Package',
   'Pilih bahasa tampilan aplikasi.': "Choose the app's display language.",
+  'Tema Tampilan': 'Appearance Theme',
+  '🌙 Tema Tampilan': '🌙 Appearance Theme',
+  '☀️ Mode Terang': '☀️ Light Mode',
+  '🌙 Mode Gelap': '🌙 Dark Mode',
+  '💻 Mengikuti Sistem': '💻 System Default',
+  'Pilih tema tampilan aplikasi.': "Choose the app's display theme.",
+  'Tema tampilan diperbarui': 'Appearance theme updated',
 
   /* ---------- Remaining static HTML bits ---------- */
   '+ Catat Laundry Masuk': '+ Log Laundry Drop-off',

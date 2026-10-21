@@ -1,6 +1,27 @@
-/* ===================== PEMULIHAN TAB TERAKHIR (instan, sebelum apapun lain) ===================== */
+/* ===================== PEMULIHAN TEMA & TAB TERAKHIR (instan, sebelum apapun lain) ===================== */
+var currentTheme = (function(){
+  try {
+    return localStorage.getItem('nk_theme') || 'system';
+  } catch(e) { return 'system'; }
+})();
+
+function applyTheme(theme) {
+  var isDark = false;
+  if(theme === 'dark') {
+    isDark = true;
+  } else if(theme === 'system') {
+    isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  if(isDark) {
+    document.body.classList.add('dark-mode');
+  } else {
+    document.body.classList.remove('dark-mode');
+  }
+}
+
 (function(){
   try{
+    applyTheme(currentTheme);
     const saved = localStorage.getItem('nk_lastTab');
     if(saved && saved !== 'baru' && ['riwayat','paket','laporan'].includes(saved)){
       const map = { riwayat:'view-riwayat', laporan:'view-laporan', paket:'view-paket' };
@@ -13,6 +34,15 @@
     }
   }catch(e){}
 })();
+
+// Listen for system theme changes if set to system
+if(window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+    if(currentTheme === 'system') {
+      applyTheme('system');
+    }
+  });
+}
 
 /* ===================== NAVIGASI KEYBOARD DROPDOWN SARAN =====================
    Satu fungsi generik dipasang ke SETIAP dropdown saran/autocomplete
