@@ -410,6 +410,70 @@ Bluetooth-only. Alternatif tanpa printer AirPrint sama sekali: pakai
 "Unduh / Bagikan Nota (JPG)" yang sudah ada, lalu cetak lewat Share Sheet
 iOS → Print.
 
+#### Audit lanjutan: 2 race condition ditemukan & diperbaiki (21 Oktober 2026)
+
+Diminta user untuk cek ulang fitur ini secara khusus mencari bug/celah
+keamanan, sekaligus menerapkan 4 poin "Konvensi Keamanan — Cek Risiko
+DoS" di atas walau fitur ini 100% client-side (tidak menyentuh
+server/Supabase sama sekali, jadi sebagian poin itu N/A secara
+infrastruktur, tapi analoginya di sisi lokal tetap relevan dicek):
+
+1. **Butuh login/efek mahal?** N/A — tidak ada request ke server sama
+   sekali di jalur ini. Tapi efek LOKAL dari dipanggil berulang cepat
+   (lihat poin 4) ternyata memang ada celah nyata.
+2. **Query dibatasi?** N/A — tidak ada query database di jalur ini.
+3. **Validasi ukuran input?** Nota yang SANGAT panjang (nota Tempo
+   rekap banyak kunjungan, sama seperti kasus cap resolusi JPG HD
+   sebelumnya) tidak dibatasi di `escposBytesFromLines()` — cuma makin
+   lama dikirim (chunk 180 byte @ 25ms), BUKAN hang selamanya atau
+   gagal. Diputuskan TIDAK diberi cap buatan (beda dari kasus JPG HD
+   yang punya ambang keras dari WhatsApp) — kertas thermal memang
+   gulungan, secara fisik wajar kalau nota panjang makan waktu cetak
+   lebih lama, bukan bug.
+4. **Efek dipanggil berkali-kali cepat (tap ganda)?** DUA race condition
+   NYATA ditemukan di sini:
+   - `connectBluetoothPrinter()` kalau terpanggil 2x sebelum yang
+     pertama selesai (tap ganda tombol "Sambungkan Printer") akan
+     memanggil `requestDevice()` dua kali — Chrome menolak permintaan
+     kedua selama dialog pilih printer pertama masih terbuka
+     (`InvalidStateError`), jadi salah satu panggilan gagal dengan
+     toast error yang membingungkan padahal user cuma tap dobel tanpa
+     sadar. **Diperbaiki**: `btConnectPromise` — panggilan susulan
+     SELAGI satu percobaan sambung masih berjalan cuma ikut menunggu
+     promise yang sama, tidak mulai `requestDevice()` baru.
+   - `printLinesViaBluetooth()` kalau terpanggil 2x sebelum yang
+     pertama selesai mengirim (tap ganda "Cetak Bluetooth" sebelum nota
+     pertama tuntas terkirim) akan menulis BYTE DARI 2 NOTA BERBEDA ke
+     characteristic BLE yang SAMA secara bersamaan, tanpa urutan
+     terjamin — berisiko nota yang keluar di kertas jadi bercampur/
+     acak antara 2 nota berbeda. **Diperbaiki**: `btPrintInFlight` —
+     panggilan kedua yang masih tumpang-tindih dengan yang pertama
+     langsung ditolak (toast "Masih mengirim nota sebelumnya..."),
+     bukan ikut menulis.
+
+Yang SUDAH diperiksa dan terkonfirmasi AMAN (tidak perlu diperbaiki):
+
+- **XSS lewat nama printer** — `device.name` (data dari perangkat BLE
+  eksternal, bisa dipalsukan siapa saja yang broadcast BLE di
+  jangkauan) dirender lewat `showToast()`/`renderBtPrinterStatus()`,
+  KEDUANYA pakai `textContent`, bukan `innerHTML` — aman dari injeksi
+  HTML apa pun isi nama device-nya.
+- **App tidak pernah membaca balik data DARI printer** — jalur ini
+  cuma MENULIS (`writeValue`/`writeValueWithoutResponse`) ke
+  characteristic, tidak pernah `readValue()` apa pun — jadi perangkat
+  BLE nakal yang menyamar jadi printer tidak punya cara menyuntikkan
+  data balik ke app ini sama sekali, paling parah cuma gagal/menolak
+  tulisan.
+- **Regex `sanitizeForThermal()`** — semua pola flat/dibatasi, tidak
+  ada kuantifier bersarang yang rawan ReDoS (konsisten dengan audit
+  regex app ini sebelumnya).
+
+Verifikasi: suite Playwright penuh (210 langkah, 0 FAIL), termasuk test
+baru dengan mock lengkap yang memanggil `connectBluetoothPrinter()` dan
+`printLinesViaBluetooth()` masing-masing 2x bersamaan (tanpa menunggu
+yang pertama) untuk membuktikan kedua guard di atas benar-benar
+mencegah race condition-nya, bukan cuma kebetulan tidak ketahuan.
+
 ### Notifikasi WA saat kerjaan Selesai
 
 Pengaturan → "Notifikasi WA Otomatis" punya satu toggle: "Kirim notifikasi

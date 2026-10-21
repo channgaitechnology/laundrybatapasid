@@ -912,7 +912,21 @@ function escposBytesFromLines(lines){
   chunks.push(new Uint8Array([0x0A,0x0A,0x0A])); // spasi buat sobek kertas
   return concatBytes(chunks);
 }
+// Kalau sudah ada percobaan sambung yang BERJALAN, panggilan berikutnya
+// (misal dari dua tombol "Cetak Bluetooth" yang ter-tap dobel sebelum
+// koneksi pertama selesai) cuma MENUNGGU promise yang sama, bukan mulai
+// requestDevice() KEDUA -- Chrome menolak requestDevice() baru selama
+// dialog pilih printer sebelumnya masih terbuka (InvalidStateError), jadi
+// tanpa guard ini salah satu panggilan akan gagal dengan toast error yang
+// membingungkan padahal usernya cuma tap dobel tanpa sadar.
+var btConnectPromise = null;
 async function connectBluetoothPrinter(){
+  if(btConnectPromise) return btConnectPromise;
+  btConnectPromise = connectBluetoothPrinterImpl();
+  try{ return await btConnectPromise; }
+  finally{ btConnectPromise = null; }
+}
+async function connectBluetoothPrinterImpl(){
   if(!isBluetoothPrintSupported()){
     showToast(t('Bluetooth Web tidak didukung di browser/perangkat ini — pakai Chrome di Android/laptop'));
     return false;
@@ -986,11 +1000,24 @@ function disconnectBluetoothPrinter(){
   btPrinterDevice = null; btPrinterServer = null; btPrinterChar = null;
   renderBtPrinterStatus();
 }
+// true selama satu printLinesViaBluetooth() masih mengirim byte ke printer --
+// mencegah 2 nota ketimpa/ketukar tulisannya di karakteristik BLE yang sama
+// kalau tombol "Cetak Bluetooth" tak sengaja ter-tap dobel (umum di touchscreen)
+// sebelum nota pertama selesai terkirim. Tanpa guard ini, dua panggilan
+// berjalan BERSAMAAN akan sama-sama menulis potongan byte-nya sendiri ke
+// karakteristik yang sama tanpa urutan terjamin -- berisiko nota yang keluar
+// di kertas jadi bercampur/acak dari 2 nota berbeda.
+var btPrintInFlight = false;
 async function printLinesViaBluetooth(lines){
+  if(btPrintInFlight){
+    showToast(t('Masih mengirim nota sebelumnya ke printer, tunggu sebentar'));
+    return false;
+  }
   if(!btPrinterChar || !btPrinterServer || !btPrinterServer.connected){
     const ok = await connectBluetoothPrinter();
     if(!ok) return false;
   }
+  btPrintInFlight = true;
   try{
     const bytes = escposBytesFromLines(lines);
     const CHUNK = 180; // kirim per potongan kecil, sesuai batas paket BLE khas
@@ -1010,6 +1037,8 @@ async function printLinesViaBluetooth(lines){
     btPrinterServer = null; btPrinterChar = null;
     renderBtPrinterStatus();
     return false;
+  }finally{
+    btPrintInFlight = false;
   }
 }
 async function printReceiptBluetooth(){
