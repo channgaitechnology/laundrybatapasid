@@ -430,8 +430,13 @@ function extraGroupLinesPDF(extras){
   const out = [];
   groupExtrasIntoTransactions(extras).forEach((g,i)=>{
     if(g.items.length===1){
+      // REGRESI (21 Okt 2026): dulu satu baris raksasa (tanggal+layanan+qty x
+      // harga=subtotal digabung) -- lihat komentar sama di buildTempoUsageNotaPDFLines()
+      // (js/10-nota-cetak.js). Dipecah 2 baris, sama seperti cabang multi-layanan
+      // di bawah (bullet "- ...") supaya konsisten.
       const u = g.items[0];
-      out.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:4});
+      out.push({t:`${padNo(i+1)}. ${fmtDate(u.tanggal)} — ${u.layananNama}`, s:8, indent:4});
+      out.push({t:`    ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, s:8, indent:8});
       return;
     }
     const label = currentLang==='en' ? 'services' : t('layanan');

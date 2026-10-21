@@ -260,6 +260,18 @@ function sendUsageNotaWA(target){
   openWA(normalizePhone(s.hp), text, target);
   closeUsageNotaOptions();
 }
+/* REGRESI (21 Okt 2026): baris "TIMBANGAN SEKARANG" dulu SATU baris raksasa
+   (tanggal + nama layanan + qty x harga = subtotal digabung semua) -- di JPG/PDF
+   masih KEBUNGKUS otomatis oleh wrapCanvasLines() jadi beberapa baris, tapi
+   hasilnya padat/sulit dibaca (persis yang dikeluhkan user: "dalam satu baris
+   ada terlalu banyak kata"), dan di printer Bluetooth (escposBytesFromLines(),
+   TIDAK ADA logic wrap sama sekali -- cuma kirim teks mentah, mengandalkan
+   auto-wrap firmware printer sendiri yang TIDAK tahu soal indent) hasilnya jauh
+   lebih berantakan lagi (baris terpotong di tengah, tanpa menjorok). Dipecah jadi
+   2 baris (tanggal+layanan / qty x harga=subtotal) -- pola yang SAMA PERSIS
+   dengan item baris nota Transaksi biasa (buildReceiptPDFLines()) dan baris
+   bullet multi-layanan di extraGroupLinesPDF() di bawah, yang dari awal memang
+   sudah dipecah begini dan tidak pernah dikeluhkan. */
 function buildTempoUsageNotaPDFLines(usage, s){
   const extras = extrasSampai(usage);
   const totalHarga = extras.reduce((sum,u)=>sum+u.subtotal,0);
@@ -278,7 +290,8 @@ function buildTempoUsageNotaPDFLines(usage, s){
   L.push({t:`${t('Jenis')}      : ${t('Tempo (Bayar Nanti)')}`, s:9, indent:13});
   L.push({t: div, s:9});
   L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
-  L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama} : ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:11});
+  L.push({t:`${fmtDate(usage.tanggal)} — ${usage.layananNama}`, b:true, s:10});
+  L.push({t:`  ${fmtKg(usage.qty)} ${usage.satuan} x ${rupiah(usage.harga)} = ${rupiah(usage.subtotal)}`, b:true, s:9});
   L.push({t: div, s:9});
   L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
   L.push(...extraGroupLinesPDF(extras));
@@ -313,7 +326,8 @@ function buildTempoBatchUsageNotaPDFLines(newItems, s){
   L.push({t: div, s:9});
   L.push({t:t('TIMBANGAN SEKARANG'), b:true, s:9});
   newItems.forEach(u=>{
-    L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama} : ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, b:true, s:11});
+    L.push({t:`${fmtDate(u.tanggal)} — ${u.layananNama}`, b:true, s:10});
+    L.push({t:`  ${fmtKg(u.qty)} ${u.satuan} x ${rupiah(u.harga)} = ${rupiah(u.subtotal)}`, b:true, s:9});
   });
   L.push({t: div, s:9});
   L.push({t:t('REKAP RIWAYAT TRANSAKSI (BELUM DITAGIH)'), b:true, s:9});
