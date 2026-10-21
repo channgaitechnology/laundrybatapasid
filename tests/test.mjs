@@ -2537,6 +2537,60 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // REGRESI KEDUA (21 Okt 2026, ditemukan user lewat screenshot nyata SETELAH
+  // perbaikan di atas): kalau transaksinya TIDAK punya No. WhatsApp pelanggan
+  // (trx.hp kosong), tombol "Kirim via WhatsApp" di desktop tetap cuma jatuh ke
+  // toast generik ("Gambar nota diunduh ke folder Download.") yang SAMA SEKALI
+  // tidak menyebut WhatsApp -- user salah paham tombolnya "masih belum bisa
+  // kirim ke WA" padahal sebenarnya cuma karena nomor pelanggannya belum
+  // diisi. Diperbaiki: shareOrDownloadNotaImage() membedakan waPhone==='' (tombol
+  // WA dipakai TAPI nomor kosong -- toast WAJIB sebut WhatsApp & jelaskan
+  // kenapa) dari waPhone===undefined (BUKAN tombol WA sama sekali, mis. "Simpan
+  // sebagai Gambar" -- toast generik seperti biasa, tidak boleh berubah).
+  await step('shareOrDownloadNotaImage(waPhone=""): desktop TETAP mengunduh gambarnya (tidak diblokir) saat nomor WA pelanggan kosong, TIDAK membuka tab WA apa pun, TAPI toast-nya HARUS menyebut WhatsApp (beda dari toast generik "Simpan sebagai Gambar")', async () => {
+    const originalCanShare = navigator.canShare;
+    const originalShare = navigator.share;
+    const originalOpen = window.open;
+    const originalCreateElement = document.createElement.bind(document);
+    const setUA = (ua) => Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+    const originalTransactions = transactions;
+    const originalNotaShareTrxId = notaShareTrxId;
+    let openedUrls, clickedDownloads;
+    navigator.canShare = () => true;
+    navigator.share = async () => { throw new Error('tidak boleh dipanggil di desktop'); };
+    window.open = (url) => { openedUrls.push(url); return { closed: false }; };
+    document.createElement = (tag) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const originalClick = el.click.bind(el);
+        el.click = () => { clickedDownloads.push(el.download); originalClick(); };
+      }
+      return el;
+    };
+    setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36');
+    try {
+      const trx = { id:'test-wanophone-trx-id', kode:'PF-WANOPHONE-1', tanggal:'2026-10-21', nama:'Uji WA Tanpa Nomor', hp:'', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas' };
+      transactions = transactions.slice();
+      transactions.push(trx);
+      notaShareTrxId = trx.id;
+
+      openedUrls = []; clickedDownloads = [];
+      await sendReceiptImageWA();
+      if (clickedDownloads.length !== 1) throw new Error('REGRESI: nomor WA kosong TIDAK BOLEH memblokir unduhan gambarnya, got ' + JSON.stringify(clickedDownloads));
+      if (openedUrls.length !== 0) throw new Error('nomor WA kosong -- tidak ada kontak yang jelas, TIDAK BOLEH membuka tab WA apa pun, got ' + JSON.stringify(openedUrls));
+      const toastMsg = document.getElementById('toast').textContent;
+      if (!toastMsg.toLowerCase().includes('whatsapp')) throw new Error('REGRESI: toast untuk tombol "Kirim via WhatsApp" dengan nomor kosong HARUS tetap menyebut WhatsApp (supaya user tidak mengira tombolnya rusak), got: ' + toastMsg);
+    } finally {
+      transactions = originalTransactions;
+      notaShareTrxId = originalNotaShareTrxId;
+      navigator.canShare = originalCanShare;
+      navigator.share = originalShare;
+      window.open = originalOpen;
+      document.createElement = originalCreateElement;
+      delete navigator.userAgent;
+    }
+  });
+
   await step('Tombol "Kirim via WhatsApp" (JPG lewat send*ImageWA(), isi nomor) vs "Simpan sebagai Gambar" (JPG lewat download*Image(), TANPA nomor) di ke-4 modal nota memanggil fungsi yang BENAR -- bukan tertukar/kembali ke fungsi lama', () => {
     const waHandlers = {
       receiptShareModal: 'sendReceiptImageWA()',

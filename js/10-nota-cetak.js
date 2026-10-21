@@ -642,15 +642,23 @@ async function buildNotaJPEGBlob(lines, pageWidthMm){
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
   return await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
-/* waPhone (opsional): dipakai tombol "Kirim via WhatsApp" (BUKAN "Simpan sebagai
-   Gambar", yang memanggil fungsi ini tanpa waPhone) -- di desktop, navigator.share()
-   TIDAK PERNAH dipakai (gate isMobileDevice(), lihat CLAUDE.md), jadi tanpa ini
-   tombol "Kirim via WhatsApp" di desktop cuma unduh file tanpa aksi WA apa pun sama
-   sekali (regresi nyata dilaporkan user: "di browser desktop saat klik kirim wa
-   malah jadi download nota"). Dengan waPhone, desktop SEKARANG juga membuka tab
-   WhatsApp Web ke kontak yang benar (openWA tanpa teks -- WA Web tidak bisa
-   dipaksa lampir gambar lewat URL) supaya user tinggal lampirkan file yang baru
-   diunduh, mirip pengalaman "pilih WA dari share sheet" di HP. */
+/* waPhone (opsional, STRING -- '' kalau nomor pelanggan belum diisi, `undefined`
+   kalau pemanggilnya BUKAN tombol "Kirim via WhatsApp" sama sekali, mis. "Simpan
+   sebagai Gambar") -- dipakai tombol "Kirim via WhatsApp". Di desktop,
+   navigator.share() TIDAK PERNAH dipakai (gate isMobileDevice(), lihat CLAUDE.md),
+   jadi tanpa ini tombol "Kirim via WhatsApp" di desktop cuma unduh file tanpa aksi
+   WA apa pun sama sekali (regresi nyata dilaporkan user: "di browser desktop saat
+   klik kirim wa malah jadi download nota"). Dengan waPhone berisi nomor, desktop
+   SEKARANG juga membuka tab WhatsApp Web ke kontak yang benar (openWA tanpa teks --
+   WA Web tidak bisa dipaksa lampir gambar lewat URL) supaya user tinggal
+   lampirkan file yang baru diunduh, mirip pengalaman "pilih WA dari share sheet"
+   di HP. Kalau waPhone === '' (tombol "Kirim via WhatsApp" dipakai tapi nomor
+   pelanggan belum diisi di transaksinya) -- regresi KEDUA yang ditemukan user
+   lewat screenshot nyata: tetap unduh (jangan blokir), tapi toast-nya HARUS
+   menyebut WhatsApp & jelaskan kenapa tidak ada tab yang terbuka, BUKAN toast
+   generik yang sama sekali tidak menyinggung WA (bikin user mengira tombolnya
+   rusak/tidak ngapa-ngapain, padahal cuma nomornya kosong) -- caller WAJIB pakai
+   `|| ''` (BUKAN dibiarkan undefined) supaya beda dari "Simpan sebagai Gambar". */
 async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle, waPhone){
   const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
@@ -668,7 +676,11 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  if(!isMobileDevice() && waPhone){
+  if(!isMobileDevice() && waPhone!==undefined){
+    if(!waPhone){
+      showToast(t('Gambar nota diunduh. No. WhatsApp pelanggan belum diisi -- buka WhatsApp Web manual lalu lampirkan dari folder Download.'));
+      return;
+    }
     openWA(normalizePhone(waPhone), '');
     showToast(t('Gambar nota diunduh & tab WhatsApp Web dibuka -- lampirkan file dari folder Download di sana.'));
     return;
@@ -1201,7 +1213,7 @@ async function sendUsageNotaImageWA(){
   }
   const tempo = isTempo(s);
   const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
-  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`, s.hp);
+  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`, s.hp || '');
   closeUsageNotaOptions();
 }
 /* Nomor nota diambil dari sequence di database (fungsi next_transaction_kode(),

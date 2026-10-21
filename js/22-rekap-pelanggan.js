@@ -291,7 +291,7 @@ async function downloadRekapPelangganImage(){
    "Simpan sebagai Gambar") lewat parameter waPhone, lihat komentar
    shareOrDownloadNotaImage() di js/10-nota-cetak.js. */
 async function sendRekapPelangganImageWA(){
-  await shareOrDownloadNotaImage(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`, rekapPelangganPhone());
+  await shareOrDownloadNotaImage(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`, rekapPelangganPhone() || '');
   closeRekapPelangganShare();
 }
 async function downloadRekapPelangganPDF(){
