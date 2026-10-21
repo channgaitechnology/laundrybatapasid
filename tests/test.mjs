@@ -2121,6 +2121,32 @@ const result = await page.evaluate(async () => {
     if (longCanvas.height <= shortCanvas.height) throw new Error('downscale tidak boleh membuat nota yang isinya lebih panjang malah tampil lebih pendek dari nota singkat -- proporsinya harus tetap terjaga, cuma resolusinya diturunkan');
   });
 
+  await step('REGRESI (ditemukan user 21 Okt 2026): buildNotaCanvas() untuk nota PENDEK (nota transaksi biasa, sedikit baris) harus menghasilkan resolusi yang CUKUP BESAR (>=1.2 megapiksel) -- bukan cuma nota panjang yang perlu resolusi besar untuk ditawari "Kualitas HD" WhatsApp, nota pendek yang terlalu kecil malah TIDAK DITAWARI pilihan itu sama sekali dan langsung kena kompresi standar WA yang merusak teks jadi pecah/tidak terbaca', async () => {
+    const realisticShortNotaLines = [
+      { t: 'Laundry Bersih Cepat', c:true, b:true, s:12 },
+      { t: 'Jl. Melati No. 12, Jakarta', c:true, s:8 },
+      { t: '081234567890', c:true, s:8 },
+      { t: '--------------------------------', s:9 },
+      { t: 'No. Nota      : LND-0187', s:9, indent:14 },
+      { t: 'Tanggal       : 07 Okt 2026', s:9, indent:14 },
+      { t: 'Pelanggan     : Lia', s:9, indent:14 },
+      { t: 'Estimasi      : 10 Okt 2026', s:9, indent:14 },
+      { t: '--------------------------------', s:9 },
+      { t: 'Cuci Lipat Hemat', s:9 },
+      { t: '3.3 kg x Rp8.000', s:8, indent:4 },
+      { t: '--------------------------------', s:9 },
+      { t: 'TOTAL : Rp26.400', b:true, s:10 },
+      { t: 'Uang Muka : Rp0', s:9 },
+      { t: 'Sisa Bayar : Rp26.400', s:9 },
+      { t: 'Status : BELUM LUNAS', b:true, s:9 },
+      { t: '--------------------------------', s:9 },
+      { t: 'Terima kasih telah menggunakan jasa laundry kami', c:true, s:8 },
+    ];
+    const canvas = await buildNotaCanvas(realisticShortNotaLines, 80);
+    const megapixels = (canvas.width * canvas.height) / 1_000_000;
+    if (megapixels < 1.2) throw new Error('nota pendek yang realistis (18 baris, mirip nota transaksi biasa) menghasilkan kanvas cuma ' + canvas.width + 'x' + canvas.height + ' (' + megapixels.toFixed(2) + ' MP) -- terlalu kecil, berisiko dianggap WhatsApp sebagai gambar kecil yang tidak layak ditawari "Kualitas HD", langsung kena kompresi standar yang merusak teks');
+  });
+
   // --- Regression: on desktop, "Unduh Gambar" opened the OS-level Share sheet (Windows/Mac),
   // which only lists other apps to share to and has NO plain "save file" option -- so a desktop
   // user could never actually open the receipt image except by sending it through one of those

@@ -2219,6 +2219,49 @@ pendek (harus TIDAK pernah kena cap) dan nota 400 baris (harus kena cap,
 sisi terpanjang ≤4000px, tapi tetap lebih tinggi dari nota pendek —
 proporsinya tidak boleh rusak).
 
+### REGRESI: nota PENDEK ternyata yang kehilangan opsi "Kualitas HD" WhatsApp, bukan nota panjang (21 Oktober 2026)
+
+Ditemukan user lewat foto perbandingan nyata: nota tercetak dari app ini
+("Cuci Lipat Hemat", 1 layanan, total Rp26.400) terlihat **pecah dan
+tidak terbaca**, sementara nota dari app lain di sebelahnya (dicetak di
+printer yang sama) terlihat jelas. User melaporkan pola persis
+KEBALIKAN dari dugaan perbaikan 17 Oktober 2026 di atas: **nota pendek
+TIDAK ditawari opsi "Kualitas HD" saat dikirim di WA, tapi nota PANJANG
+justru ADA pilihan HD-nya.**
+
+Akar masalah: `BASE_SCALE=8` px/mm bikin nota pendek (sedikit baris)
+menghasilkan kanvas cuma sekitar 640x800px (~0,5 megapiksel, lebar
+80mm). Riset publik soal fitur HD WhatsApp (lihat perbaikan 17 Oktober)
+menyebut opsi HD cuma ditawarkan untuk foto yang "cukup besar"
+resolusi/ukurannya (diperlakukan seperti foto kamera asli, bukan
+screenshot/gambar kecil) — nota sekecil itu kemungkinan dianggap
+"terlalu kecil untuk ditawari pilihan", langsung lewat jalur kompresi
+STANDAR WhatsApp yang pasti merusak teks monospace tipis jadi
+pecah/buram. Nota PANJANG (banyak baris) otomatis jadi tinggi secara
+piksel, total megapiksel-nya jauh lebih besar — itu kemungkinan
+sebabnya nota panjang malah DITAWARI opsi HD, persis kebalikan dari
+nota pendek.
+
+Diperbaiki: naikkan `BASE_SCALE` dari 8 jadi **16** px/mm
+(`buildNotaCanvas()`, `js/10-nota-cetak.js`). Ini bukan cuma menebak
+ambang WhatsApp — menaikkan resolusi sumber itu sendiri secara umum
+membuat teks lebih tajam (lebih banyak piksel per karakter) apa pun
+kompresi yang menimpanya nanti, SEKALIGUS membuat nota pendek sekarang
+~2 megapiksel (lebar 80mm → ~1280px, nota 15-18 baris → tinggi
+~1650px), di atas ambang "kualitas standar" (~1,68 megapiksel) yang
+ditemukan riset sebelumnya. Cap `MAX_LONG_EDGE_PX=4000` dari perbaikan
+17 Oktober TETAP dipertahankan apa adanya (logic-nya proporsional
+terhadap `BASE_SCALE` berapa pun, otomatis menyesuaikan) — nota yang
+benar-benar panjang tetap tidak akan melampaui ambang ATAS WhatsApp.
+
+Verifikasi: suite Playwright penuh (211 langkah, 0 FAIL). Test baru
+khusus membangun nota pendek REALISTIS (18 baris, isinya meniru persis
+struktur nota transaksi biasa seperti contoh user) dan memastikan
+hasilnya ≥1,2 megapiksel — ambang yang jauh di atas perilaku lama
+(~0,5 megapiksel) tapi masih di bawah target ~2 megapiksel, supaya test
+ini akan GAGAL lagi kalau `BASE_SCALE` pernah diturunkan balik tanpa
+sadar di masa depan.
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah
