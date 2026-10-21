@@ -536,15 +536,33 @@ function wrapCanvasLines(ctx, lines, usableWidthPx, ptToPx){
   });
   return wrapped;
 }
+/* User melaporkan (21 Okt 2026) tulisan nota kekecilan, tapi sebenarnya BUKAN soal
+   ukuran cetak fisik (itu sudah beres lewat PDF) -- dia sendiri yang mengidentifikasi
+   akar masalahnya: margin kiri-kanan (NOTA_MARGIN_X_MM di bawah) makan jatah lebar yang
+   seharusnya bisa dipakai teks, DAN kalau huruf diperbesar begitu saja (tanpa margin
+   dikecilkan) satu baris jadi tidak muat lagi. NOTA_FONT_SCALE di bawah menaikkan semua
+   ukuran huruf (via ptToPx di sini & doc.setFontSize() di buildNotaPDFBlob()) SEKALIGUS
+   dengan mengecilkan margin kiri-kanan dari 4mm jadi 2mm/sisi (NOTA_MARGIN_X_MM) --
+   bukan cuma menambah 1 angka, supaya lebar yang didapat dari margin lebih kecil ikut
+   dipakai mengimbangi huruf yang lebih besar. Baris yang akhirnya tetap tidak muat
+   SEKALIPUN sudah dengan margin sekecil ini akan dibungkus ke baris baru seperti biasa
+   (wrapCanvasLines()) -- nota jadi sedikit lebih tinggi, itu memang konsekuensi yang
+   diterima user ("kalau ukuran hurufnya diperbesar pasti tidak muat [di baris yang sama]"),
+   BUKAN bug. Dipakai bareng oleh layoutNotaCanvas() (JPG/WA) & buildNotaPDFBlob() (PDF)
+   supaya hasilnya konsisten di kedua format -- TIDAK menyentuh escposBytesFromLines()
+   (Bluetooth, cuma 3 pilihan ukuran huruf diskrit bawaan printer) atau
+   linesToPrintHTML()/printLinesViaBrowser() (AirPrint, di luar lingkup laporan ini). */
+var NOTA_FONT_SCALE = 1.15;
+var NOTA_MARGIN_X_MM = 2;
 /* Hitung ukuran kanvas nota (lebar/tinggi px, baris yang sudah dibungkus, dkk)
    pada satu nilai SCALE (px per mm) tertentu -- dipisah dari buildNotaCanvas()
    supaya bisa dipanggil 2x: sekali untuk "mengintip" apakah hasilnya akan
    kepanjangan, sekali lagi dengan SCALE yang sudah disesuaikan kalau perlu. */
 function layoutNotaCanvas(lines, pageWidthMm, scale){
   const mmToPx = mm => mm*scale;
-  const ptToPx = pt => pt*0.3528*scale;
+  const ptToPx = pt => pt*NOTA_FONT_SCALE*0.3528*scale;
   const widthPx = Math.round(mmToPx(pageWidthMm));
-  const marginX = mmToPx(4), marginY = mmToPx(8), lh = mmToPx(4.6), logoSize = mmToPx(16);
+  const marginX = mmToPx(NOTA_MARGIN_X_MM), marginY = mmToPx(8), lh = mmToPx(4.6), logoSize = mmToPx(16);
   const usableWidthPx = widthPx - marginX*2;
   const measureCtx = document.createElement('canvas').getContext('2d');
   const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, ptToPx);
@@ -791,10 +809,10 @@ function svgStringToPNGDataURL(svgString, sizePx){
 async function buildNotaPDFBlob(lines, pageWidthMm){
   const { jsPDF } = window.jspdf;
   const SCALE = 8; // samakan dengan buildNotaCanvas() supaya pembungkusan baris konsisten
-  const marginMm = 4, lhMm = 4.6, logoSizeMm = 16;
+  const marginMm = NOTA_MARGIN_X_MM, lhMm = 4.6, logoSizeMm = 16; // NOTA_MARGIN_X_MM/NOTA_FONT_SCALE: lihat komentar layoutNotaCanvas()
   const usableWidthPx = (pageWidthMm - marginMm*2) * SCALE;
   const measureCtx = document.createElement('canvas').getContext('2d');
-  const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*0.3528*SCALE);
+  const wrapped = wrapCanvasLines(measureCtx, lines, usableWidthPx, pt => pt*NOTA_FONT_SCALE*0.3528*SCALE);
   const [logoDataUrl, waIconDataUrl, emailIconDataUrl] = await Promise.all([
     loadCircularLogoDataURL(256),
     svgStringToPNGDataURL(iconBadgeSVG('wa'), 128).catch(()=>null),
@@ -812,10 +830,10 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
   wrapped.forEach(line=>{
     const style = line.b ? (line.it ? 'bolditalic' : 'bold') : (line.it ? 'italic' : 'normal');
     doc.setFont('courier', style);
-    doc.setFontSize(line.s||9);
+    doc.setFontSize((line.s||9)*NOTA_FONT_SCALE);
     const indentMm = (line.indentPx||0) / SCALE;
     if(line.icon){
-      const sizeUnitMm = (line.s||9)*0.3528; // padanan px=ptToPx(line.s) di canvas, tanpa SCALE karena jsPDF sudah dalam mm
+      const sizeUnitMm = (line.s||9)*NOTA_FONT_SCALE*0.3528; // padanan px=ptToPx(line.s) di canvas, tanpa SCALE karena jsPDF sudah dalam mm
       const sizeMm = sizeUnitMm*1.5; // padanan d=px*1.5
       const gapMm = 1.3; // padanan mmToPx(1.3), sudah dalam mm jadi tidak perlu dibagi SCALE
       const textW = doc.getTextWidth(String(line.t));
