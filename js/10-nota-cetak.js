@@ -642,24 +642,13 @@ async function buildNotaJPEGBlob(lines, pageWidthMm){
   const canvas = await buildNotaCanvas(lines, pageWidthMm);
   return await new Promise(resolve=> canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
-/* waPhone (opsional, STRING -- '' kalau nomor pelanggan belum diisi, `undefined`
-   kalau pemanggilnya BUKAN tombol "Kirim via WhatsApp" sama sekali, mis. "Simpan
-   sebagai Gambar") -- dipakai tombol "Kirim via WhatsApp". Di desktop,
-   navigator.share() TIDAK PERNAH dipakai (gate isMobileDevice(), lihat CLAUDE.md),
-   jadi tanpa ini tombol "Kirim via WhatsApp" di desktop cuma unduh file tanpa aksi
-   WA apa pun sama sekali (regresi nyata dilaporkan user: "di browser desktop saat
-   klik kirim wa malah jadi download nota"). Dengan waPhone berisi nomor, desktop
-   SEKARANG juga membuka tab WhatsApp Web ke kontak yang benar (openWA tanpa teks --
-   WA Web tidak bisa dipaksa lampir gambar lewat URL) supaya user tinggal
-   lampirkan file yang baru diunduh, mirip pengalaman "pilih WA dari share sheet"
-   di HP. Kalau waPhone === '' (tombol "Kirim via WhatsApp" dipakai tapi nomor
-   pelanggan belum diisi di transaksinya) -- regresi KEDUA yang ditemukan user
-   lewat screenshot nyata: tetap unduh (jangan blokir), tapi toast-nya HARUS
-   menyebut WhatsApp & jelaskan kenapa tidak ada tab yang terbuka, BUKAN toast
-   generik yang sama sekali tidak menyinggung WA (bikin user mengira tombolnya
-   rusak/tidak ngapa-ngapain, padahal cuma nomornya kosong) -- caller WAJIB pakai
-   `|| ''` (BUKAN dibiarkan undefined) supaya beda dari "Simpan sebagai Gambar". */
-async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle, waPhone){
+/* Dipakai KHUSUS tombol "Simpan sebagai Gambar" -- di HP membuka share sheet OS
+   (user bebas pilih WA/Galeri/app lain sendiri), di desktop langsung unduh biasa.
+   Untuk tombol "Kirim via WhatsApp", lihat shareNotaViaWhatsApp() di bawah --
+   SENGAJA fungsi terpisah, bukan cuma varian function ini, karena "Kirim via
+   WhatsApp" tidak boleh menampilkan share sheet generik sama sekali (lihat
+   komentar shareNotaViaWhatsApp()). */
+async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareTitle){
   const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
   const filename = `${filenameBase}.jpg`;
   if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
@@ -676,18 +665,50 @@ async function shareOrDownloadNotaImage(lines, filenameBase, pageWidthMm, shareT
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  if(!isMobileDevice() && waPhone!==undefined){
-    if(!waPhone){
-      showToast(t('Gambar nota diunduh. No. WhatsApp pelanggan belum diisi -- buka WhatsApp Web manual lalu lampirkan dari folder Download.'));
-      return;
-    }
-    openWA(normalizePhone(waPhone), '');
-    showToast(t('Gambar nota diunduh & tab WhatsApp Web dibuka -- lampirkan file dari folder Download di sana.'));
-    return;
-  }
   showToast(isMobileDevice()
     ? t('Gambar nota diunduh. Buka WhatsApp/WhatsApp Business lalu lampirkan dari folder Download.')
     : t('Gambar nota diunduh ke folder Download.'));
+}
+/* ===================== NOTA KE WHATSAPP (LANGSUNG, TANPA SHARE SHEET) =====================
+   REGRESI KE-4 (ditemukan user langsung di HP): tombol "Kirim via WhatsApp" tadinya
+   masih memanggil navigator.share() di mobile (warisan dari shareOrDownloadNotaImage()
+   di atas) -- hasilnya share sheet OS GENERIK muncul (WA, Download, Share, app
+   lain-lain), BUKAN langsung ke WhatsApp. User tegas: "harusnya hanya kirim lewat
+   wa... saat klik kirim lewat wa, langsung buka wa, jika di nota ada nomornya
+   langsung masuk ke chat, jika tidak ada nomor cukup buka sampai halaman depan wa"
+   -- jadi tombol ini TIDAK BOLEH pernah menyerahkan pilihan ke share sheet OS sama
+   sekali, di HP MAUPUN desktop (konsisten, bukan beda perilaku per platform lagi).
+
+   Fungsi ini SENGAJA dipisah total dari shareOrDownloadNotaImage() (bukan lagi versi
+   dengan parameter tambahan) -- lebih jelas bahwa ini jalur yang berbeda tujuannya
+   ("kirim ke kontak WA tertentu" vs "simpan/bagikan ke mana saja"), dan supaya
+   shareOrDownloadNotaImage() ("Simpan sebagai Gambar") tidak perlu tahu apa-apa
+   soal WA sama sekali.
+
+   Alur SAMA di semua platform: unduh/simpan gambar dulu -> alert() (modal, wajib
+   di-OK -- lihat kenapa bukan showToast() di komentar REGRESI KETIGA sebelumnya)
+   menjelaskan WhatsApp TIDAK BISA otomatis menerima lampiran dari luar (batasan
+   platform, bukan app ini) -> baru openWA() membuka WhatsApp langsung: kalau
+   waPhone terisi, langsung ke chat kontak itu; kalau kosong, buka wa.me/?text=
+   (halaman depan WA, biarkan user pilih kontak sendiri -- pola yang sama persis
+   dipakai shareReferral() fallback-nya, js/03-langganan.js). SENGAJA TIDAK pakai
+   target='wa' (jalur intent:// Android di openWA() yang coba paksa buka app
+   WhatsApp spesifik) -- link wa.me biasa (window.open()) sudah otomatis dibuka
+   app WhatsApp terpasang di Android/iOS lewat universal link OS sendiri, tanpa
+   perlu trik tambahan, dan ini juga yang membuat perilaku konsisten di semua
+   platform (bukan percabangan isAndroid lagi di tombol ini). */
+async function shareNotaViaWhatsApp(lines, filenameBase, pageWidthMm, waPhone){
+  const blob = await buildNotaJPEGBlob(lines, pageWidthMm);
+  const filename = `${filenameBase}.jpg`;
+  if(!blob){ showToast(t('Gagal membuat gambar nota')); return; }
+  saveToDownloadsGallery(blob, filename);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+  alert(`${t('Gambar nota tersimpan.')}\n\n${t('WhatsApp TIDAK BISA otomatis melampirkan file dari sini -- setelah klik OK, WhatsApp akan terbuka. Di sana:')}\n${t('1. Klik ikon lampiran (📎) di kotak chat')}\n${t('2. Pilih gambar nota yang baru tersimpan')}`);
+  openWA(waPhone ? normalizePhone(waPhone) : '', '');
 }
 /* ===================== NOTA JPG "HD" (DIKIRIM SEBAGAI DOKUMEN) =====================
    PERCOBAAN PERTAMA (sudah dicoba & GAGAL di HP asli -- lihat riwayat git):
@@ -1194,8 +1215,9 @@ async function downloadUsageNotaImage(){
   await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`);
   closeUsageNotaOptions();
 }
-/* Tombol "Kirim via WhatsApp" -- beda dari downloadUsageNotaImage() (tombol "Simpan
-   sebagai Gambar") lewat parameter waPhone, lihat komentar shareOrDownloadNotaImage(). */
+/* Tombol "Kirim via WhatsApp" -- pakai shareNotaViaWhatsApp(), BUKAN
+   shareOrDownloadNotaImage() yang dipakai downloadUsageNotaImage() (tombol
+   "Simpan sebagai Gambar") -- lihat komentar shareNotaViaWhatsApp() kenapa dipisah. */
 async function sendUsageNotaImageWA(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
@@ -1213,7 +1235,7 @@ async function sendUsageNotaImageWA(){
   }
   const tempo = isTempo(s);
   const filenameBase = `${tempo ? 'Nota-Transaksi' : 'Nota-Timbangan'}-${tanggalForName}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`;
-  await shareOrDownloadNotaImage(lines, filenameBase, 80, `${tempo ? t('Nota transaksi laundry') : t('Nota timbangan laundry')} - ${s.nama}`, s.hp || '');
+  await shareNotaViaWhatsApp(lines, filenameBase, 80, s.hp);
   closeUsageNotaOptions();
 }
 /* Nomor nota diambil dari sequence di database (fungsi next_transaction_kode(),

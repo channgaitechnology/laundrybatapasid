@@ -952,13 +952,13 @@ async function downloadSubsInvoiceImage(){
   await shareOrDownloadNotaImage(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`);
   closeSubsInvoiceShare();
 }
-/* Tombol "Kirim via WhatsApp" -- beda dari downloadSubsInvoiceImage() (tombol
-   "Simpan sebagai Gambar") lewat parameter waPhone, lihat komentar
-   shareOrDownloadNotaImage() di js/10-nota-cetak.js. */
+/* Tombol "Kirim via WhatsApp" -- pakai shareNotaViaWhatsApp() (js/10-nota-cetak.js),
+   BUKAN shareOrDownloadNotaImage() yang dipakai downloadSubsInvoiceImage()
+   (tombol "Simpan sebagai Gambar") -- lihat komentar shareNotaViaWhatsApp(). */
 async function sendSubsInvoiceImageWA(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
-  await shareOrDownloadNotaImage(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`, s.hp || '');
+  await shareNotaViaWhatsApp(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, s.hp);
   closeSubsInvoiceShare();
 }
 async function downloadSubsInvoicePDF(){
