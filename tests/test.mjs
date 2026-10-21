@@ -2404,6 +2404,68 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  // REGRESI UX (21 Okt 2026): user melaporkan menu "Kirim Nota" lama (7 tombol --
+  // WA/WA Business/JPG/JPG HD/PDF/Cetak Bluetooth/Cetak AirPrint, istilah JPG/HD/PDF
+  // sekaligus) "sangat rumit dan membingungkan" buat dijelaskan ke user awam.
+  // Disederhanakan jadi 3 tombol per modal nota (Kirim via WhatsApp / Cetak / Simpan
+  // sebagai Gambar), dengan submenu "Cetak" generik (openPrintOptions/closePrintOptions/
+  // runPrintOption) dipakai bareng oleh semua jenis nota -- tes ini pastikan submenunya
+  // benar2 merutekan ke fungsi cetak yang tepat (Bluetooth/Browser/PDF) tanpa salah pilih.
+  await step('openPrintOptions()/runPrintOption()/closePrintOptions(): submenu "Cetak" generik merutekan ke bluetooth/browser/pdf yang benar sesuai jenis nota, dan modal tertutup lagi setelahnya', async () => {
+    const modal = document.getElementById('printOptionsModal');
+    let calls = { bluetooth: 0, browser: 0, pdf: 0 };
+    const target = {
+      bluetooth: () => { calls.bluetooth++; },
+      browser: () => { calls.browser++; },
+      pdf: () => { calls.pdf++; },
+    };
+    try {
+      if (modal.classList.contains('show')) throw new Error('printOptionsModal harus tertutup sebelum dibuka');
+
+      openPrintOptions(target);
+      if (!modal.classList.contains('show')) throw new Error('openPrintOptions() harus menampilkan printOptionsModal');
+
+      runPrintOption('browser');
+      if (modal.classList.contains('show')) throw new Error('runPrintOption() harus menutup printOptionsModal lagi');
+      if (calls.browser !== 1 || calls.bluetooth !== 0 || calls.pdf !== 0) throw new Error('runPrintOption("browser") harus memanggil TEPAT target.browser(), got ' + JSON.stringify(calls));
+
+      calls = { bluetooth: 0, browser: 0, pdf: 0 };
+      openPrintOptions(target);
+      runPrintOption('pdf');
+      if (calls.pdf !== 1 || calls.bluetooth !== 0 || calls.browser !== 0) throw new Error('runPrintOption("pdf") (tombol "Simpan untuk Dicetak Nanti") harus memanggil TEPAT target.pdf(), got ' + JSON.stringify(calls));
+
+      calls = { bluetooth: 0, browser: 0, pdf: 0 };
+      openPrintOptions(target);
+      runPrintOption('bluetooth');
+      if (calls.bluetooth !== 1 || calls.browser !== 0 || calls.pdf !== 0) throw new Error('runPrintOption("bluetooth") harus memanggil TEPAT target.bluetooth(), got ' + JSON.stringify(calls));
+
+      // closePrintOptions() manual (tombol X) tidak boleh memanggil fungsi apa pun.
+      calls = { bluetooth: 0, browser: 0, pdf: 0 };
+      openPrintOptions(target);
+      closePrintOptions();
+      if (modal.classList.contains('show')) throw new Error('closePrintOptions() harus menutup printOptionsModal');
+      if (calls.bluetooth !== 0 || calls.browser !== 0 || calls.pdf !== 0) throw new Error('closePrintOptions() TIDAK BOLEH memanggil target apa pun, got ' + JSON.stringify(calls));
+    } finally {
+      closePrintOptions();
+    }
+  });
+
+  await step('Tombol "Cetak" di modal nota (Transaksi/Timbangan/Rekap Pelanggan/Tagihan Paket) membuka printOptionsModal dengan 3 fungsi cetak (bluetooth/browser/pdf) sudah benar', () => {
+    const cetakHandlers = {
+      receiptShareModal: 'openPrintOptions({bluetooth:printReceiptBluetooth, browser:printReceiptViaBrowser, pdf:downloadReceiptPDF})',
+      usageNotaModal: 'openPrintOptions({bluetooth:printUsageNotaBluetooth, browser:printUsageNotaViaBrowser, pdf:downloadUsageNotaPDF})',
+      rekapShareModal: 'openPrintOptions({bluetooth:printRekapPelangganBluetooth, browser:printRekapPelangganViaBrowser, pdf:downloadRekapPelangganPDF})',
+      subsInvoiceShareModal: 'openPrintOptions({bluetooth:printSubsInvoiceBluetooth, browser:printSubsInvoiceViaBrowser, pdf:downloadSubsInvoicePDF})',
+    };
+    for (const [modalId, expectedOnclick] of Object.entries(cetakHandlers)) {
+      const modal = document.getElementById(modalId);
+      if (!modal) throw new Error(modalId + ' tidak ditemukan di DOM');
+      const btn = Array.from(modal.querySelectorAll('button')).find(b => b.getAttribute('onclick') === expectedOnclick);
+      if (!btn) throw new Error(modalId + ' tidak punya tombol "Cetak" dengan onclick persis: ' + expectedOnclick);
+      if (!btn.textContent.includes('Cetak')) throw new Error(modalId + ': tombol submenu Cetak harus berlabel "Cetak", got "' + btn.textContent + '"');
+    }
+  });
+
   await step('buildReceiptHTML() includes clickable wa.me and mailto links with icon badges', () => {
     const html = buildReceiptHTML({ kode:'PF-4', tanggal:'2026-08-27', nama:'Uji HTML', estimasi:null, items:[{nama:'Cuci',qty:1,satuan:'kg',harga:9000,subtotal:9000}], diskon:0, total:9000, dp:9000, status:'lunas', catatan:'' });
     if (!html.includes('dikembangkan oleh Tinggiran Tech Studio')) throw new Error('HTML receipt missing studio name');

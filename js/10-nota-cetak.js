@@ -28,6 +28,26 @@ function closeUsageNotaOptions(){
   if(modal) modal.classList.remove('show');
   currentBatchUsageIds = null;
 }
+/* ===================== SUBMENU "CETAK" (dipakai bareng semua jenis nota) =====================
+   openPrintOptions({bluetooth,browser,pdf}) dipanggil dari tombol "🖨️ Cetak" di modal nota
+   manapun (Transaksi/Timbangan/Rekap Pelanggan/Tagihan Paket) -- simpan 3 fungsi pemanggil
+   yang relevan untuk jenis nota itu, baru tampilkan submenu generiknya di sini. */
+var printOptionsTarget = null;
+function openPrintOptions(target){
+  printOptionsTarget = target;
+  const modal = document.getElementById('printOptionsModal');
+  if(modal) modal.classList.add('show');
+}
+function closePrintOptions(){
+  const modal = document.getElementById('printOptionsModal');
+  if(modal) modal.classList.remove('show');
+  printOptionsTarget = null;
+}
+function runPrintOption(kind){
+  const target = printOptionsTarget;
+  closePrintOptions();
+  if(target && target[kind]) target[kind]();
+}
 function sortedPemakaian(){
   return currentUsageList.filter(u=>u.type==='pemakaian').slice().sort((a,b)=> a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0));
 }
