@@ -2390,6 +2390,40 @@ Verifikasi: `node --check` lulus, suite Playwright penuh (215 langkah,
 "Simpan sebagai Gambar", dan ke-4 tombol "Kirim via WhatsApp"/"Simpan
 sebagai Gambar" memanggil fungsi yang benar — tidak tertukar).
 
+### REGRESI KEDUA: toast "Kirim via WhatsApp" tidak menyebut WhatsApp sama sekali kalau nomor pelanggan kosong (21 Oktober 2026)
+
+Setelah perbaikan desktop di atas naik, user masih melaporkan "masih
+cuma download di browser laptop belum bisa langsung kirim ke wa" —
+lewat screenshot: toast yang muncul persis `"Gambar nota diunduh ke
+folder Download."`, sama sekali tidak menyinggung WhatsApp. Akar
+masalah KEDUA ini beda dari yang pertama: `trx.hp` (No. WhatsApp
+pelanggan di transaksi itu) ternyata **kosong** — `shareOrDownloadNotaImage()`
+cuma membuka tab WA kalau `waPhone` TERISI (`if(!isMobileDevice() &&
+waPhone)`), jadi begitu nomornya kosong, dia diam-diam jatuh ke toast
+generik yang sama persis dengan tombol "Simpan sebagai Gambar" — user
+otomatis mengira tombol "Kirim via WhatsApp"-nya masih belum jalan
+sama sekali, padahal sebenarnya cuma nomor pelanggannya yang belum
+diisi di transaksi itu.
+
+Diperbaiki: `waPhone` sekarang dibedakan 2 kondisi "kosong" yang
+beda artinya — `''` (string kosong, tombol "Kirim via WhatsApp"
+DIPAKAI tapi nomor pelanggan belum diisi) vs `undefined` (BUKAN
+tombol WA sama sekali, mis. "Simpan sebagai Gambar" — tidak pernah
+mengirim argumen ke-5 ini). Caller tombol WA (`sendReceiptImageWA()`
+dkk.) sekarang SELALU mengirim `trx.hp || ''` (bukan `trx.hp` mentah)
+supaya `undefined`-nya field itu sendiri tidak ketukar jadi
+"undefined" — gunanya (`waPhone!==undefined`) buat mendeteksi "ini
+memang tombol kirim WA" lepas dari isi nomornya. Kalau `waPhone===''`:
+gambar TETAP diunduh (TIDAK diblokir, beda dari `sendReceiptWA()` teks
+LAMA yang dulu menolak total kalau nomor kosong), tapi toast-nya
+sekarang eksplisit menyebut WhatsApp & menjelaskan kenapa tidak ada
+tab yang terbuka — user langsung tahu solusinya (isi dulu No.
+WhatsApp pelanggan di transaksinya) alih-alih mengira fitur ini rusak.
+
+Verifikasi: suite Playwright penuh (216 langkah, 0 FAIL — 1 test baru
+khusus kasus nomor kosong: tetap unduh, TIDAK buka tab WA apa pun,
+TAPI toast-nya harus menyebut "WhatsApp").
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

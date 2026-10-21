@@ -958,7 +958,7 @@ async function downloadSubsInvoiceImage(){
 async function sendSubsInvoiceImageWA(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
-  await shareOrDownloadNotaImage(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`, s.hp);
+  await shareOrDownloadNotaImage(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`, s.hp || '');
   closeSubsInvoiceShare();
 }
 async function downloadSubsInvoicePDF(){
