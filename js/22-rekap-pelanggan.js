@@ -287,3 +287,7 @@ async function downloadRekapPelangganImage(){
   await shareOrDownloadNotaImage(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`);
   closeRekapPelangganShare();
 }
+async function downloadRekapPelangganPDF(){
+  await shareOrDownloadNotaPDF(buildRekapPelangganPDFLines(), `Rekap-${rekapPelangganNama.replace(/\s+/g,'-')}`, 80, `${t('Rekap transaksi')} - ${rekapPelangganNama}`);
+  closeRekapPelangganShare();
+}

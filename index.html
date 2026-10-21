@@ -1818,13 +1818,9 @@
     <button class="modal-close" onclick="closeUsageNotaOptions()" aria-label="Tutup">✕</button>
     <h3 id="usageNotaTitle">Kirim Nota Timbangan</h3>
     <p id="usageNotaHint" style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Nota berisi rincian timbangan hari ini dan seluruh riwayat timbangan paket ini.</p>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wa')">Kirim via WhatsApp</button>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendUsageNotaWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaImageHD()">📷 Unduh JPG Kualitas HD (kirim manual via Dokumen WA)</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadUsageNotaPDF()">📄 Unduh / Bagikan Nota (PDF, kualitas HD)</button>
-    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printUsageNotaBluetooth()">🖨️ Cetak Bluetooth</button>
-    <button class="btn btn-outline" onclick="printUsageNotaViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="downloadUsageNotaImage()">📤 Kirim via WhatsApp</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="openPrintOptions({bluetooth:printUsageNotaBluetooth, browser:printUsageNotaViaBrowser, pdf:downloadUsageNotaPDF})">🖨️ Cetak</button>
+    <button class="btn btn-accent" onclick="downloadUsageNotaImage()">💾 Simpan sebagai Gambar</button>
   </div>
 </div>
 
@@ -1833,13 +1829,9 @@
   <div class="modal">
     <button class="modal-close" onclick="closeReceiptShareOptions()" aria-label="Tutup">✕</button>
     <h3>Kirim Nota</h3>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wa')">Kirim via WhatsApp</button>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendReceiptWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptImageHD()">📷 Unduh JPG Kualitas HD (kirim manual via Dokumen WA)</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadReceiptPDF()">📄 Unduh / Bagikan Nota (PDF, kualitas HD)</button>
-    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printReceiptBluetooth()">🖨️ Cetak Bluetooth</button>
-    <button class="btn btn-outline" onclick="printReceiptViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="downloadReceiptImage()">📤 Kirim via WhatsApp</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="openPrintOptions({bluetooth:printReceiptBluetooth, browser:printReceiptViaBrowser, pdf:downloadReceiptPDF})">🖨️ Cetak</button>
+    <button class="btn btn-accent" onclick="downloadReceiptImage()">💾 Simpan sebagai Gambar</button>
   </div>
 </div>
 
@@ -1894,11 +1886,9 @@
   <div class="modal">
     <button class="modal-close" onclick="closeRekapPelangganShare()" aria-label="Tutup">✕</button>
     <h3>Kirim Rekap</h3>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wa')">Kirim via WhatsApp</button>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendRekapPelangganWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadRekapPelangganImage()">Unduh / Bagikan Rekap (JPG)</button>
-    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printRekapPelangganBluetooth()">🖨️ Cetak Bluetooth</button>
-    <button class="btn btn-outline" onclick="printRekapPelangganViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="downloadRekapPelangganImage()">📤 Kirim via WhatsApp</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="openPrintOptions({bluetooth:printRekapPelangganBluetooth, browser:printRekapPelangganViaBrowser, pdf:downloadRekapPelangganPDF})">🖨️ Cetak</button>
+    <button class="btn btn-accent" onclick="downloadRekapPelangganImage()">💾 Simpan sebagai Gambar</button>
   </div>
 </div>
 
@@ -1916,11 +1906,25 @@
   <div class="modal">
     <button class="modal-close" onclick="closeSubsInvoiceShare()" aria-label="Tutup">✕</button>
     <h3>Kirim Nota Tagihan</h3>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wa')">Kirim via WhatsApp</button>
-    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="sendSubsInvoiceWA('wab')">Kirim via WhatsApp Business</button>
-    <button class="btn btn-accent" style="margin-bottom:8px;" onclick="downloadSubsInvoiceImage()">Unduh / Bagikan Nota (JPG)</button>
-    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="printSubsInvoiceBluetooth()">🖨️ Cetak Bluetooth</button>
-    <button class="btn btn-outline" onclick="printSubsInvoiceViaBrowser()">🖨️ Cetak (AirPrint / Printer Lain)</button>
+    <button class="btn btn-wa" style="margin-bottom:8px;" onclick="downloadSubsInvoiceImage()">📤 Kirim via WhatsApp</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="openPrintOptions({bluetooth:printSubsInvoiceBluetooth, browser:printSubsInvoiceViaBrowser, pdf:downloadSubsInvoicePDF})">🖨️ Cetak</button>
+    <button class="btn btn-accent" onclick="downloadSubsInvoiceImage()">💾 Simpan sebagai Gambar</button>
+  </div>
+</div>
+
+<!-- Submenu "Cetak" -- dipakai bareng oleh semua jenis nota (Transaksi, Timbangan,
+     Rekap Pelanggan, Tagihan Paket) lewat openPrintOptions({bluetooth,browser,pdf}).
+     "Simpan untuk Dicetak Nanti" di baliknya pakai PDF (bukan JPG) -- lihat komentar
+     buildNotaPDFBlob()/shareOrDownloadNotaPDF() di js/10-nota-cetak.js: PDF punya ukuran
+     halaman PERSIS sesuai lebar kertas struk + teks vektor, jadi dijamin pas & tajam
+     dicetak dari app manapun, beda dari JPG yang ukuran fisiknya cuma tebakan app print. -->
+<div class="modal-bg" id="printOptionsModal" style="z-index:109;">
+  <div class="modal">
+    <button class="modal-close" onclick="closePrintOptions()" aria-label="Tutup">✕</button>
+    <h3>🖨️ Cetak Nota</h3>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="runPrintOption('bluetooth')">Cetak Bluetooth</button>
+    <button class="btn btn-outline" style="margin-bottom:8px;" onclick="runPrintOption('browser')">Cetak (AirPrint / Printer Lain)</button>
+    <button class="btn btn-outline" onclick="runPrintOption('pdf')">Simpan untuk Dicetak Nanti</button>
   </div>
 </div>
 

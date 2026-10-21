@@ -2262,6 +2262,95 @@ hasilnya ≥1,2 megapiksel — ambang yang jauh di atas perilaku lama
 ini akan GAGAL lagi kalau `BASE_SCALE` pernah diturunkan balik tanpa
 sadar di masa depan.
 
+### Sederhanakan menu "Kirim Nota" dari 7 tombol teknis jadi 3 tombol berbasis tujuan (21 Oktober 2026)
+
+User menyampaikan keluhan langsung: menu kirim nota (modal
+`receiptShareModal`/`usageNotaModal`/`rekapShareModal`/
+`subsInvoiceShareModal`) yang berkembang dari perbaikan kualitas HD
+beberapa hari terakhir jadi **7 tombol** per modal — "Kirim via
+WhatsApp", "Kirim via WhatsApp Business", "Unduh/Bagikan Nota (JPG)",
+"Unduh JPG Kualitas HD (kirim manual via Dokumen WA)", "Unduh/Bagikan
+Nota (PDF, kualitas HD)", "Cetak Bluetooth", "Cetak (AirPrint/Printer
+Lain)" — dengan istilah teknis (JPG/HD/PDF/Dokumen/AirPrint) yang
+"sangat rumit dan membingungkan bagi user... menyulitkan kalau harus
+dijelaskan", dan user sendiri menilai ini **buruk buat app**-nya
+(pemilik laundry awam, bukan developer).
+
+**Disederhanakan ke 3 tombol per modal, berdasarkan TUJUAN user bukan
+format file:**
+
+1. **"📤 Kirim via WhatsApp"** — langsung pakai fungsi JPG yang sudah
+   ada (`downloadReceiptImage()` dkk., lewat `shareOrDownloadNotaImage()`)
+   yang di HP akan membuka share sheet OS (user tinggal pilih WhatsApp/
+   WhatsApp Business sendiri dari situ — TIDAK perlu lagi 2 tombol WA
+   terpisah) — **menggantikan total** pendekatan lama kirim pesan TEKS
+   polos lewat `wa.me` (`sendReceiptWA()`/`receiptTextForWA()` dkk.),
+   atas permintaan eksplisit user ("kirim WA bentuk jpg saja, bukan
+   teks") supaya pelanggan selalu menerima nota sebagai gambar rapi.
+2. **"🖨️ Cetak"** — membuka submenu generik baru `printOptionsModal`
+   (`openPrintOptions({bluetooth,browser,pdf})`/`closePrintOptions()`/
+   `runPrintOption(kind)` di `js/10-nota-cetak.js`, dipakai bareng oleh
+   ke-4 jenis nota) berisi 3 pilihan: **Cetak Bluetooth**, **Cetak
+   (AirPrint/Printer Lain)**, dan **Simpan untuk Dicetak Nanti** (di
+   baliknya PDF — ganti nama dari tombol "PDF" lama, lihat alasan
+   teknis kenapa PDF di bagian selanjutnya).
+3. **"💾 Simpan sebagai Gambar"** — fungsi JPG yang SAMA PERSIS dengan
+   tombol "Kirim via WhatsApp" (sengaja dipakai ulang, bukan logic
+   baru) — tombol "Unduh JPG Kualitas HD (manual via Dokumen)" yang
+   lama dicopot dari UI (kompleksitasnya — user harus paham beda
+   "Bagikan" vs "Dokumen" di WhatsApp sendiri — justru sumber
+   kebingungan yang dikeluhkan).
+
+Supaya "Simpan untuk Dicetak Nanti" konsisten tersedia di SEMUA jenis
+nota (sebelumnya cuma ada tombol PDF di modal Transaksi & Timbangan,
+TIDAK ADA di Rekap Pelanggan & Tagihan Paket Bulanan), ditambahkan 2
+fungsi baru yang pola-nya sama persis dengan yang sudah ada:
+`downloadRekapPelangganPDF()` (`js/22-rekap-pelanggan.js`) dan
+`downloadSubsInvoicePDF()` (`js/08-paket.js`), sama-sama memanggil
+`shareOrDownloadNotaPDF()` dengan `lines` builder yang sudah ada
+(`buildRekapPelangganPDFLines()`/`buildSubsInvoicePDFLines()`).
+
+**Kenapa "Simpan untuk Dicetak Nanti" pakai PDF, bukan JPG** — ini
+temuan TERPISAH dari soal kualitas HD WhatsApp: user melaporkan nota
+JPG (termasuk versi "HD" baru) tetap **kekecilan & pecah saat
+benar-benar dicetak fisik** lewat app lain (disimpan dulu, baru dibuka
+dari Galeri/Files untuk print), padahal di layar HP terlihat normal.
+Diselidiki lewat file JPG asli yang dikirim user: `640×1282px` — persis
+rumus `BASE_SCALE=8` LAMA (bukan `16` yang baru di-merge), padahal kode
+produksi (`laundryassist.netlify.app/js/10-nota-cetak.js`) sudah benar
+`BASE_SCALE=16` — jadi sempat diduga soal cache browser/PWA basi
+(terbukti BUKAN setelah user clear cache & tes ulang). Akar masalah
+sebenarnya: JPG (apa pun resolusinya) **tidak membawa info ukuran
+fisik kertas (DPI/mm)** — app print manapun yang membuka file itu
+HARUS MENEBAK sendiri seberapa besar mencetaknya, dan tebakan itu
+sering salah (ketambah: komentar lama di kode sudah mencatat WhatsApp
+SELALU mengompres ulang foto yang dikirim sebagai gambar, berapa pun
+resolusi sumbernya — lihat `buildNotaPDFBlob()`). PDF yang sudah ada di
+app ini (`buildNotaPDFBlob()`, `js/10-nota-cetak.js`) TIDAK kena
+masalah ini sama sekali: ukuran halamannya dibuat PERSIS sesuai lebar
+kertas struk (`jsPDF({unit:'mm', format:[pageWidthMm,heightMm]})`) dan
+teksnya vektor (font Courier asli, bukan rasterisasi piksel) — dijamin
+pas ukuran & tajam di kertas, app print apa pun yang membukanya.
+
+Verifikasi: `node --check` lulus di semua file yang diubah, suite
+Playwright penuh (213 langkah, 0 FAIL — termasuk 2 test baru: submenu
+`printOptionsModal` merutekan `bluetooth`/`browser`/`pdf` ke fungsi
+yang BENAR tanpa salah pilih, dan ke-4 modal nota punya tombol "Cetak"
+dengan `onclick` yang tepat memanggil fungsi-fungsi nota jenisnya
+masing-masing), plus verifikasi visual nyata di browser headless
+(klik tombol "Cetak" sungguhan, screenshot sebelum/sesudah) memastikan
+submenunya benar-benar muncul rapi di atas modal "Kirim Nota".
+
+Catatan: fungsi-fungsi lama (`sendReceiptWA()`/`sendUsageNotaWA()`/
+`sendSubsInvoiceWA()`/`sendRekapPelangganWA()`/teks WA terkait,
+`downloadReceiptImageHD()`/`downloadUsageNotaImageHD()`/
+`shareNotaImageAsDocument()`) SENGAJA belum dihapus dari kode — sudah
+tidak ada tombol UI yang memanggilnya lagi, tapi test Playwright-nya
+yang sudah ada (menguji perilaku fungsinya langsung, bukan lewat klik
+tombol) sengaja dipertahankan dulu sebagai dokumentasi perilaku,
+sampai ada keputusan eksplisit untuk benar-benar membuang fungsi &
+test-nya sekalian.
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

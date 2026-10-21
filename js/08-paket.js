@@ -952,6 +952,12 @@ async function downloadSubsInvoiceImage(){
   await shareOrDownloadNotaImage(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`);
   closeSubsInvoiceShare();
 }
+async function downloadSubsInvoicePDF(){
+  const s = subscriptions.find(x=>x.id===currentSubscriptionId);
+  if(!s) return;
+  await shareOrDownloadNotaPDF(buildSubsInvoicePDFLines(s), `${t('Tagihan')}-${(s.nama||t('pelanggan')).replace(/\s+/g,'-')}`, 80, `${t('Tagihan paket')} - ${s.nama}`);
+  closeSubsInvoiceShare();
+}
 function editSubscription(){
   const s = subscriptions.find(x=>x.id===currentSubscriptionId);
   if(!s) return;
