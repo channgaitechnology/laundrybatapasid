@@ -2594,6 +2594,30 @@ plus simulasi nyata `escposBytesFromLines()` di browser headless —
 baris yang dulu satu gabungan raksasa sekarang jadi 2 baris pendek
 dengan perintah ukuran huruf (`GS !`) yang benar per baris.
 
+### Cetakan Bluetooth: tambah Double-Strike supaya baris bold tidak terlalu tipis (21 Oktober 2026)
+
+Masih dari struk Bluetooth yang sama: user melaporkan "ketebalan font
+kurang kelihatan terlalu tipis" untuk baris yang seharusnya tebal
+(`b:true`). Akar masalah: `escposBytesFromLines()` cuma mengirim
+**ESC E** (Emphasized Mode) untuk bold — di banyak printer thermal
+clone murah, efek ESC E sendirian SANGAT HALUS, nyaris tidak
+kelihatan beda dari teks normal (beda jauh dari "bold" di layar HP
+atau JPG/PDF, yang benar-benar pakai font weight berbeda, bukan
+sekadar "emphasis").
+
+Diperbaiki: ditambahkan **ESC G** (Double-Strike Mode, perintah
+ESC/POS standar Epson yang didukung luas printer clone) **BARENGAN**
+ESC E setiap kali baris bold — printer mencetak tiap titik dua kali
+(sedikit bergeser), hasilnya jauh lebih tebal & kontras tanpa perlu
+mengubah ukuran huruf sama sekali. Keduanya dimatikan lagi
+bersamaan di akhir dokumen (dan setiap kali baris berikutnya bukan
+bold) — simetris dengan cara ESC E dimatikan sebelumnya.
+
+Verifikasi: suite Playwright penuh (218 langkah, 0 FAIL — test baru
+memastikan ESC G 1 (double-strike ON) selalu dikirim BARENGAN ESC E 1
+sebelum baris bold, dan keduanya dimatikan lagi (ESC G 0 + ESC E 0)
+sebelum baris yang tidak bold maupun di akhir dokumen).
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

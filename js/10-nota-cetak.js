@@ -1007,6 +1007,15 @@ function concatBytes(chunks){
 /* Ubah array `lines` (format yang sama dipakai buildReceiptPDFLines() dkk.)
    jadi perintah mentah ESC/POS: ESC @ (init), ESC a (rata tengah/kiri),
    ESC E (tebal), GS ! (ukuran huruf), lalu teksnya + line feed per baris. */
+/* REGRESI (21 Okt 2026): user melaporkan hasil cetak Bluetooth "ketebalan font
+   kurang kelihatan terlalu tipis" untuk baris b:true. Sebabnya: cuma ESC E
+   (Emphasized/bold) yang dipakai -- di banyak printer thermal clone murah,
+   efek ESC E sendirian SANGAT HALUS (nyaris tidak kelihatan beda dari teks
+   normal), beda jauh dari "bold" di layar HP/JPG/PDF (yang benar-benar pakai
+   font weight berbeda). Ditambahkan GS G (Double-Strike Mode, standar ESC/POS
+   Epson yang didukung luas printer clone) BARENGAN dengan ESC E setiap kali
+   bold -- printer mencetak tiap titik 2x (sedikit geser), hasilnya jauh lebih
+   tebal & kontras tanpa perlu mengubah ukuran huruf sama sekali. */
 function escposBytesFromLines(lines){
   const enc = new TextEncoder();
   const chunks = [ new Uint8Array([0x1B,0x40]) ]; // ESC @ — reset printer
@@ -1016,12 +1025,17 @@ function escposBytesFromLines(lines){
     const bold = line.b ? 1 : 0;
     const size = (line.s>=12) ? 0x11 : (line.s>=10 ? 0x01 : 0x00); // 0x11=lebar+tinggi 2x, 0x01=tinggi 2x, 0x00=normal
     if(align!==curAlign){ chunks.push(new Uint8Array([0x1B,0x61,align])); curAlign=align; }
-    if(bold!==curBold){ chunks.push(new Uint8Array([0x1B,0x45,bold])); curBold=bold; }
+    if(bold!==curBold){
+      chunks.push(new Uint8Array([0x1B,0x45,bold])); // ESC E -- emphasized
+      chunks.push(new Uint8Array([0x1B,0x47,bold])); // ESC G -- double-strike (bareng ESC E, lebih tebal/kontras)
+      curBold=bold;
+    }
     if(size!==curSize){ chunks.push(new Uint8Array([0x1D,0x21,size])); curSize=size; }
     chunks.push(enc.encode(sanitizeForThermal(line.t)));
     chunks.push(new Uint8Array([0x0A]));
   });
   chunks.push(new Uint8Array([0x1B,0x45,0x00])); // tebal off
+  chunks.push(new Uint8Array([0x1B,0x47,0x00])); // double-strike off
   chunks.push(new Uint8Array([0x1D,0x21,0x00])); // ukuran normal
   chunks.push(new Uint8Array([0x1B,0x61,0x00])); // rata kiri
   chunks.push(new Uint8Array([0x0A,0x0A,0x0A])); // spasi buat sobek kertas

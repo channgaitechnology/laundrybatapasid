@@ -5344,6 +5344,36 @@ const result = await page.evaluate(async () => {
     if (centerCmdIdx === -1 || centerCmdIdx > firstTextIdx) throw new Error('escposBytesFromLines() should emit ESC a 1 (center align) before a c:true line');
   });
 
+  // REGRESI (21 Okt 2026): user melaporkan hasil cetak Bluetooth "ketebalan
+  // font kurang kelihatan terlalu tipis" untuk baris b:true -- ESC E
+  // (Emphasized) sendirian efeknya sangat halus di banyak printer thermal
+  // clone murah. Ditambahkan GS G (Double-Strike Mode) BARENGAN ESC E setiap
+  // kali bold, supaya hasil cetaknya jauh lebih tebal/kontras.
+  await step('REGRESI (21 Okt 2026): escposBytesFromLines() mengirim ESC G (Double-Strike) BARENGAN ESC E setiap kali baris bold (b:true), bukan ESC E sendirian -- supaya hasil cetak lebih tebal, dan keduanya dimatikan lagi di akhir', () => {
+    const lines = [
+      { t: 'Baris Tebal', b:true, s:9 },
+      { t: 'Baris Biasa', s:9 },
+    ];
+    const bytes = escposBytesFromLines(lines);
+    const text = new TextDecoder().decode(bytes);
+    const boldOnIdx = text.indexOf('\x1B\x45\x01');
+    const strikeOnIdx = text.indexOf('\x1B\x47\x01');
+    const tebalTextIdx = text.indexOf('Baris Tebal');
+    if (boldOnIdx === -1) throw new Error('REGRESI: ESC E 1 (emphasized ON) tidak ditemukan');
+    if (strikeOnIdx === -1) throw new Error('REGRESI: ESC G 1 (double-strike ON) tidak ditemukan -- harus dikirim BARENGAN ESC E supaya cetakan tidak tipis');
+    if (boldOnIdx > tebalTextIdx || strikeOnIdx > tebalTextIdx) throw new Error('ESC E/ESC G ON harus tampil SEBELUM teks "Baris Tebal": ' + JSON.stringify({boldOnIdx, strikeOnIdx, tebalTextIdx}));
+    const biasaTextIdx = text.indexOf('Baris Biasa');
+    const boldOffIdx = text.indexOf('\x1B\x45\x00', tebalTextIdx);
+    const strikeOffIdx = text.indexOf('\x1B\x47\x00', tebalTextIdx);
+    if (boldOffIdx === -1 || boldOffIdx > biasaTextIdx) throw new Error('ESC E harus dimatikan lagi (ESC E 0) sebelum baris biasa (b tidak true)');
+    if (strikeOffIdx === -1 || strikeOffIdx > biasaTextIdx) throw new Error('ESC G harus dimatikan lagi (ESC G 0) sebelum baris biasa (b tidak true)');
+    // Akhir dokumen juga harus mematikan keduanya (jaga-jaga kalau baris terakhir bold).
+    if (!text.endsWith('\x1B\x61\x00\n\n\n') ) throw new Error('urutan penutup (rata kiri + spasi sobek) berubah tak terduga: ' + JSON.stringify(text.slice(-20)));
+    const lastBoldOff = text.lastIndexOf('\x1B\x45\x00');
+    const lastStrikeOff = text.lastIndexOf('\x1B\x47\x00');
+    if (lastBoldOff === -1 || lastStrikeOff === -1) throw new Error('ESC E/ESC G harus tetap dimatikan di akhir dokumen');
+  });
+
   await step('printReceiptBluetooth()/printSubsInvoiceBluetooth()/printUsageNotaBluetooth() degrade gracefully (no throw, no printer connected) when Web Bluetooth is unsupported, as in this headless browser', async () => {
     if (isBluetoothPrintSupported()) throw new Error('test assumes navigator.bluetooth is unavailable in this headless environment');
     const s = subscriptions.find(x=>x.nama==='Sub Outlet A');
