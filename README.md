@@ -2424,6 +2424,93 @@ Verifikasi: suite Playwright penuh (216 langkah, 0 FAIL — 1 test baru
 khusus kasus nomor kosong: tetap unduh, TIDAK buka tab WA apa pun,
 TAPI toast-nya harus menyebut "WhatsApp").
 
+### REGRESI KETIGA: chat WhatsApp Web kebuka ke nomor yang benar tapi filenya tidak ikut terlampir (21 Oktober 2026)
+
+Lanjutan lagi dari 2 perbaikan di atas: untuk nota yang nomor WA
+pelanggannya SUDAH terisi, user melaporkan "langsung buka wa dan
+langsung buka chat ke nomor di nota tapi file nota nya tidak ikut
+terlampir cuma chat kosong". **Ini separuh memang batasan platform
+yang TIDAK BISA diperbaiki dari kode** — WhatsApp Web tidak punya
+mekanisme apa pun (lewat URL atau API publik) untuk menerima lampiran
+file dari situs lain; satu-satunya cara melampirkan tetap manual lewat
+ikon 📎 di dalam WA Web sendiri. Itu sudah dicatat di komentar kode
+sejak perbaikan pertama ("WA Web tidak bisa dipaksa lampir gambar
+lewat URL").
+
+Tapi ada bug NYATA yang bikin instruksi "lampirkan manual" itu tidak
+pernah terbaca user: dulu dipakai `showToast()` di TAB ASAL, sedangkan
+`openWA()` sesudahnya memanggil `window.open()` yang LANGSUNG
+memindahkan fokus browser ke TAB BARU (WhatsApp Web) — toast di tab
+asal jadi hilang/tidak kelihatan sama sekali sebelum sempat dibaca.
+User cuma melihat WhatsApp Web kebuka dengan chat kosong, tanpa tahu
+sama sekali bahwa file-nya sudah ada di folder Download menunggu
+dilampirkan manual.
+
+Diperbaiki: `shareOrDownloadNotaImage()` sekarang menampilkan
+`alert()` (modal, WAJIB di-klik OK) berisi instruksi 2 langkah
+("1. Klik ikon lampiran 📎 di kotak chat, 2. Pilih gambar nota dari
+folder Download") **SEBELUM** `openWA()` dipanggil — jadi user pasti
+membaca instruksinya dulu selagi masih di tab asal, baru fokus pindah
+ke tab WhatsApp Web yang baru terbuka. Pola ini sama dengan
+`shareNotaImageAsDocument()` yang sudah lebih dulu memakai `alert()`
+untuk instruksi berlapis yang harus dibaca sampai selesai.
+
+Verifikasi: suite Playwright penuh (216 langkah, 0 FAIL — test
+"Kirim via WhatsApp" yang sudah ada diperluas memastikan `alert()`
+berisi kata "WhatsApp" tampil TEPAT SEBELUM `openWA()`/`window.open()`
+dipanggil, bukan setelahnya, dan `showToast()` generik lama tidak lagi
+dipakai untuk kasus ini).
+
+### REGRESI KE-4: di HP tombol "Kirim via WhatsApp" masih menyerahkan pilihan ke share sheet OS generik (21 Oktober 2026)
+
+Satu lagi lanjutan di hari yang sama: user melaporkan "untuk di hp
+beda lagi. saat klik kirim lewat wa, yang muncul banyak pilihan, ada
+wa, download, share dan lain-lain, ini masih tidak konsisten." Akar
+masalahnya: ketiga perbaikan sebelumnya (desktop buka WA, toast sebut
+WA saat nomor kosong, `alert()` sebelum buka tab) semuanya ditambahkan
+sebagai parameter `waPhone` opsional di `shareOrDownloadNotaImage()` --
+tapi fungsi itu PUNYA percabangan `isMobileDevice()` dari awal (dipakai
+bareng "Simpan sebagai Gambar"): di mobile, dia MASIH mencoba
+`navigator.share()` DULU (membuka share sheet OS generik: WA, Download,
+Share, app lain) SEBELUM logic `waPhone` sempat jalan sama sekali --
+jadi semua perbaikan WA tadi cuma pernah benar-benar jalan di desktop,
+tidak pernah tersentuh sama sekali di HP.
+
+User minta tegas: **"harusnya hanya kirim lewat wa. saat klik kirim
+lewat wa, langsung buka wa, jika di nota ada nomornya langsung masuk
+ke chat, jika tidak ada nomor cukup buka sampai halaman depan wa."**
+Ini permintaan perilaku yang KONSISTEN di semua platform -- bukan beda
+kelakuan di HP vs desktop lagi.
+
+Diperbaiki dengan DESAIN ULANG, bukan tambal lagi: dibuat fungsi baru
+`shareNotaViaWhatsApp(lines, filenameBase, pageWidthMm, waPhone)`
+(`js/10-nota-cetak.js`) yang TERPISAH TOTAL dari
+`shareOrDownloadNotaImage()` (bukan cuma versi dengan parameter
+tambahan lagi) -- `shareNotaViaWhatsApp()` TIDAK PERNAH memanggil
+`navigator.share()` di platform apa pun: SELALU unduh file -> `alert()`
+panduan lampir manual (sebut WhatsApp) -> `openWA()` langsung (ke chat
+kontak kalau `waPhone` terisi, ke halaman depan WA `wa.me/?text=` kalau
+kosong). `shareOrDownloadNotaImage()` DIKEMBALIKAN ke versi aslinya
+(tanpa parameter WA apa pun) -- sekarang CUMA dipakai "Simpan sebagai
+Gambar", yang MEMANG masih benar pakai `navigator.share()` di mobile
+(itu tombol "simpan/bagikan ke mana saja", bukan "kirim WA"). Ke-4
+fungsi `send*ImageWA()` (satu per jenis nota) diubah memanggil
+`shareNotaViaWhatsApp()`, bukan `shareOrDownloadNotaImage()` lagi.
+
+SENGAJA tidak pakai jalur `intent://` Android di `openWA()` (parameter
+`target`) untuk memaksa buka app WhatsApp spesifik -- link `wa.me`
+biasa (`window.open()`) sudah otomatis ditangani OS (Android/iOS)
+lewat universal link ke app WhatsApp yang terpasang, tanpa trik
+tambahan, dan ini juga yang membuat kodenya tidak perlu percabangan
+`isAndroid`/`isMobileDevice()` lagi khusus untuk tombol ini.
+
+Verifikasi: suite Playwright penuh (215 langkah, 0 FAIL -- 3 test
+"Kirim via WhatsApp" terpisah sebelumnya digabung jadi 1 test
+komprehensif yang menguji SATU set assertion yang SAMA PERSIS di
+mobile DAN desktop: `navigator.share()` tidak pernah dipanggil,
+`alert()` tampil sebelum `openWA()`, nomor terisi vs kosong, dan
+"Simpan sebagai Gambar" tidak terpengaruh sama sekali).
+
 ### Perbesar huruf nota + kecilkan margin kiri-kanan (21 Oktober 2026)
 
 User minta tulisan nota diperbesar, dan secara eksplisit sudah
