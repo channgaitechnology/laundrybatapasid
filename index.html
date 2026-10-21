@@ -435,6 +435,101 @@
     display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.9);font-size:11.5px;
   }
 
+  /* ---- Mode Gelap (Dark Mode) ---- */
+  body.dark-mode {
+    --ink:#E2ECEF;
+    --ink-soft:#8EA1B0;
+    --mist:#0F1A21;
+    --paper:#1B2934;
+    --line:#223542;
+    --suds-deep:#4FD1C5;
+    --success-bg:rgba(46,158,99,0.20);
+    --warn-bg:rgba(217,130,43,0.20);
+    --shadow:0 6px 20px rgba(0,0,0,0.35);
+  }
+
+  body.dark-mode .card,
+  body.dark-mode .modal,
+  body.dark-mode .trx-card,
+  body.dark-mode .stat-card,
+  body.dark-mode .suggest-dropdown,
+  body.dark-mode .tabbar,
+  body.dark-mode .auth-card,
+  body.dark-mode #tourTooltip {
+    background:#18242D;
+  }
+
+  body.dark-mode input,
+  body.dark-mode select,
+  body.dark-mode textarea,
+  body.dark-mode .settings-tile,
+  body.dark-mode .work-day-col-body,
+  body.dark-mode .note-tb-btn,
+  body.dark-mode .note-editor {
+    background:#141F27;
+    color:var(--ink);
+  }
+
+  body.dark-mode input:focus,
+  body.dark-mode select:focus,
+  body.dark-mode textarea:focus {
+    background:#1A2934;
+  }
+
+  body.dark-mode .btn-outline {
+    background:#141F27;
+    color:var(--ink);
+  }
+
+  body.dark-mode .btn-ghost {
+    background:var(--mist);
+    color:var(--bubble);
+  }
+
+  body.dark-mode .btn-danger-ghost {
+    background:rgba(194,59,50,0.20);
+    color:#E57373;
+  }
+
+  body.dark-mode .work-card {
+    background:#182630;
+  }
+
+  body.dark-mode .work-pill {
+    background:#18242D;
+    color:var(--ink-soft);
+  }
+
+  body.dark-mode .work-pill.on-belum {
+    background:#223340;
+    border-color:#344856;
+    color:#A0B4C0;
+  }
+
+  body.dark-mode .receipt {
+    background:#1B2934;
+    color:#E2ECEF;
+  }
+
+  body.dark-mode .receipt .r-shop div,
+  body.dark-mode .r-item-detail,
+  body.dark-mode .r-footer {
+    color:#8EA1B0;
+  }
+
+  body.dark-mode .r-divider {
+    border-top-color:#2D4252;
+  }
+
+  body.dark-mode .auth-toggle button.active {
+    background:#243542;
+    color:var(--bubble);
+  }
+
+  body.dark-mode .toast {
+    background:#2A3C4A;
+  }
+
   /* ---- Layar lebar (tablet landscape/desktop): lebar konten menyesuaikan
      viewport (bukan tetap 520px seperti HP) supaya tidak ada ruang kosong
      besar di kiri-kanan. appbar & tabbar ikut dilebarkan+ditengahkan senada,
@@ -1081,6 +1176,9 @@
         <button type="button" class="settings-tile" onclick="openSettingsSub('karyawan')">
           <span class="settings-tile-emoji">👥</span><span class="settings-tile-label">Karyawan / Kasir</span>
         </button>
+        <button type="button" class="settings-tile" onclick="openSettingsSub('tema')">
+          <span class="settings-tile-emoji">🌙</span><span class="settings-tile-label">Tema Tampilan</span>
+        </button>
         <button type="button" class="settings-tile" onclick="openSettingsSub('bahasa')">
           <span class="settings-tile-emoji">🌐</span><span class="settings-tile-label">Bahasa</span>
         </button>
@@ -1194,6 +1292,13 @@
         <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Karyawan bisa input transaksi & catat paket, tapi tidak bisa lihat Laporan, ubah Katalog, atau Edit/Hapus data.</p>
         <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="createInvite()">➕ Undang Kasir Baru</button>
         <div id="teamList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="settings-sub-panel" id="settingsSub-tema">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px;">Pilih tema tampilan aplikasi.</p>
+        <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:8px;" onclick="setThemeMode('light')" id="themeBtnLight">☀️ Mode Terang</button>
+        <button type="button" class="btn btn-outline" style="width:100%;margin-bottom:8px;" onclick="setThemeMode('dark')" id="themeBtnDark">🌙 Mode Gelap</button>
+        <button type="button" class="btn btn-outline" style="width:100%;" onclick="setThemeMode('system')" id="themeBtnSystem">💻 Mengikuti Sistem</button>
       </div>
 
       <div class="settings-sub-panel" id="settingsSub-bahasa">
