@@ -532,18 +532,34 @@ function layoutNotaCanvas(lines, pageWidthMm, scale){
   return { mmToPx, ptToPx, widthPx, marginX, marginY, lh, logoSize, heightPx, wrapped };
 }
 async function buildNotaCanvas(lines, pageWidthMm){
-  const BASE_SCALE = 8; // px per mm — cukup tajam untuk dibagikan lewat WhatsApp
-  /* WhatsApp punya ambang resolusi SENDIRI untuk opsi "Kualitas HD" di dialog
-     Share-nya (hasil riset: sisi terpanjang foto dibatasi sekitar 4096px) --
-     kalau dilampaui, WA bukan mengompres lebih keras, tapi malah MENOLAK
-     menawarkan opsi HD sama sekali ("kualitas HD tidak tersedia"). Nota Tempo
-     yang isinya panjang (banyak kunjungan belum ditagih digabung satu nota)
-     jadi sangat tinggi secara piksel pada SCALE tetap, gampang melampaui itu
-     -- padahal nota pendek sama sekali tidak bermasalah. Ini bukan soal
-     kompresi di app ini; app cuma perlu tidak jadi SEBAB nota panjang
-     kehilangan opsi HD itu, jadi SCALE efektif diturunkan (proporsional,
-     lebar & tinggi sama-sama kena) kalau sisi terpanjang hasil pada SCALE
-     dasar diperkirakan tembus ambang itu. */
+  /* REGRESI (ditemukan user 21 Okt 2026, lewat foto nota tercetak yang
+     pecah/tidak terbaca dibanding nota app lain): SCALE dasar 8 px/mm
+     TERNYATA kebalikan dari dugaan semula -- bukan nota PANJANG yang
+     kehilangan opsi "Kualitas HD" WhatsApp, tapi nota PENDEK. Di SCALE=8,
+     nota pendek (sedikit baris) menghasilkan kanvas cuma sekitar 640x800px
+     (~0.5 megapiksel, lebar 80mm) -- riset publik soal fitur HD WhatsApp
+     bilang opsi HD cuma ditawarkan untuk foto yang "cukup besar"
+     resolusi/ukurannya (dianggap mirip foto kamera asli, bukan screenshot/
+     gambar kecil) -- nota sekecil itu kemungkinan dianggap "terlalu kecil
+     untuk ditawari pilihan", jadi langsung lewat kompresi standar WA yang
+     sudah pasti merusak teks monospace tipis jadi pecah/buram. Nota PANJANG
+     (banyak baris) justru otomatis jadi tinggi secara piksel, total
+     megapiksel-nya lebih besar, kemungkinan itu sebabnya nota panjang malah
+     DITAWARI opsi HD -- persis laporan user: nota pendek TIDAK ada pilihan
+     HD, nota panjang ADA.
+
+     Perbaikan: naikkan SCALE dasar dari 8 jadi 16 px/mm -- bukan cuma
+     menebak-nebak ambang WhatsApp, tapi perbaikan yang sehat dengan
+     sendirinya (lebih banyak piksel per karakter = teks lebih tajam
+     walau tetap kena kompresi apa pun), SEKALIGUS membuat nota pendek
+     sekarang ~2 megapiksel (lebar 80mm -> ~1280px, nota 15 baris -> tinggi
+     ~1650px) -- jauh di atas ambang "kualitas standar" (~1,68 megapiksel)
+     yang ditemukan riset sebelumnya, jadi lebih mungkin dianggap "cukup
+     besar" oleh WhatsApp. Cap MAX_LONG_EDGE_PX di bawah TETAP dipertahankan
+     (logic-nya proporsional terhadap SCALE berapa pun, otomatis menyesuaikan)
+     supaya nota yang BENAR-BENAR panjang tetap tidak melampaui ambang ATAS
+     WhatsApp (~4096px) seperti perbaikan sebelumnya. */
+  const BASE_SCALE = 16; // px per mm
   const MAX_LONG_EDGE_PX = 4000; // margin aman di bawah ~4096px
   const probe = layoutNotaCanvas(lines, pageWidthMm, BASE_SCALE);
   const longEdgeAtBase = Math.max(probe.widthPx, probe.heightPx);
