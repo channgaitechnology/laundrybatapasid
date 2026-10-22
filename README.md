@@ -2618,6 +2618,44 @@ memastikan ESC G 1 (double-strike ON) selalu dikirim BARENGAN ESC E 1
 sebelum baris bold, dan keduanya dimatikan lagi (ESC G 0 + ESC E 0)
 sebelum baris yang tidak bold maupun di akhir dokumen).
 
+### JPG/PDF: teks ditebalkan via stroke, bukan cuma keyword "bold" (22 Oktober 2026)
+
+Masih soal ketebalan, kali ini di format JPG: user bandingkan foto nota
+dan minta jelas: "Ketebalan font kurang kelihatan terlalu tipis. Buat
+seperti font dinota bagian atas yang tebal. Dan yang sudah tebal
+diatas tambah lagi ketebalannya supaya ada perbedaan antar yang bold
+dan tidak." Dua permintaan sekaligus: (1) semua teks terasa kurang
+tebal secara umum, dan (2) baris yang SUDAH `b:true` tidak cukup beda
+dari baris biasa — kontrasnya kurang.
+
+Akar masalah: `buildNotaCanvas()` cuma mengandalkan keyword CSS/canvas
+`"bold"` (font-weight bawaan varian Bold dari 'Courier New') dan
+`buildNotaPDFBlob()` cuma mengandalkan font Courier-Bold bawaan jsPDF
+— keduanya TIDAK CUKUP tebal menurut user di resolusi/ukuran nota
+ini, dan beda bold-vs-normal yang dihasilkan cuma seadanya font
+family itu sendiri, tidak terkontrol dari kode.
+
+Diperbaiki: `buildNotaCanvas()` sekarang menggambar SEMUA teks lewat
+`strokeText()` (garis tepi tipis) DITAMBAH `fillText()` seperti biasa
+— trik "faux bold" klasik di canvas, bukan cuma mengandalkan
+font-weight. Baris `b:true` dapat `lineWidth` stroke **2x lebih
+tebal** dari baris biasa, supaya kontrasnya jelas. `buildNotaPDFBlob()`
+dibuat analog memakai fitur asli PDF: `renderingMode:'fillThenStroke'`
+(operator PDF `Tr 2` — isi lalu garis tepi) pada SEMUA `doc.text()`,
+dengan `doc.setLineWidth()` 2x lebih tebal untuk baris bold. Nilai
+stroke width awal (0.045× ukuran huruf) sempat dicoba dulu dan
+hasilnya JUSTRU merusak bentuk huruf (bergerigi/blobby di font besar)
+— diturunkan jadi 0.015× setelah verifikasi visual nyata (render
+contoh nota ke PNG, dibandingkan manual) supaya hasilnya tebal tapi
+tetap rapi, bukan berantakan.
+
+Verifikasi: suite Playwright penuh (219 langkah, 0 FAIL — test baru
+me-monkeypatch `CanvasRenderingContext2D.prototype.strokeText`/
+`fillText` untuk memastikan `lineWidth` baris bold TEPAT 2x baris
+biasa di JPG, dan `setLineWidth()`/`renderingMode` yang sama di PDF),
+plus verifikasi visual nyata (render ulang contoh nota ke PNG 2x —
+sebelum & sesudah turunkan koefisien stroke — dibandingkan manual).
+
 ### Audit DoS/DoS-aplikasi atas permintaan user (16 Oktober 2026) — satu celah ditemukan & diperbaiki
 
 User minta dijelaskan konsep DoS lebih dalam, lalu minta dicek apakah

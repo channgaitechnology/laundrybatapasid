@@ -642,6 +642,22 @@ async function buildNotaCanvas(lines, pageWidthMm){
     y += logoSize + mmToPx(3);
   }catch(e){ /* lanjut tanpa logo kalau gagal dimuat */ }
 
+  /* REGRESI (22 Okt 2026): user bandingkan foto nota JPG -- baris b:true (mis.
+     "TIMBANGAN SEKARANG" & detailnya) tidak cukup beda ketebalannya dari baris
+     biasa, dan keduanya secara umum masih terasa tipis. Keyword CSS/canvas
+     "bold" doang kadang kurang kontras untuk 'Courier New' di resolusi macam
+     ini. drawBoldAwareText() di bawah -- dipakai GANTI fillText() langsung di
+     ketiga cabang (icon/tengah/kiri) -- SELALU menebalkan via strokeText()
+     tipis di atas fillText() (bukan cuma pakai font-weight bawaan), dan baris
+     b:true dapat lineWidth 2x lebih tebal lagi dari baris biasa -- supaya ADA
+     perbedaan jelas antara bold & tidak, bukan cuma sama-sama "agak tebal". */
+  const boldStrokeWidth = ptToPx(9) * 0.015; // acuan dari ukuran badan teks normal (s:9), konstan untuk semua baris
+  const drawBoldAwareText = (text, x, yPos, bold) => {
+    ctx.lineWidth = boldStrokeWidth * (bold ? 2 : 1);
+    ctx.strokeStyle = '#000000';
+    ctx.strokeText(text, x, yPos);
+    ctx.fillText(text, x, yPos);
+  };
   wrapped.forEach(line=>{
     const px = Math.round(ptToPx(line.s||9));
     ctx.font = `${line.it?'italic ':''}${line.b?'bold ':''}${px}px 'Courier New', monospace`;
@@ -658,12 +674,12 @@ async function buildNotaCanvas(lines, pageWidthMm){
       drawIconBadgeOnCanvas(ctx, line.icon, startX, y - px*0.9, d);
       ctx.fillStyle = '#000000';
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText(line.t, startX + d + gap, y);
+      drawBoldAwareText(line.t, startX + d + gap, y, line.b);
     } else if(line.c){
       const w = ctx.measureText(line.t).width;
-      ctx.fillText(line.t, centerX - w/2, y);
+      drawBoldAwareText(line.t, centerX - w/2, y, line.b);
     } else {
-      ctx.fillText(line.t, marginX + (line.indentPx||0), y);
+      drawBoldAwareText(line.t, marginX + (line.indentPx||0), y, line.b);
     }
     y += lh*0.28;
   });
@@ -862,10 +878,20 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
     y += logoSizeMm + 3;
   }
   y += 3;
+  /* REGRESI (22 Okt 2026): sama seperti drawBoldAwareText() di buildNotaCanvas()
+     -- doc.setFont(..., 'bold') (font Courier-Bold bawaan jsPDF) saja tidak cukup
+     kontras menurut user. jsPDF text() mendukung renderingMode PDF asli
+     ('fillThenStroke' = isi lalu garis tepi, operator PDF Tr 2) -- dipakai di
+     SEMUA baris (menebalkan garis tepi semua teks sedikit) dengan lineWidth 2x
+     lebih tebal khusus baris b:true, supaya ada beda jelas bold vs tidak. */
+  doc.setDrawColor(0,0,0);
+  const boldStrokeWidthMm = 9 * NOTA_FONT_SCALE * 0.3528 * 0.015;
   wrapped.forEach(line=>{
     const style = line.b ? (line.it ? 'bolditalic' : 'bold') : (line.it ? 'italic' : 'normal');
     doc.setFont('courier', style);
     doc.setFontSize((line.s||9)*NOTA_FONT_SCALE);
+    doc.setLineWidth(boldStrokeWidthMm * (line.b ? 2 : 1));
+    const textOpts = { renderingMode: 'fillThenStroke' };
     const indentMm = (line.indentPx||0) / SCALE;
     if(line.icon){
       const sizeUnitMm = (line.s||9)*NOTA_FONT_SCALE*0.3528; // padanan px=ptToPx(line.s) di canvas, tanpa SCALE karena jsPDF sudah dalam mm
@@ -876,11 +902,11 @@ async function buildNotaPDFBlob(lines, pageWidthMm){
       const startX = line.c ? (centerXmm - totalW/2) : (marginMm + indentMm);
       const iconDataUrl = line.icon==='wa' ? waIconDataUrl : emailIconDataUrl;
       if(iconDataUrl) doc.addImage(iconDataUrl, 'PNG', startX, y - sizeUnitMm*0.9, sizeMm, sizeMm);
-      doc.text(String(line.t), startX + sizeMm + gapMm, y);
+      doc.text(String(line.t), startX + sizeMm + gapMm, y, textOpts);
     } else if(line.c){
-      doc.text(String(line.t), centerXmm, y, { align:'center' });
+      doc.text(String(line.t), centerXmm, y, { ...textOpts, align:'center' });
     } else {
-      doc.text(String(line.t), marginMm + indentMm, y);
+      doc.text(String(line.t), marginMm + indentMm, y, textOpts);
     }
     y += lhMm;
   });
