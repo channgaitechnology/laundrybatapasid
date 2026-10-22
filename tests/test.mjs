@@ -2207,6 +2207,7 @@ const result = await page.evaluate(async () => {
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(s){ sizes.push(s); }
+      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(){} text(){}
       output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
@@ -2218,6 +2219,64 @@ const result = await page.evaluate(async () => {
       if (sizes.length !== 1 || Math.abs(sizes[0] - expected) > 0.001) throw new Error('REGRESI: doc.setFontSize() harus dipanggil dengan line.s*NOTA_FONT_SCALE (' + expected + '), got ' + JSON.stringify(sizes));
     } finally {
       if (originalJspdf === undefined) delete window.jspdf; else window.jspdf = originalJspdf;
+    }
+  });
+
+  // REGRESI (22 Okt 2026): user bandingkan foto nota JPG -- baris b:true tidak
+  // cukup beda ketebalannya dari baris biasa, dan keduanya masih terasa tipis.
+  // Diperbaiki: buildNotaCanvas() sekarang strokeText() + fillText() untuk
+  // SEMUA baris (bukan cuma mengandalkan keyword CSS "bold"), dengan lineWidth
+  // 2x lebih tebal khusus baris b:true supaya kontras bold vs tidak jelas.
+  // buildNotaPDFBlob() analog -- renderingMode:'fillThenStroke' + setLineWidth()
+  // 2x lebih tebal untuk b:true.
+  await step('REGRESI (22 Okt 2026): buildNotaCanvas() menebalkan SEMUA teks via strokeText()+fillText() (bukan cuma keyword "bold"), dengan lineWidth 2x lebih tebal khusus baris b:true -- supaya ada beda jelas bold vs tidak; buildNotaPDFBlob() analog lewat renderingMode fillThenStroke', async () => {
+    const originalStroke = CanvasRenderingContext2D.prototype.strokeText;
+    const originalFill = CanvasRenderingContext2D.prototype.fillText;
+    const calls = [];
+    CanvasRenderingContext2D.prototype.strokeText = function(text, x, y){ calls.push({ fn:'stroke', text, lineWidth: this.lineWidth }); return originalStroke.call(this, text, x, y); };
+    CanvasRenderingContext2D.prototype.fillText = function(text, x, y){ calls.push({ fn:'fill', text }); return originalFill.call(this, text, x, y); };
+    try {
+      await buildNotaCanvas([
+        { t: 'Baris Tebal', b:true, s:9 },
+        { t: 'Baris Biasa', s:9 },
+      ], 80);
+      const boldStroke = calls.find(c => c.fn==='stroke' && c.text==='Baris Tebal');
+      const normalStroke = calls.find(c => c.fn==='stroke' && c.text==='Baris Biasa');
+      const boldFill = calls.find(c => c.fn==='fill' && c.text==='Baris Tebal');
+      const normalFill = calls.find(c => c.fn==='fill' && c.text==='Baris Biasa');
+      if (!boldStroke || !normalStroke) throw new Error('REGRESI: strokeText() harus dipanggil untuk SEMUA baris (bold maupun biasa), got ' + JSON.stringify(calls));
+      if (!boldFill || !normalFill) throw new Error('fillText() harus tetap dipanggil untuk SEMUA baris, got ' + JSON.stringify(calls));
+      if (!(boldStroke.lineWidth > normalStroke.lineWidth)) throw new Error('REGRESI: lineWidth strokeText() baris bold harus LEBIH TEBAL dari baris biasa (supaya ada kontras), got bold=' + boldStroke.lineWidth + ' normal=' + normalStroke.lineWidth);
+      if (Math.abs(boldStroke.lineWidth / normalStroke.lineWidth - 2) > 0.01) throw new Error('REGRESI: lineWidth baris bold harus tepat 2x baris biasa, got rasio ' + (boldStroke.lineWidth / normalStroke.lineWidth));
+    } finally {
+      CanvasRenderingContext2D.prototype.strokeText = originalStroke;
+      CanvasRenderingContext2D.prototype.fillText = originalFill;
+    }
+
+    // PDF: setLineWidth() 2x lebih tebal untuk bold, dan text() dipanggil dengan renderingMode fillThenStroke.
+    const originalJspdf2 = window.jspdf;
+    const pdfCalls = { lineWidths: [], textOpts: [] };
+    class FakeJsPDFBold {
+      constructor(){}
+      setFont(){} setFontSize(){}
+      setDrawColor(){}
+      setLineWidth(w){ pdfCalls.lineWidths.push(w); }
+      getTextWidth(str){ return String(str).length * 2; }
+      addImage(){}
+      text(str, x, y, opts){ pdfCalls.textOpts.push({ str, renderingMode: opts && opts.renderingMode }); }
+      output(){ return new Blob(['%PDF-fake'], { type: 'application/pdf' }); }
+    }
+    window.jspdf = { jsPDF: FakeJsPDFBold };
+    try {
+      await buildNotaPDFBlob([
+        { t: 'Baris Tebal', b:true, s:9 },
+        { t: 'Baris Biasa', s:9 },
+      ], 80);
+      if (pdfCalls.lineWidths.length !== 2) throw new Error('REGRESI: setLineWidth() harus dipanggil per baris, got ' + JSON.stringify(pdfCalls.lineWidths));
+      if (Math.abs(pdfCalls.lineWidths[0] / pdfCalls.lineWidths[1] - 2) > 0.01) throw new Error('REGRESI: setLineWidth() baris bold harus 2x baris biasa, got ' + JSON.stringify(pdfCalls.lineWidths));
+      if (!pdfCalls.textOpts.every(o => o.renderingMode === 'fillThenStroke')) throw new Error('REGRESI: doc.text() harus selalu dipanggil dengan renderingMode "fillThenStroke" (isi + garis tepi) supaya lebih tebal, got ' + JSON.stringify(pdfCalls.textOpts));
+    } finally {
+      if (originalJspdf2 === undefined) delete window.jspdf; else window.jspdf = originalJspdf2;
     }
   });
 
@@ -2281,6 +2340,7 @@ const result = await page.evaluate(async () => {
       constructor(opts){ calls.formats.push(opts.format); }
       setFont(family, style){ calls.fonts.push(`${family}:${style}`); }
       setFontSize(s){ calls.sizes.push(s); }
+      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
@@ -2325,6 +2385,7 @@ const result = await page.evaluate(async () => {
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
+      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(data, format, x, y, w, h){ calls.images.push({ data, format, x, y, w, h }); }
       text(str, x, y, opts){ calls.texts.push({ str, x, y, align: opts && opts.align }); }
@@ -2360,6 +2421,7 @@ const result = await page.evaluate(async () => {
     class FakeJsPDF {
       constructor(){}
       setFont(){} setFontSize(){}
+      setDrawColor(){} setLineWidth(){}
       getTextWidth(str){ return String(str).length * 2; }
       addImage(){}
       text(){}
