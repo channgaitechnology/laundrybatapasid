@@ -111,3 +111,117 @@ async function toggleLunas(id){
   renderHistory();
 }
 
+/* Unduh nota reguler dan nota Paket Bulanan/Tempo pada rentang tanggal. */
+async function downloadHistoryBackup(){
+  const btn = document.getElementById('historyBackupBtn');
+  if(btn && btn.disabled) return;
+  const dari = document.getElementById('historyDariFilter').value;
+  const sampai = document.getElementById('historySampaiFilter').value;
+  const jenis = document.getElementById('historyBackupType').value || 'all';
+  if(dari && sampai && dari > sampai){
+    showToast(t('Pilih tanggal mulai yang tidak melewati tanggal akhir.'));
+    return;
+  }
+  if((typeof offlineMode !== 'undefined' && offlineMode) || navigator.onLine === false){
+    showToast(t('Backup semua nota perlu koneksi internet agar seluruh riwayat dapat dimuat.'));
+    return;
+  }
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = t('Menyiapkan backup...'); }
+  try{
+    if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
+    if(!transactionsFullyLoaded){
+      showToast(t('Riwayat nota belum berhasil dimuat. Coba lagi saat koneksi stabil.'));
+      return;
+    }
+
+    const withinDateRange = tanggal => (!dari || tanggal >= dari) && (!sampai || tanggal <= sampai);
+    const transactionKind = trx => {
+      const linkedSubs = subscriptions.find(s => String(s.transactionId || '') === String(trx.id));
+      if(linkedSubs) return isTempo(linkedSubs) ? 'tempo' : 'paket';
+      const note = String(trx.catatan || '').toLowerCase();
+      if(note.startsWith('pembayaran tempo (bayar nanti)') || note.startsWith('pay later payment')) return 'tempo';
+      if(note.startsWith('pembayaran paket bulanan periode') || note.startsWith('monthly package payment')) return 'paket';
+      return 'reguler';
+    };
+    const notes = [];
+    const priorUsageList = currentUsageList;
+    try{
+      if(jenis === 'all' || jenis === 'reguler' || jenis === 'paket' || jenis === 'tempo'){
+        transactions.filter(trx => withinDateRange(trx.tanggal) && (jenis === 'all' || transactionKind(trx) === jenis))
+          .forEach(trx => notes.push({
+            tanggal: trx.tanggal,
+            jenis: transactionKind(trx),
+            nome: 'nota-' + transactionKind(trx) + '-' + String(trx.kode || trx.id),
+            lines: buildReceiptPDFLines(trx)
+          }));
+      }
+
+      const subscriptionsById = new Map(subscriptions.map(s => [String(s.id), s]));
+      const usageGroups = new Map();
+      allWorkUsage.filter(u => withinDateRange(u.tanggal)).forEach(u => {
+        const sub = subscriptionsById.get(String(u.subscriptionId));
+        if(!sub) return;
+        const kind = isTempo(sub) ? 'tempo' : 'paket';
+        if(jenis !== 'all' && jenis !== kind) return;
+        const groupKey = String(u.subscriptionId) + ':' + (u.batchId ? 'batch:' + u.batchId : 'usage:' + u.id);
+        if(!usageGroups.has(groupKey)) usageGroups.set(groupKey, { sub, kind, items:[] });
+        usageGroups.get(groupKey).items.push(u);
+      });
+
+      for(const group of usageGroups.values()){
+        const { sub, kind, items } = group;
+        currentUsageList = allWorkUsage.filter(u => String(u.subscriptionId) === String(sub.id));
+        items.sort((a,b) => a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0));
+        const lines = items[0].batchId
+          ? (isTempo(sub) ? buildTempoBatchUsageNotaPDFLines(items, sub) : buildUsageBatchNotaPDFLines(items, sub))
+          : buildUsageNotaPDFLines(items[0], sub);
+        const safeName = String(sub.nama || 'pelanggan').replace(/[^a-zA-Z0-9._-]+/g, '-');
+        notes.push({
+          tanggal: items[0].tanggal,
+          jenis: kind,
+          nome: 'nota-' + kind + '-' + items[0].tanggal + '-' + safeName + '-' + String(items[0].batchId || items[0].id).slice(-8),
+          lines
+        });
+      }
+    }finally{
+      currentUsageList = priorUsageList;
+    }
+
+    notes.sort((a,b) => a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0));
+    if(notes.length === 0){
+      showToast(t('Tidak ada nota dalam rentang tanggal ini.'));
+      return;
+    }
+    let berhasil = 0, gagal = 0;
+    for(let i=0;i<notes.length;i++){
+      const note = notes[i];
+      try{
+        const blob = await buildNotaJPEGBlob(note.lines, 80);
+        if(!blob){ gagal++; continue; }
+        const safeBase = note.nome.replace(/[^a-zA-Z0-9._-]+/g, '-');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = safeBase + '-' + note.tanggal + '.jpg';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        berhasil++;
+        if(i < notes.length - 1) await new Promise(resolve => setTimeout(resolve, 350));
+      }catch(e){
+        gagal++;
+      }
+    }
+    if(berhasil === 0){
+      showToast(t('Gagal membuat semua gambar nota. Coba lagi.'));
+    }else if(gagal > 0){
+      showToast(t('Sebagian nota gagal dibuat. JPG berhasil diunduh') + ': ' + berhasil + '/' + notes.length);
+    }else{
+      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG');
+    }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
+}
