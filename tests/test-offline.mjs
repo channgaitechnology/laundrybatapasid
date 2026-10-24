@@ -74,25 +74,29 @@ const STUB = () => {
       },
     });
   }
-  window.supabase = {
-    createClient: () => ({
-      auth: {
-        onAuthStateChange: (cb) => {
-          (window.__authListeners = window.__authListeners || []).push(cb);
-          Promise.resolve().then(() => cb(stub.session ? 'SIGNED_IN' : 'INITIAL_SESSION', stub.session));
-          return { data: { subscription: { unsubscribe() {} } } };
+  Object.defineProperty(window, 'supabase', {
+    value: {
+      createClient: () => ({
+        auth: {
+          onAuthStateChange: (cb) => {
+            (window.__authListeners = window.__authListeners || []).push(cb);
+            Promise.resolve().then(() => cb(stub.session ? 'SIGNED_IN' : 'INITIAL_SESSION', stub.session));
+            return { data: { subscription: { unsubscribe() {} } } };
+          },
+          signInWithPassword: async () => ({ data: null, error: { message: 'stubbed' } }),
+          signUp: async () => ({ data: null, error: { message: 'stubbed' } }),
+          signOut: async () => { stub.signOutCalls++; return { error: stub.signOutError }; },
+          resetPasswordForEmail: async () => ({ error: null }),
+          updateUser: async () => ({ error: null }),
+          getSession: async () => ({ data: { session: stub.session }, error: null }),
         },
-        signInWithPassword: async () => ({ data: null, error: { message: 'stubbed' } }),
-        signUp: async () => ({ data: null, error: { message: 'stubbed' } }),
-        signOut: async () => { stub.signOutCalls++; return { error: stub.signOutError }; },
-        resetPasswordForEmail: async () => ({ error: null }),
-        updateUser: async () => ({ error: null }),
-        getSession: async () => ({ data: { session: stub.session }, error: null }),
-      },
-      from: (table) => { stub.calls.push(table); return query(table); },
-      rpc: async () => ({ data: null, error: null }),
-    }),
-  };
+        from: (table) => { stub.calls.push(table); return query(table); },
+        rpc: async () => ({ data: null, error: null }),
+      }),
+    },
+    writable: false,
+    configurable: true
+  });
 };
 const CDN_RE = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net)\//;
 
@@ -452,6 +456,7 @@ const CDN_RE = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsde
     // ---- kembali online ----
     srv = await startServer();
     await ctx.setOffline(false);
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
     await page.waitForFunction(() => window.offlineMode === false, null, { timeout: 15000 });
     await page.waitForFunction(() => window.offlineDataReady === true, null, { timeout: 15000 });
     const on = await page.evaluate(() => ({
