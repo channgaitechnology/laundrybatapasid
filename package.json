@@ -1,7 +1,7 @@
 {
   "name": "laundrybatapasid",
   "private": true,
-  "description": "Package.json KHUSUS untuk Netlify Functions (web-push, dipakai notify-new-payment-request.js/notify-new-account.js lewat netlify/functions/_web-push-send.js). WAJIB di ROOT repo (bukan di netlify/functions/) -- menurut dokumentasi resmi Netlify, npm install otomatis cuma jalan untuk package.json di base directory situs, bahkan untuk situs tanpa [build.command] (statis, lihat netlify.toml). Taruh di netlify/functions/ (coba pertama kali) TERBUKTI GAGAL di produksi (\"Cannot find module 'web-push'\" di log function) -- lihat README bagian \"Notifikasi Push (Web Push)\". Index.html/js/*.js (app browser) TIDAK membaca file ini sama sekali -- app tetap situs statis murni, file ini CUMA dipakai Netlify sebelum packaging functions.",
+  "description": "Package.json KHUSUS untuk Netlify Functions (web-push, dipakai notify-new-payment-request.js/notify-new-account.js lewat netlify/functions/_web-push-send.js). WAJIB di ROOT repo (bukan di netlify/functions/) -- menurut dokumentasi resmi Netlify, npm install otomatis cuma jalan untuk package.json di base directory situs, bahkan untuk situs tanpa [build.command] (statis, lihat netlify.toml). Taruh di netlify/functions/ (coba pertama kali) TERBUKTI GAGAL di produksi (\"Cannot find module 'web-push'\" di log function) -- lihat docs/notifikasi.md bagian \"Notifikasi Push (Web Push)\". Index.html/js/*.js (app browser) TIDAK membaca file ini sama sekali -- app tetap situs statis murni, file ini CUMA dipakai Netlify sebelum packaging functions.",
   "dependencies": {
     "web-push": "^3.6.7"
   }

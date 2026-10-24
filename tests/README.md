@@ -43,7 +43,7 @@ node tests/test-midtrans-functions.mjs
 
 Juga test Node murni, untuk `netlify/functions/_web-push-send.js` +
 `notify-new-payment-request.js` (jalur push-nya) + `notify-new-account.js`
-(lihat README root, bagian "Notifikasi Push (Web Push)"). Butuh `web-push`
+(lihat [docs/notifikasi.md](../docs/notifikasi.md), bagian "Notifikasi Push (Web Push)"). Butuh `web-push`
 benar-benar ter-install (symlink sementara `node_modules` di ROOT repo ->
 scratchpad, **WAJIB dihapus lagi sebelum commit**, sama seperti
 `tests/node_modules/{playwright,playwright-core}`). File ini pakai
