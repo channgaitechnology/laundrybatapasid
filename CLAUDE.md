@@ -22,7 +22,7 @@ Supabase Database Webhook), aplikasi ini TIDAK LAGI murni statis: ada
 `netlify/functions/*.js` (Netlify Functions, Node/CommonJS,
 `exports.handler = async (event) => {...}`) yang jalan server-side —
 lihat bagian "Integrasi Pembayaran Otomatis (Midtrans)" dan "Notifikasi
-Email untuk Permintaan Baru" di README.md untuk env var yang dibutuhkan.
+Email untuk Permintaan Baru" di docs/pembayaran-midtrans.md dan docs/notifikasi.md untuk env var yang dibutuhkan.
 File-file itu TIDAK dimuat ke `index.html` sama sekali (browser cuma
 `fetch()` ke `/.netlify/functions/<nama>`, dan untuk
 `notify-new-payment-request.js` malah tidak pernah dipanggil dari browser
@@ -118,7 +118,7 @@ dilaporkan)**:
    "ya" dan belum ada rate-limit sama sekali, itu celah.
 
 Preseden rate-limit yang sudah ada: trigger `payment_requests_rate_limit_trigger`
-(lihat README bagian rate-limit) — pola yang sama (trigger database,
+(lihat docs/keamanan-dan-rls.md bagian rate-limit) — pola yang sama (trigger database,
 global bukan per-user, pengecualian `service_role`) bisa dicontoh untuk
 tabel baru yang insert-nya terbuka untuk anon dan punya efek mahal.
 
@@ -149,4 +149,4 @@ tabel baru yang insert-nya terbuka untuk anon dan punya efek mahal.
 - Baru mencakup **perpanjangan** langganan toko yang sudah punya akun
   (owner_id sudah ada). **Pendaftaran toko baru otomatis** sengaja belum
   dikerjakan — butuh desain terpisah soal cara mengirim kode pendaftaran
-  ke orang yang belum login sama sekali (lihat README bagian 4).
+  ke orang yang belum login sama sekali (lihat docs/pembayaran-midtrans.md bagian 4).
