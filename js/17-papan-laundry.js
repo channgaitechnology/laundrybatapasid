@@ -154,12 +154,28 @@ async function setWorkStatus(id, status, source){
   const table = source==='usage' ? 'subscription_usage' : 'transactions';
   const list = source==='usage' ? allWorkUsage : transactions;
   const ids = id.split(',');
+  let networkFailed = false;
   for(const rowId of ids){
     const item = list.find(x=>x.id===rowId);
     if(!item) continue;
-    const { error } = await sb.from(table).update({ work_status: status }).eq('id', rowId);
-    if(error){ showToast(t('Gagal memperbarui status kerja')); return; }
     item.workStatus = status;
+    if(offlineMode || navigator.onLine === false){
+      await offlineEnqueue('UPDATE_WORK_STATUS', { table, id: rowId, work_status: status });
+      continue;
+    }
+    const { error } = await sb.from(table).update({ work_status: status }).eq('id', rowId);
+    if(error){
+      if(offlineIsNetworkError(error)){
+        networkFailed = true;
+        await offlineEnqueue('UPDATE_WORK_STATUS', { table, id: rowId, work_status: status });
+      } else {
+        showToast(t('Gagal memperbarui status kerja'));
+        return;
+      }
+    }
+  }
+  if(offlineMode || navigator.onLine === false || networkFailed){
+    await offlineSaveSnapshot();
   }
   renderWorkBoard();
   if(status==='selesai' && settings.autoNotifySelesai) sendWorkDoneNotification(id, source);

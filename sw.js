@@ -40,7 +40,7 @@
  * di index.html, SESUAIKAN APP_SHELL / CDN_ASSETS di bawah dan NAIKKAN
  * CACHE_NAME.
  */
-const CACHE_NAME = 'laundry-batapas-v11';
+const CACHE_NAME = 'laundry-batapas-v12';
 /* Cache CDN terpisah: isinya pustaka dengan versi dipin, tidak perlu ikut
    dibuang tiap CACHE_NAME dinaikkan (hemat unduhan ulang ~600 KB). Naikkan
    suffix-nya HANYA kalau URL pustaka di index.html berubah. */

@@ -388,9 +388,44 @@ const CDN_RE = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsde
       assert(s.transactions.some((x) => x.kode === 'LND-0007'), 'transaksi terbaru harus ikut tersimpan saat koneksi putus');
     });
 
+    await step('antrean offline (queue) & generator nomor nota per perangkat', async () => {
+      await healthy();
+      const code1 = nextKodeOffline();
+      assert(/^LND-D[A-Z0-9]{2}-0001$/.test(code1), 'format nomor nota offline salah: ' + code1);
+      const code2 = nextKodeOffline();
+      assert(code2.endsWith('-0002'), 'sekuens offline harus bertambah: ' + code2);
+
+      const item = await offlineEnqueue('ADD_TRANSACTION', { kode: code1, total: 10000 });
+      assert(item && item.id, 'harus ter-enqueue');
+      const q = await offlineGetQueue();
+      assert(q.length === 1 && q[0].payload.kode === code1, 'antrean harus berisi item');
+
+      const synced = await offlineSyncQueue();
+      assert(synced === 1, 'harus ter-sync 1 item: ' + synced);
+      const q2 = await offlineGetQueue();
+      assert(q2.length === 0, 'antrean harus kosong setelah sync');
+    });
+
+    await step('submitTransaction() saat offline membuat transaksi lokal & masuk antrean queue', async () => {
+      await healthy();
+      offlineMode = true;
+      document.getElementById('inNama').value = 'Pelanggan Offline';
+      draftItems = [{ nama: 'Cuci Kiloan', qty: 3, satuan: 'kg', harga: 6000, subtotal: 18000 }];
+      await submitTransaction();
+      offlineMode = false;
+
+      const lastTrx = transactions[transactions.length - 1];
+      assert(lastTrx && lastTrx.nama === 'Pelanggan Offline', 'transaksi offline harus masuk array memori');
+      assert(/^LND-D/.test(lastTrx.kode), 'kode transaksi offline harus pakai format device tag: ' + lastTrx.kode);
+
+      const q = await offlineGetQueue();
+      assert(q.some(x => x.type === 'ADD_TRANSACTION' && x.payload.nama === 'Pelanggan Offline'), 'harus ada di antrean offline queue');
+      await offlineRemoveFromQueue(q[q.length-1].id);
+      transactions.pop();
+    });
+
     await step('terjemahan Inggris tersedia untuk semua teks baru', async () => {
       const keys = ['📴 Lanjut offline (data terakhir)',
-        '📴 Mode offline — menampilkan data terakhir. Perubahan belum bisa disimpan sampai internet kembali.',
         'Tidak bisa terhubung ke server. Periksa internet lalu muat ulang halaman.',
         'Belum ada data offline di perangkat ini. Masuk saat ada internet dulu.',
         'Keluar akun butuh internet. Sambungkan internet dulu.'];

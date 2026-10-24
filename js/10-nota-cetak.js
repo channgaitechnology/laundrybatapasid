@@ -1319,11 +1319,40 @@ async function sendUsageNotaImageWA(){
    sebelum salah satu selesai tersimpan). Kalau migrasi SQL-nya belum
    dijalankan, tetap jalan pakai cara lama (fallback) supaya app tidak macet
    total -- tapi risiko nomor kembar di atas tetap ada sampai migrasi dijalankan. */
+function getDeviceTag(){
+  try{
+    let tag = localStorage.getItem('nk_device_tag');
+    if(!tag){
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let rnd = '';
+      for(let i=0;i<2;i++) rnd += chars[Math.floor(Math.random()*chars.length)];
+      tag = 'D' + rnd;
+      localStorage.setItem('nk_device_tag', tag);
+    }
+    return tag;
+  }catch(e){
+    return 'D1';
+  }
+}
+function nextKodeOffline(){
+  try{
+    let seq = parseInt(localStorage.getItem('nk_offline_seq') || '0', 10) + 1;
+    localStorage.setItem('nk_offline_seq', String(seq));
+    const tag = getDeviceTag();
+    return `LND-${tag}-${String(seq).padStart(4,'0')}`;
+  }catch(e){
+    return 'LND-OFF-' + String(Date.now()).slice(-6);
+  }
+}
 async function nextKode(){
+  if(offlineMode || navigator.onLine === false){
+    return nextKodeOffline();
+  }
   try{
     const { data, error } = await sb.rpc('next_transaction_kode');
     if(!error && data) return data;
   }catch(e){ /* lanjut ke fallback di bawah */ }
+  if(offlineIsNetworkError(null) || navigator.onLine === false) return nextKodeOffline();
   const n = transactions.length + 1;
   return 'LND-' + String(n).padStart(4,'0');
 }

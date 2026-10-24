@@ -525,10 +525,50 @@ async function addUsage(){
   const catatan = document.getElementById('usageCatatan').value.trim();
   if(berat<=0){ showToast(t('Isi berat laundry (kg)')); return; }
 
-  const { data: inserted, error } = await sb.from('subscription_usage').insert({
+  const insertPayload = {
     subscription_id: s.id, user_id: shopOwnerId, tanggal, estimasi, berat_kg: berat, catatan, type:'pemakaian'
-  }).select().single();
-  if(error){ showToast(t('Gagal mencatat laundry masuk')); return; }
+  };
+
+  if(offlineMode || navigator.onLine === false){
+    const offUsgId = 'off_usg_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    allWorkUsage.push({
+      id: offUsgId, subscriptionId: s.id, tanggal, estimasi,
+      type: 'pemakaian', layananNama: '', qty: 0, satuan: '', harga: 0, subtotal: 0,
+      berat: Number(berat)||0, catatan, workStatus: 'belum'
+    });
+    await offlineEnqueue('ADD_USAGE', insertPayload);
+    await offlineSaveSnapshot();
+    document.getElementById('usageEstimasi').value = '';
+    document.getElementById('usageBerat').value = '';
+    document.getElementById('usageCatatan').value = '';
+    await refreshSubsDetail();
+    showToast(t('Laundry masuk tercatat (offline)'));
+    openUsageNotaOptions(offUsgId);
+    return;
+  }
+
+  const { data: inserted, error } = await sb.from('subscription_usage').insert(insertPayload).select().single();
+  if(error){
+    if(offlineIsNetworkError(error)){
+      const offUsgId = 'off_usg_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      allWorkUsage.push({
+        id: offUsgId, subscriptionId: s.id, tanggal, estimasi,
+        type: 'pemakaian', layananNama: '', qty: 0, satuan: '', harga: 0, subtotal: 0,
+        berat: Number(berat)||0, catatan, workStatus: 'belum'
+      });
+      await offlineEnqueue('ADD_USAGE', insertPayload);
+      await offlineSaveSnapshot();
+      document.getElementById('usageEstimasi').value = '';
+      document.getElementById('usageBerat').value = '';
+      document.getElementById('usageCatatan').value = '';
+      await refreshSubsDetail();
+      showToast(t('Sinyal putus. Laundry masuk tercatat (offline)'));
+      openUsageNotaOptions(offUsgId);
+      return;
+    }
+    showToast(t('Gagal mencatat laundry masuk'));
+    return;
+  }
   document.getElementById('usageEstimasi').value = '';
   document.getElementById('usageBerat').value = '';
   document.getElementById('usageCatatan').value = '';
@@ -673,6 +713,30 @@ async function submitExtraServiceBatch(){
   const batchId = (isEdit && editingUsageBatchId) ? editingUsageBatchId : newBatchId();
   const insertedIds = [];
   const insertedRows = [];
+
+  if(offlineMode || navigator.onLine === false){
+    for(const it of draftExtraItems){
+      const offUsgId = 'off_usg_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      const payload = {
+        subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,
+        type:'layanan_tambahan', layanan_nama: it.nama, qty: it.qty, satuan: it.satuan, harga: it.harga, subtotal: it.subtotal,
+        batch_id: batchId
+      };
+      insertedIds.push(offUsgId);
+      insertedRows.push({ id: offUsgId, subscriptionId: s.id, tanggal: it.tanggal, estimasi: it.estimasi, type: 'layanan_tambahan', layananNama: it.nama, qty: Number(it.qty)||0, satuan: it.satuan||'', harga: Number(it.harga)||0, subtotal: Number(it.subtotal)||0, workStatus: 'belum', batchId });
+      await offlineEnqueue('ADD_USAGE', payload);
+    }
+    insertedRows.forEach(r => allWorkUsage.push(r));
+    await offlineSaveSnapshot();
+    draftExtraItems = [];
+    renderExtraDraftList();
+    resetExtraServiceEditUI();
+    await refreshSubsDetail();
+    showToast(t('Layanan tercatat (offline)'));
+    openBatchUsageNotaOptions(insertedIds);
+    return;
+  }
+
   for(const it of draftExtraItems){
     const { data, error } = await sb.from('subscription_usage').insert({
       subscription_id: s.id, user_id: shopOwnerId, tanggal: it.tanggal, estimasi: it.estimasi,

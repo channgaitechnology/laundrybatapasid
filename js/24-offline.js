@@ -23,14 +23,15 @@ var offlineMode = false; // true selama state berasal dari snapshot, bukan dari 
    saat itu bisa menimpa data lengkap dengan data setengah jadi. */
 var offlineDataReady = false;
 var OFFLINE_DB_NAME = 'nk-offline';
-var OFFLINE_DB_VERSION = 1;
+var OFFLINE_DB_VERSION = 2;
 var OFFLINE_STORE = 'kv';
+var OFFLINE_QUEUE_STORE = 'queue';
 var OFFLINE_SNAPSHOT_KEY = 'snapshot';
 var OFFLINE_SNAPSHOT_VERSION = 1;
 var OFFLINE_SAVE_INTERVAL_MS = 60000;
 var OFFLINE_PROBE_TIMEOUT_MS = 4000;
 
-/* ---------- IndexedDB (key-value sederhana) ---------- */
+/* ---------- IndexedDB (key-value + queue) ---------- */
 function offlineOpenDB(){
   return new Promise((resolve, reject) => {
     if(typeof indexedDB === 'undefined'){ reject(new Error('IndexedDB tidak tersedia')); return; }
@@ -39,6 +40,7 @@ function offlineOpenDB(){
     req.onupgradeneeded = () => {
       const db = req.result;
       if(!db.objectStoreNames.contains(OFFLINE_STORE)) db.createObjectStore(OFFLINE_STORE);
+      if(!db.objectStoreNames.contains(OFFLINE_QUEUE_STORE)) db.createObjectStore(OFFLINE_QUEUE_STORE, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error || new Error('Gagal membuka IndexedDB'));
@@ -71,6 +73,101 @@ async function offlineIdbDel(key){
     tx.oncomplete = () => { db.close(); resolve(); };
     tx.onerror = () => { db.close(); reject(tx.error); };
   });
+}
+
+/* ---------- Antrean aksi offline (queue) ---------- */
+async function offlineEnqueue(actionType, payload){
+  try{
+    const db = await offlineOpenDB();
+    const item = {
+      id: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+      type: actionType,
+      payload: JSON.parse(JSON.stringify(payload)),
+      createdAt: Date.now()
+    };
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readwrite');
+      tx.objectStore(OFFLINE_QUEUE_STORE).put(item);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+    offlineUpdateBanner();
+    return item;
+  }catch(e){
+    console.warn('Gagal menyimpan ke antrean offline:', e);
+    return null;
+  }
+}
+async function offlineGetQueue(){
+  try{
+    const db = await offlineOpenDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readonly');
+      const req = tx.objectStore(OFFLINE_QUEUE_STORE).getAll();
+      req.onsuccess = () => {
+        db.close();
+        const res = req.result || [];
+        res.sort((a,b) => a.createdAt - b.createdAt);
+        resolve(res);
+      };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  }catch(e){
+    return [];
+  }
+}
+async function offlineRemoveFromQueue(id){
+  try{
+    const db = await offlineOpenDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readwrite');
+      tx.objectStore(OFFLINE_QUEUE_STORE).delete(id);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+    offlineUpdateBanner();
+  }catch(e){}
+}
+async function offlineSyncQueue(){
+  const queue = await offlineGetQueue();
+  if(!queue || queue.length === 0) return 0;
+  let syncedCount = 0;
+  for(const item of queue){
+    try{
+      let err = null;
+      if(item.type === 'ADD_TRANSACTION'){
+        const p = item.payload;
+        const { error } = await sb.from('transactions').insert(p);
+        err = error;
+      } else if(item.type === 'UPDATE_WORK_STATUS'){
+        const { table, id, work_status } = item.payload;
+        const { error } = await sb.from(table).update({ work_status }).eq('id', id);
+        err = error;
+      } else if(item.type === 'MARK_LUNAS'){
+        const { id, lunas_at } = item.payload;
+        const { error } = await sb.from('transactions').update({ status: 'lunas', lunas_at }).eq('id', id);
+        err = error;
+      } else if(item.type === 'ADD_EXPENSE'){
+        const p = item.payload;
+        const { error } = await sb.from('expenses').insert(p);
+        err = error;
+      } else if(item.type === 'ADD_USAGE'){
+        const p = item.payload;
+        const { error } = await sb.from('subscription_usage').insert(p);
+        err = error;
+      }
+      if(!err || !offlineIsNetworkError(err)){
+        await offlineRemoveFromQueue(item.id);
+        if(!err) syncedCount++;
+      } else {
+        break;
+      }
+    }catch(e){
+      if(!offlineIsNetworkError(e)) await offlineRemoveFromQueue(item.id);
+      else break;
+    }
+  }
+  return syncedCount;
 }
 
 /* ---------- Snapshot state toko ---------- */
@@ -198,7 +295,7 @@ async function offlineBootFromSnapshot(expectedUserId){
   populateReportOutletFilter();
   renderAll();
   offlineRestoreLastTab();
-  offlineUpdateBanner();
+  await offlineUpdateBanner();
   return true;
 }
 
@@ -241,13 +338,19 @@ async function offlineFallbackOrNotify(expectedUserId){
 }
 
 /* ---------- Banner status ---------- */
-function offlineUpdateBanner(){
+async function offlineUpdateBanner(){
   const el = document.getElementById('offlineBanner');
   if(!el) return;
   const isOff = offlineMode || navigator.onLine === false;
   if(!isOff){ el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.textContent = t('📴 Mode offline — menampilkan data terakhir. Perubahan belum bisa disimpan sampai internet kembali.');
+  let queueCount = 0;
+  try{ const q = await offlineGetQueue(); queueCount = q ? q.length : 0; }catch(e){}
+  if(queueCount > 0){
+    el.textContent = t('📴 Mode offline — ') + queueCount + t(' perubahan tersimpan di perangkat. Akan disinkronkan otomatis saat internet kembali.');
+  } else {
+    el.textContent = t('📴 Mode offline — menampilkan data terakhir. Transaksi & perubahan tersimpan di perangkat saat offline.');
+  }
 }
 
 /* Dipanggil listener sesi (index.html) saat TIDAK ada sesi login. Kalau
@@ -287,6 +390,10 @@ async function offlineHandleBackOnline(){
   if(!offlineMode || offlineReconnecting) return;
   offlineReconnecting = true;
   try{
+    const synced = await offlineSyncQueue();
+    if(synced > 0){
+      showToast(synced + ' ' + t('perubahan offline berhasil disinkronkan ke server'));
+    }
     const { data } = await sb.auth.getSession();
     const session = data && data.session;
     if(session && session.user){

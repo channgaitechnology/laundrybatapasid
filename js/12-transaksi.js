@@ -261,25 +261,62 @@ async function submitTransaction(){
      "Kas Masuk Bulan Ini"). Nota yang dibuat 'belum' dulu lunas_at-nya
      null, baru diisi nanti kalau ditandai lunas via toggleLunas()/Edit. */
   const lunasAt = status==='lunas' ? tanggal : null;
-  const { data, error } = await sb.from('transactions').insert({
+  const kode = await nextKode();
+  const insertPayload = {
     user_id: shopOwnerId,
-    kode: await nextKode(),
-    nama, hp, tanggal,
+    kode, nama, hp, tanggal,
     estimasi: estimasi || null,
     items: draftItems.slice(),
     diskon, total, dp,
     status, catatan, lunas_at: lunasAt,
     created_by: currentUser ? currentUser.id : null,
     created_by_nama: createdByNama,
-    /* outlet_id sengaja CUMA dikirim kalau lagi aktif di konteks outlet
-       tertentu (currentOutletId terisi) — supaya toko yang belum pernah
-       bikin outlet sama sekali (fitur ini opt-in) tetap kirim payload
-       persis seperti sebelumnya, tidak berisiko gagal gara-gara kolom
-       outlet_id belum ada di database lama yang belum dimigrasi. */
     ...(currentOutletId ? { outlet_id: currentOutletId } : {})
-  }).select().single();
+  };
 
-  if(error){ showToast(t('Gagal menyimpan transaksi')); return; }
+  if(offlineMode || navigator.onLine === false){
+    const offTrxId = 'off_trx_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    const trx = {
+      id: offTrxId, kode, nama, hp, tanggal, estimasi: estimasi || null,
+      items: draftItems.slice(), diskon: Number(diskon), total: Number(total), dp: Number(dp),
+      status, catatan, lunasAt, workStatus: 'belum',
+      outletId: currentOutletId ? String(currentOutletId) : null
+    };
+    transactions.push(trx);
+    await offlineEnqueue('ADD_TRANSACTION', insertPayload);
+    await offlineSaveSnapshot();
+    resetTransactionForm();
+    showToast(autoPromotedToLunas ? t('Transaksi tersimpan (offline) — DP menutupi total') : t('Transaksi tersimpan secara offline. Akan disinkronkan saat online.'));
+    openReceipt(trx.id);
+    saveContactIfNew(nama, hp);
+    if(rekapReturnAfterSave) reopenRekapPelangganAfterAdd();
+    return;
+  }
+
+  const { data, error } = await sb.from('transactions').insert(insertPayload).select().single();
+
+  if(error){
+    if(offlineIsNetworkError(error)){
+      const offTrxId = 'off_trx_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      const trx = {
+        id: offTrxId, kode, nama, hp, tanggal, estimasi: estimasi || null,
+        items: draftItems.slice(), diskon: Number(diskon), total: Number(total), dp: Number(dp),
+        status, catatan, lunasAt, workStatus: 'belum',
+        outletId: currentOutletId ? String(currentOutletId) : null
+      };
+      transactions.push(trx);
+      await offlineEnqueue('ADD_TRANSACTION', insertPayload);
+      await offlineSaveSnapshot();
+      resetTransactionForm();
+      showToast(t('Sinyal putus. Transaksi tersimpan secara offline.'));
+      openReceipt(trx.id);
+      saveContactIfNew(nama, hp);
+      if(rekapReturnAfterSave) reopenRekapPelangganAfterAdd();
+      return;
+    }
+    showToast(t('Gagal menyimpan transaksi'));
+    return;
+  }
 
   const trx = {
     id: data.id, kode: data.kode, nama: data.nama, hp: data.hp,
