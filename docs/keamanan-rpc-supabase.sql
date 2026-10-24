@@ -48,6 +48,8 @@ begin
     where owner_id = v_referrer_id;
 end;
 $function$;
+revoke all on function public.apply_referral_bonus_if_pending(uuid) from public, anon;
+grant execute on function public.apply_referral_bonus_if_pending(uuid) to authenticated, service_role;
 
 -- Hanya pengguna login yang boleh menukar kode pendaftaran menjadi langganan.
 revoke all on function public.claim_registration_code_and_activate(text) from public, anon;
