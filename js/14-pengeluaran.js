@@ -144,11 +144,45 @@ async function submitExpense(){
   const jumlah = qty*harga;
   if(!nama){ showToast(t('Isi nama barang/jasa yang dibeli')); return; }
   if(jumlah<=0){ showToast(t('Isi qty dan harga dengan benar')); return; }
-  const { data, error } = await sb.from('expenses').insert({
+  const insertPayload = {
     user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan,
     ...(currentOutletId ? { outlet_id: currentOutletId } : {})
-  }).select().single();
-  if(error){ showToast(t('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)')); return; }
+  };
+
+  if(offlineMode || navigator.onLine === false){
+    const offExpId = 'off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    expenses.push({ id: offExpId, tanggal, nama, qty: Number(qty)||0, satuan, harga: Number(harga)||0, jumlah: Number(jumlah)||0, kategori, catatan, outletId: currentOutletId ? String(currentOutletId) : null });
+    await offlineEnqueue('ADD_EXPENSE', insertPayload);
+    await offlineSaveSnapshot();
+    document.getElementById('expNama').value = '';
+    document.getElementById('expQty').value = '1';
+    document.getElementById('expHarga').value = '';
+    document.getElementById('expCatatan').value = '';
+    updateExpenseSubtotalPreview();
+    showToast(t('Pengeluaran dicatat (offline)'));
+    renderExpenseList();
+    return;
+  }
+
+  const { data, error } = await sb.from('expenses').insert(insertPayload).select().single();
+  if(error){
+    if(offlineIsNetworkError(error)){
+      const offExpId = 'off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      expenses.push({ id: offExpId, tanggal, nama, qty: Number(qty)||0, satuan, harga: Number(harga)||0, jumlah: Number(jumlah)||0, kategori, catatan, outletId: currentOutletId ? String(currentOutletId) : null });
+      await offlineEnqueue('ADD_EXPENSE', insertPayload);
+      await offlineSaveSnapshot();
+      document.getElementById('expNama').value = '';
+      document.getElementById('expQty').value = '1';
+      document.getElementById('expHarga').value = '';
+      document.getElementById('expCatatan').value = '';
+      updateExpenseSubtotalPreview();
+      showToast(t('Sinyal putus. Pengeluaran dicatat (offline)'));
+      renderExpenseList();
+      return;
+    }
+    showToast(t('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'));
+    return;
+  }
   expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
   document.getElementById('expNama').value = '';
   document.getElementById('expQty').value = '1';

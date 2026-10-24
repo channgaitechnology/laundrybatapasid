@@ -83,17 +83,30 @@ async function renderHistory(){
 async function toggleLunas(id){
   const trx = transactions.find(x=>x.id===id);
   if(!trx) return;
-  /* dp SENGAJA tidak diikutkan disamakan dengan total di sini -- itu cuma
-     uang muka sungguhan, biarkan apa adanya (biasanya 0 kalau tidak pernah
-     ada DP). trxCashReceived() yang menghitung kas Rp penuh untuk transaksi
-     Lunas, bukan field dp yang dipaksa. */
-  // lunas_at diisi HARI INI -- ini persis momen nota ditandai lunas (lihat
-  // README, Laporan "Kas Masuk Bulan Ini").
   const lunasAt = todayISO();
-  const { error } = await sb.from('transactions').update({ status:'lunas', lunas_at: lunasAt }).eq('id', id);
-  if(error){ showToast(t('Gagal memperbarui status')); return; }
   trx.status = 'lunas';
   trx.lunasAt = lunasAt;
+
+  if(offlineMode || navigator.onLine === false){
+    await offlineEnqueue('MARK_LUNAS', { id, lunas_at: lunasAt });
+    await offlineSaveSnapshot();
+    showToast(t('Transaksi ditandai lunas (offline)'));
+    renderHistory();
+    return;
+  }
+
+  const { error } = await sb.from('transactions').update({ status:'lunas', lunas_at: lunasAt }).eq('id', id);
+  if(error){
+    if(offlineIsNetworkError(error)){
+      await offlineEnqueue('MARK_LUNAS', { id, lunas_at: lunasAt });
+      await offlineSaveSnapshot();
+      showToast(t('Transaksi ditandai lunas (offline)'));
+      renderHistory();
+      return;
+    }
+    showToast(t('Gagal memperbarui status'));
+    return;
+  }
   showToast(t('Transaksi ditandai lunas'));
   renderHistory();
 }
