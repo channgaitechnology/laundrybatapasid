@@ -406,6 +406,33 @@ const CDN_RE = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsde
       assert(q2.length === 0, 'antrean harus kosong setelah sync');
     });
 
+    await step('antrean offline terikat ke toko dan pemetaan ID lokal bertahan', async () => {
+      await healthy();
+      const item = await offlineEnqueue('MARK_LUNAS', { id: 'off_trx_mapping', lunas_at: todayISO() });
+      assert(item && item.shopOwnerId === String(shopOwnerId), 'antrean harus menyimpan identitas toko');
+      await offlineRemapQueuedId('off_trx_mapping', 99123);
+      const q = await offlineGetQueue();
+      assert(q.some(x => x.id === item.id && x.payload.id === 99123), 'ID sementara harus dipetakan di antrean');
+      await offlineRemoveFromQueue(item.id);
+    });
+
+    await step('aksi offline tanpa baris server tetap di antrean dan mencegah logout', async () => {
+      await healthy();
+      const rows = stub.tables.transactions;
+      stub.tables.transactions = [];
+      const item = await offlineEnqueue('MARK_LUNAS', { id: 987654, lunas_at: todayISO() });
+      try {
+        const synced = await offlineSyncQueue();
+        assert(synced === 0, 'aksi tanpa baris tidak boleh dihitung tersinkron');
+        assert((await offlineGetQueue()).some(x => x.id === item.id), 'aksi tanpa baris harus tetap di antrean');
+        await handleLogout();
+        assert(stub.signOutCalls === 0, 'logout harus tertahan saat antrean belum tersinkron');
+      } finally {
+        stub.tables.transactions = rows;
+        await offlineRemoveFromQueue(item.id);
+      }
+    });
+
     await step('submitTransaction() saat offline membuat transaksi lokal & masuk antrean queue', async () => {
       await healthy();
       offlineMode = true;

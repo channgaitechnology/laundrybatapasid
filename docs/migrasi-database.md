@@ -267,15 +267,18 @@ ditanya mau membatasi kasir itu ke outlet tertentu atau tidak. Kasir yang
 dibatasi otomatis terkunci ke outlet itu saat login (pemilih outlet
 tampil terkunci 🔒, tidak bisa pindah outlet lain).
 
-⚠️ Pembatasan ini murni di level tampilan aplikasi (client-side), belum
-di level RLS Supabase — kebijakan RLS `team_members` yang ada sekarang
-tetap memberi kasir akses ke seluruh data toko pemiliknya (semua
-outlet), bukan cuma outlet yang ditugaskan. Cukup untuk mencegah kasir
-salah pindah-pindah outlet lewat aplikasi, tapi bukan pagar keamanan
-yang benar-benar ketat kalau kasir mencoba akses API Supabase secara
-langsung. Kalau dibutuhkan proteksi yang lebih kuat, RLS `transactions`/
-`subscriptions`/`expenses` perlu ditulis ulang supaya ikut memeriksa
-`team_members.outlet_id` — belum dikerjakan di iterasi ini.
+Pagar RLS untuk pembatasan outlet tersedia di
+[`docs/rls-pembatasan-outlet.sql`](rls-pembatasan-outlet.sql). Jalankan
+SQL tersebut di Supabase SQL Editor **setelah** migrasi Multi-Outlet di
+atas. Policy ini membatasi akses nota, pelanggan Paket Bulanan/Tempo,
+pengeluaran, pemakaian, dan definisi outlet sesuai outlet kasir.
+
+Audit koneksi Supabase juga menemukan RPC SECURITY DEFINER yang perlu
+dibatasi. Jalankan [`docs/keamanan-rpc-supabase.sql`](keamanan-rpc-supabase.sql)
+untuk menutup akses publik ke fungsi internal, membatasi klaim bonus referral
+ke admin/webhook pembayaran, dan menjaga fungsi pengecekan pendaftaran yang
+memang dipakai sebelum login. Kedua skrip harus diterapkan sebelum deploy
+aplikasi; kode RLS tetap memperbolehkan pemilik melihat data tokonya.
 
 ### Klaim kode undangan kasir — RPC `claim_invite_code`
 

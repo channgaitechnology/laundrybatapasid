@@ -76,12 +76,14 @@ async function offlineIdbDel(key){
 }
 
 /* ---------- Antrean aksi offline (queue) ---------- */
-async function offlineEnqueue(actionType, payload){
+async function offlineEnqueue(actionType, payload, localId){
   try{
     const db = await offlineOpenDB();
     const item = {
       id: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
       type: actionType,
+      shopOwnerId: shopOwnerId ? String(shopOwnerId) : null,
+      localId: localId || null,
       payload: JSON.parse(JSON.stringify(payload)),
       createdAt: Date.now()
     };
@@ -128,43 +130,74 @@ async function offlineRemoveFromQueue(id){
     offlineUpdateBanner();
   }catch(e){}
 }
+async function offlineRemapQueuedId(oldId, newId){
+  if(oldId==null || newId==null || String(oldId)===String(newId)) return;
+  const db = await offlineOpenDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(OFFLINE_QUEUE_STORE, 'readwrite');
+    const store = tx.objectStore(OFFLINE_QUEUE_STORE);
+    const req = store.getAll();
+    req.onsuccess = () => {
+      (req.result || []).forEach(item => {
+        if(item.payload && String(item.payload.id)===String(oldId)){
+          item.payload.id = newId;
+          store.put(item);
+        }
+      });
+    };
+    req.onerror = () => { try{ db.close(); }catch(e){} reject(req.error); };
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+var offlineSyncPromise = null;
 async function offlineSyncQueue(){
+  if(offlineSyncPromise) return offlineSyncPromise;
+  offlineSyncPromise = offlineSyncQueueImpl();
+  try{ return await offlineSyncPromise; }
+  finally{ offlineSyncPromise = null; }
+}
+async function offlineSyncQueueImpl(){
   const queue = await offlineGetQueue();
   if(!queue || queue.length === 0) return 0;
   let syncedCount = 0;
   for(const item of queue){
+    // Antrean hanya boleh diproses oleh toko yang membuatnya.
+    if(item.shopOwnerId && shopOwnerId && String(item.shopOwnerId)!==String(shopOwnerId)) continue;
     try{
       let err = null;
       if(item.type === 'ADD_TRANSACTION'){
-        const p = item.payload;
-        const { error } = await sb.from('transactions').insert(p);
-        err = error;
+        const { data, error } = await sb.from('transactions').insert(item.payload).select('id').single();
+        err = error || (!data || data.id==null ? new Error('Server tidak mengembalikan ID transaksi') : null);
+        if(!err && item.localId) await offlineRemapQueuedId(item.localId, data.id);
       } else if(item.type === 'UPDATE_WORK_STATUS'){
         const { table, id, work_status } = item.payload;
-        const { error } = await sb.from(table).update({ work_status }).eq('id', id);
-        err = error;
+        if(!['transactions','subscription_usage'].includes(table)) throw new Error('Tabel status kerja tidak dikenal');
+        const { data, error } = await sb.from(table).update({ work_status }).eq('id', id).select('id').maybeSingle();
+        err = error || (!data ? new Error('Baris untuk status kerja tidak ditemukan') : null);
       } else if(item.type === 'MARK_LUNAS'){
         const { id, lunas_at } = item.payload;
-        const { error } = await sb.from('transactions').update({ status: 'lunas', lunas_at }).eq('id', id);
-        err = error;
+        const { data, error } = await sb.from('transactions').update({ status: 'lunas', lunas_at }).eq('id', id).select('id').maybeSingle();
+        err = error || (!data ? new Error('Nota untuk pelunasan tidak ditemukan') : null);
       } else if(item.type === 'ADD_EXPENSE'){
-        const p = item.payload;
-        const { error } = await sb.from('expenses').insert(p);
+        const { error } = await sb.from('expenses').insert(item.payload);
         err = error;
       } else if(item.type === 'ADD_USAGE'){
-        const p = item.payload;
-        const { error } = await sb.from('subscription_usage').insert(p);
-        err = error;
-      }
-      if(!err || !offlineIsNetworkError(err)){
-        await offlineRemoveFromQueue(item.id);
-        if(!err) syncedCount++;
+        const { data, error } = await sb.from('subscription_usage').insert(item.payload).select('id').single();
+        err = error || (!data || data.id==null ? new Error('Server tidak mengembalikan ID pemakaian') : null);
+        if(!err && item.localId) await offlineRemapQueuedId(item.localId, data.id);
       } else {
+        throw new Error('Jenis perubahan offline tidak dikenal: ' + item.type);
+      }
+      if(err){
+        console.warn('Sinkronisasi offline ditunda; antrean tetap disimpan:', err);
         break;
       }
+      await offlineRemoveFromQueue(item.id);
+      syncedCount++;
     }catch(e){
-      if(!offlineIsNetworkError(e)) await offlineRemoveFromQueue(item.id);
-      else break;
+      console.warn('Sinkronisasi offline gagal; antrean tetap disimpan:', e);
+      break;
     }
   }
   return syncedCount;
@@ -345,7 +378,10 @@ async function offlineUpdateBanner(){
   if(!isOff){ el.style.display = 'none'; return; }
   el.style.display = 'block';
   let queueCount = 0;
-  try{ const q = await offlineGetQueue(); queueCount = q ? q.length : 0; }catch(e){}
+  try{
+    const q = await offlineGetQueue();
+    queueCount = q ? q.filter(item => !item.shopOwnerId || !shopOwnerId || String(item.shopOwnerId)===String(shopOwnerId)).length : 0;
+  }catch(e){}
   if(queueCount > 0){
     el.textContent = t('📴 Mode offline — ') + queueCount + t(' perubahan tersimpan di perangkat. Akan disinkronkan otomatis saat internet kembali.');
   } else {
@@ -387,13 +423,20 @@ async function offlineContinueFromAuth(){
 var offlineReconnecting = false;
 async function offlineHandleBackOnline(){
   offlineUpdateBanner();
-  if(!offlineMode || offlineReconnecting) return;
+  if(offlineReconnecting) return;
+  const restoreSnapshot = offlineMode;
   offlineReconnecting = true;
   try{
     const synced = await offlineSyncQueue();
     if(synced > 0){
       showToast(synced + ' ' + t('perubahan offline berhasil disinkronkan ke server'));
     }
+    const pending = await offlineGetQueue();
+    const ownPending = pending.filter(item => !item.shopOwnerId || !shopOwnerId || String(item.shopOwnerId)===String(shopOwnerId));
+    if(ownPending.length > 0){
+      showToast(ownPending.length + ' ' + t('perubahan offline belum berhasil disinkronkan dan tetap tersimpan di perangkat'));
+    }
+    if(!restoreSnapshot) return;
     const { data } = await sb.auth.getSession();
     const session = data && data.session;
     if(session && session.user){
