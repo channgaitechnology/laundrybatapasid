@@ -98,9 +98,10 @@ async function toggleLunas(id){
   renderHistory();
 }
 
-/* Ekspor semua nota pada rentang tanggal yang dipilih. Filter pencarian/status
-   sengaja tidak dipakai; backup selalu berisi seluruh nota toko pada periode. */
+/* Unduh tiap nota transaksi pada rentang tanggal sebagai file JPG tersendiri. */
 async function downloadHistoryBackup(){
+  const btn = document.getElementById('historyBackupBtn');
+  if(btn && btn.disabled) return;
   const dari = document.getElementById('historyDariFilter').value;
   const sampai = document.getElementById('historySampaiFilter').value;
   if(dari && sampai && dari > sampai){
@@ -111,43 +112,51 @@ async function downloadHistoryBackup(){
     showToast(t('Backup semua nota perlu koneksi internet agar seluruh riwayat dapat dimuat.'));
     return;
   }
-  if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
-  if(!transactionsFullyLoaded){
-    showToast(t('Riwayat nota belum berhasil dimuat. Coba lagi saat koneksi stabil.'));
-    return;
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = t('Menyiapkan backup...'); }
+  try{
+    if(!transactionsFullyLoaded) await ensureAllTransactionsLoaded();
+    if(!transactionsFullyLoaded){
+      showToast(t('Riwayat nota belum berhasil dimuat. Coba lagi saat koneksi stabil.'));
+      return;
+    }
+    const notes = transactions
+      .filter(trx => (!dari || trx.tanggal >= dari) && (!sampai || trx.tanggal <= sampai))
+      .slice()
+      .sort((a,b) => a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0));
+    if(notes.length === 0){
+      showToast(t('Tidak ada nota dalam rentang tanggal ini.'));
+      return;
+    }
+    let berhasil = 0, gagal = 0;
+    for(const trx of notes){
+      try{
+        const blob = await buildNotaJPEGBlob(buildReceiptPDFLines(trx), 80);
+        if(!blob){ gagal++; continue; }
+        const safeKode = String(trx.kode || trx.id).replace(/[^a-zA-Z0-9._-]+/g, '-');
+        const filename = 'nota-' + safeKode + '-' + trx.tanggal + '.jpg';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        berhasil++;
+        if(berhasil < notes.length) await new Promise(resolve => setTimeout(resolve, 350));
+      }catch(e){
+        gagal++;
+      }
+    }
+    if(berhasil === 0){
+      showToast(t('Gagal membuat semua gambar nota. Coba lagi.'));
+    }else if(gagal > 0){
+      showToast(t('Sebagian nota gagal dibuat. JPG berhasil diunduh') + ': ' + berhasil + '/' + notes.length);
+    }else{
+      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG');
+    }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
   }
-  const notes = transactions
-    .filter(trx => (!dari || trx.tanggal >= dari) && (!sampai || trx.tanggal <= sampai))
-    .slice()
-    .sort((a,b) => a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0))
-    .map(trx => ({
-      id: trx.id, kode: trx.kode, tanggal: trx.tanggal, estimasi: trx.estimasi || null,
-      nama: trx.nama, hp: trx.hp || '', items: trx.items || [],
-      diskon: Number(trx.diskon) || 0, total: Number(trx.total) || 0, dp: Number(trx.dp) || 0,
-      status: trx.status, lunasAt: trx.lunasAt || null, catatan: trx.catatan || '',
-      workStatus: trx.workStatus || 'belum', outletId: trx.outletId || null
-    }));
-  if(notes.length === 0){
-    showToast(t('Tidak ada nota dalam rentang tanggal ini.'));
-    return;
-  }
-  const backup = {
-    format: 'dokter-laundry-nota-backup',
-    version: 1,
-    dibuatPada: new Date().toISOString(),
-    toko: settings.shopName || '',
-    periode: { dari: dari || null, sampai: sampai || null },
-    jumlahNota: notes.length,
-    nota: notes
-  };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `backup-nota-${dari || 'semua'}-${sampai || 'semua'}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(t('Backup nota selesai') + ': ' + notes.length);
 }
