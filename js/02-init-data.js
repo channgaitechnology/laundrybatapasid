@@ -35,6 +35,13 @@ async function submitPaymentRequest(){
 }
 async function resolveRoleAndInit(){
   document.getElementById('onboardingScreen').classList.remove('show');
+  /* Tanpa internet: JANGAN query apa pun. Semua query di bawah akan gagal dan
+     tampak seperti "belum punya toko" -- user lama salah dikira akun baru dan
+     disodori layar pilih peran. Pulihkan dari snapshot data terakhir saja
+     (js/24-offline.js). Kalau tidak ada snapshot, lanjut seperti biasa. */
+  if(navigator.onLine === false){
+    if(await offlineBootFromSnapshot(currentUser ? currentUser.id : null)) return;
+  }
   try{
     const pending = localStorage.getItem('nk_pendingRegCode');
     if(pending){
@@ -56,7 +63,10 @@ async function resolveRoleAndInit(){
       localStorage.removeItem('nk_pendingRegCode');
     }
   }catch(e){}
-  const { data: memberRow } = await sb.from('team_members').select('*').eq('member_id', currentUser.id).eq('status','aktif').maybeSingle();
+  const { data: memberRow, error: memberErr } = await sb.from('team_members').select('*').eq('member_id', currentUser.id).eq('status','aktif').maybeSingle();
+  // Server tidak terjangkau (sinyal macet): peran tidak bisa dipastikan -- jangan
+  // lanjut ke cabang "akun baru" di bawah.
+  if(offlineIsNetworkError(memberErr)){ await offlineFallbackOrNotify(currentUser.id); return; }
   if(memberRow){
     currentRole = 'kasir';
     shopOwnerId = memberRow.owner_id;
@@ -67,8 +77,9 @@ async function resolveRoleAndInit(){
     await initUserData();
     return;
   }
-  const { data: ownSettings } = await sb.from('settings').select('user_id').eq('user_id', currentUser.id).maybeSingle();
-  const { data: ownTrx } = await sb.from('transactions').select('id').eq('user_id', currentUser.id).limit(1);
+  const { data: ownSettings, error: ownSettingsErr } = await sb.from('settings').select('user_id').eq('user_id', currentUser.id).maybeSingle();
+  const { data: ownTrx, error: ownTrxErr } = await sb.from('transactions').select('id').eq('user_id', currentUser.id).limit(1);
+  if(offlineIsNetworkError(ownSettingsErr) || offlineIsNetworkError(ownTrxErr)){ await offlineFallbackOrNotify(currentUser.id); return; }
   if(ownSettings || (ownTrx && ownTrx.length>0)){
     currentRole = 'owner';
     shopOwnerId = currentUser.id;

@@ -19,7 +19,7 @@ chat-nya tidak bisa dibaca otomatis).
 ## Struktur
 
 - `index.html` — HTML & CSS. Logika JavaScript dipecah jadi modul
-  `js/00-globals.js` … `js/23-unduhan.js`, dimuat berurutan lewat
+  `js/00-globals.js` … `js/24-offline.js`, dimuat berurutan lewat
   `<script src>` biasa (bukan ES module). **Urutan tag `<script>` penting.**
   Tanpa build step.
 - `netlify/functions/*.js` — Netlify Functions (Node, server-side) untuk
@@ -56,6 +56,7 @@ dari README lama.
 | [Nota & Cetak](docs/cetak-dan-nota.md) | Printer Bluetooth, notifikasi WA saat selesai, footer nota |
 | [Fitur Aplikasi](docs/fitur-aplikasi.md) | Riwayat edit, Catatan, nomor nota, navigasi keyboard |
 | [Laporan & Performa](docs/laporan-dan-performa.md) | `lunas_at` / Kas Masuk, window muat 6 bulan |
+| [Mode Offline](docs/offline.md) | App bisa dibuka tanpa internet: service worker, snapshot data, banner, perilaku login/logout |
 | [Referral](docs/referral.md) | Program referral dan kolom pembuat transaksi |
 | [Admin Platform](docs/admin-platform.md) | `marketing.html`, riset komunitas, banyak akun admin |
 | [Catatan Perubahan](CHANGELOG.md) | Riwayat perbaikan, regresi, dan audit bertanggal |
@@ -73,6 +74,7 @@ sekarang ada di sini:
 - **Notifikasi Email untuk Permintaan Baru**, **Lonceng Notifikasi Admin Platform**, **Notifikasi Push (Web Push)** → [docs/notifikasi.md](docs/notifikasi.md)
 - **RLS `registration_codes` & `payment_requests`**, semua temuan **KRITIS / MEDIUM**, rate limit `payment_requests`, **Audit DoS** → [docs/keamanan-dan-rls.md](docs/keamanan-dan-rls.md)
 - **Program Referral**, **`created_by`/`created_by_nama`** → [docs/referral.md](docs/referral.md)
+- **Mode Offline** (service worker, snapshot data) → [docs/offline.md](docs/offline.md)
 - **Alat Internal: Marketing Dokter Laundry**, **Riset Komunitas**, **Kontak Laundry**, **Lebih dari 1 akun Admin Platform** → [docs/admin-platform.md](docs/admin-platform.md)
 - **Laporan bulan "ditutup"** (`lunas_at`), **Window muat default 6 bulan** → [docs/laporan-dan-performa.md](docs/laporan-dan-performa.md)
 - **Diketahui rusak**, semua entri **REGRESI**, perbaikan UX dan nota bertanggal Oktober 2026 → [CHANGELOG.md](CHANGELOG.md)

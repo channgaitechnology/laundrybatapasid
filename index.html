@@ -595,6 +595,7 @@
   </div>
 </div>
 <button type="button" class="owner-only" onclick="shareReferral()" style="display:block;width:100%;border:none;background:linear-gradient(135deg,var(--suds,#1768AC) 0%, var(--bubble,#4FD1C5) 100%);color:#fff;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;text-align:center;">🎁 Bagikan dan Dapat Bonus</button>
+<div id="offlineBanner" role="status" style="display:none;padding:7px 14px;font-size:12px;color:#fff;text-align:center;background:#4a4a4a;"></div>
 <div id="subStatusBadge" style="display:none;padding:8px 14px;font-size:12px;color:#fff;text-align:center;"></div>
 
 <main>
@@ -1738,6 +1739,7 @@
     </label>
     <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
     <button class="btn btn-ghost" style="margin-top:10px;" onclick="openForgotPassword()">Lupa Password?</button>
+    <button class="btn btn-outline" id="offlineContinueBtn" style="display:none;margin-top:10px;width:100%;" onclick="offlineContinueFromAuth()">📴 Lanjut offline (data terakhir)</button>
     <div class="auth-footer-links">
       <a href="syarat-ketentuan.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener">Kebijakan Refund</a>
     </div>
@@ -2001,6 +2003,7 @@
 <script src="js/21-i18n.js"></script>
 <script src="js/22-rekap-pelanggan.js"></script>
 <script src="js/23-unduhan.js"></script>
+<script src="js/24-offline.js"></script>
 <script>
   /* Listener sesi login SENGAJA ditaruh di <script> paling akhir ini (bukan
      di js/01-auth.js tempat fungsi2 auth lain berada) -- supabase-js bisa
@@ -2029,6 +2032,9 @@
       currentUser = null;
       stopAdminNotifPolling(); // hentikan polling notifikasi admin & sembunyikan lonceng saat logout
       document.getElementById('authScreen').classList.remove('hidden');
+      // Tanpa sesi karena OFFLINE (bukan karena user keluar akun): buka dari
+      // snapshot data terakhir, jangan paksa layar login (js/24-offline.js).
+      offlineHandleNoSession();
     }
   });
 

@@ -5961,7 +5961,8 @@ const result = await page.evaluate(async () => {
     const savedOutletId = currentOutletId;
     outlets = []; currentOutletId = null;
     const today = todayISO();
-    const daysAgo = (n) => { const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+    // toISODateLocal(), BUKAN toISOString().slice(0,10): yang terakhir konversi ke UTC dulu dan mundur 1 hari di zona waktu UTC+ (WIB/WITA/WIT) -- tes ini dulu gagal di mesin ber-zona WITA padahal lolos di UTC (lihat komentar toISODateLocal di js/09-utils.js).
+    const daysAgo = (n) => { const d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-n); return toISODateLocal(d); };
     transactions = [
       { id:'ph1', kode:'PH1', nama:'Hapus 3 Hari Lalu', hp:'', tanggal: daysAgo(3), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },
       { id:'ph2', kode:'PH2', nama:'Hapus Kemarin', hp:'', tanggal: daysAgo(1), estimasi:null, items:[], diskon:0, total:10000, dp:10000, status:'lunas', catatan:'', workStatus:'belum' },

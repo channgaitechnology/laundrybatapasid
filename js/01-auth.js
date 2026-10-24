@@ -126,7 +126,23 @@ function translateAuthError(msg){
   return msg;
 }
 async function handleLogout(){
-  await sb.auth.signOut();
+  /* Keluar akun butuh internet: signOut() ke server gagal saat offline dan sesi
+     tetap tersimpan, sedangkan data toko di perangkat tidak boleh dihapus
+     sebelum benar-benar keluar. */
+  if(offlineMode || navigator.onLine === false){
+    showToast(t('Keluar akun butuh internet. Sambungkan internet dulu.'));
+    return;
+  }
+  offlineSnapshotPaused = true;
+  offlineDataReady = false;
+  try{
+    const { error } = await sb.auth.signOut();
+    // Snapshot data toko dihapus HANYA kalau keluar benar-benar berhasil, supaya
+    // data tidak tertinggal di perangkat yang mungkin dipakai orang lain.
+    if(!error) await offlineClearSnapshot();
+  } finally {
+    offlineSnapshotPaused = false;
+  }
 }
 function openForgotPassword(){
   document.getElementById('forgotEmail').value='';
