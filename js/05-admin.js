@@ -519,6 +519,14 @@ async function renderAdminPushNotifStatus(){
 }
 
 async function initUserData(){
+  /* Tanda "data lengkap" untuk snapshot offline (js/24-offline.js): selama
+     pemuatan berjalan, array global baru terisi sebagian -- jangan sampai
+     snapshot yang tersimpan menimpa data lengkap dengan data setengah jadi
+     (mis. app ditutup di tengah pemuatan). offlineMode=false karena init
+     ini selalu memuat data asli dari server. */
+  offlineDataReady = false;
+  offlineMode = false;
+  offlineUpdateBanner();
   try{
     // Sebelas query ini masing-masing independen (tabel & array globalnya
     // sendiri-sendiri, tidak ada yang butuh hasil query lain) -- dijalankan
@@ -542,6 +550,8 @@ async function initUserData(){
     renderOutletSwitcherLabel();
     populateReportOutletFilter();
     renderAll();
+    offlineDataReady = true;
+    offlineSaveSnapshot();
     // Lonceng notifikasi Admin Platform -- jalan untuk SEMUA role (owner
     // maupun kasir) karena isAdminEmail() mengecek EMAIL login, bukan role;
     // dalam praktiknya cuma akun pemilik aplikasi (ADMIN_EMAILS) yang akan

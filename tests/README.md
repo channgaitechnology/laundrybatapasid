@@ -56,6 +56,26 @@ tambah test serupa. Jalankan dari root repo:
 node tests/test-push-notify-function.mjs
 ```
 
+## Test mode offline: `test-sw.mjs` dan `test-offline.mjs`
+
+Untuk fitur app bisa dibuka offline (lihat [`docs/offline.md`](../docs/offline.md)).
+
+- `test-sw.mjs` — Node murni, **tanpa browser dan tanpa `npm install`**.
+  Menjalankan `sw.js` di dalam `vm` dengan `caches`/`fetch` palsu: precache,
+  network-first + batas waktu, fallback navigasi, CDN cache-first, dan
+  memastikan `APP_SHELL`/`CDN_ASSETS` cocok dengan `index.html` dan isi folder
+  `js/`.
+- `test-offline.mjs` — Playwright. Bagian A menguji logika snapshot/boot/logout
+  di halaman; bagian B uji ujung-ke-ujung di browser sungguhan (service worker
+  terpasang, server dimatikan + jaringan diputus, halaman tetap terbuka dari
+  cache, lalu data asli dimuat ulang saat internet kembali). Menjalankan server
+  statis sendiri di port 8932, jadi **tidak butuh** `python3 -m http.server`.
+
+```bash
+node tests/test-sw.mjs
+cd tests && PW_CHROMIUM_PATH=... node test-offline.mjs
+```
+
 ## Catatan
 
 - Test ini sepenuhnya sinkron dengan data mock/fixture bertanggal tetap

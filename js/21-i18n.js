@@ -1060,6 +1060,12 @@ const I18N_EN = {
   'Belum ada transaksi untuk nama ini': 'No transactions for this name yet',
   'Tekan "Tambah Transaksi Baru" untuk mulai mencatat.': 'Tap "Add New Transaction" to start logging.',
   'Nama sudah diisi otomatis -- lengkapi layanan lalu simpan seperti biasa': "The name's already filled in -- add the services then save as usual",
+  /* ---------- Mode offline (js/24-offline.js) ---------- */
+  '📴 Lanjut offline (data terakhir)': '📴 Continue offline (last data)',
+  '📴 Mode offline — menampilkan data terakhir. Perubahan belum bisa disimpan sampai internet kembali.': '📴 Offline mode — showing the last data. Changes can\'t be saved until the internet is back.',
+  'Tidak bisa terhubung ke server. Periksa internet lalu muat ulang halaman.': "Can't reach the server. Check your internet, then reload the page.",
+  'Belum ada data offline di perangkat ini. Masuk saat ada internet dulu.': 'No offline data on this device yet. Sign in once while online first.',
+  'Keluar akun butuh internet. Sambungkan internet dulu.': 'Signing out needs internet. Connect to the internet first.',
 };
 
 /* Ambil teks TRIMMED (spasi/baris baru di ujung tetap dipertahankan di luar)
