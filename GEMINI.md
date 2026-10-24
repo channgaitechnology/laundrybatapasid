@@ -10,7 +10,7 @@
 # Arsitektur
 
 Aplikasi ini awalnya satu file `index.html` raksasa, sudah dipecah jadi
-modul-modul di `js/00-globals.js` ... `js/22-rekap-pelanggan.js` (classic
+modul-modul di `js/00-globals.js` ... `js/23-unduhan.js` (classic
 `<script src="...">` berurutan, BUKAN ES module — sengaja, karena ~150+
 atribut inline `onclick="fn(...)"` di HTML butuh fungsi ada di global
 scope; classic script yang dimuat berurutan berbagi satu global scope).
