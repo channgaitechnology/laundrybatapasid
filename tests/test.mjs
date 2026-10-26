@@ -6613,7 +6613,12 @@ const result = await page.evaluate(async () => {
       await openUnduhanModal('backup_nota');
       const list = document.getElementById('unduhanList');
       if(!list.textContent.includes('nota-arsip-a.jpg') || list.textContent.includes('nota-arsip-b.jpg')) throw new Error('filter arsip app harus membatasi hasil ke toko aktif');
+      await openUnduhanEntry(idA);
+      const preview = document.getElementById('unduhanPreview');
+      if(!preview || !preview.querySelector('img') || !preview.querySelector('img').src.startsWith('blob:')) throw new Error('JPG backup harus dapat dibuka langsung dalam app');
+      closeUnduhanPreview();
     }finally{
+      closeUnduhanPreview();
       shopOwnerId = previousOwner;
       closeUnduhanModal();
       if(idA) await deleteUnduhanEntry(idA);
