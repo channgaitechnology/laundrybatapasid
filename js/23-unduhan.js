@@ -9,6 +9,9 @@
 const UNDUHAN_DB_NAME = 'laundry_unduhan';
 const UNDUHAN_STORE = 'files';
 const UNDUHAN_MAX_ITEMS = 50;
+const UNDUHAN_MAX_BACKUP_ITEMS = 200;
+const UNDUHAN_MAX_BACKUP_BYTES = 75 * 1024 * 1024;
+var unduhanCategoryFilter = 'all';
 
 function openUnduhanDB(){
   return new Promise((resolve, reject) => {
@@ -29,11 +32,15 @@ function openUnduhanDB(){
    di sini (bukan di titik panggilnya) supaya kalau IndexedDB gagal (mode penyamaran/
    private browsing, kuota penuh, dll), unduhan ASLI yang sedang berjalan tetap lancar,
    fitur galeri ini cuma "bonus" yang boleh diam-diam tidak aktif. */
-async function saveToDownloadsGallery(blob, filename){
+async function saveToDownloadsGallery(blob, filename, options){
   try{
+    const opts = options || {};
+    const category = opts.category === 'backup_nota' ? 'backup_nota' : 'umum';
+    const ownerId = category === 'backup_nota' ? String(opts.ownerId || '') : '';
+    if(category === 'backup_nota' && !ownerId) return false;
     const db = await openUnduhanDB();
     const id = 'dl-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
-    const record = { id, filename, blob, type: blob.type||'', createdAt: Date.now() };
+    const record = { id, filename, blob, type: blob.type||'', category, ownerId, size: Number(blob.size)||0, createdAt: Date.now() };
     await new Promise((resolve, reject) => {
       const tx = db.transaction(UNDUHAN_STORE, 'readwrite');
       tx.objectStore(UNDUHAN_STORE).put(record);
@@ -41,23 +48,43 @@ async function saveToDownloadsGallery(blob, filename){
       tx.onerror = () => reject(tx.error);
     });
     await pruneUnduhanOldEntries(db);
-  }catch(e){ /* diamkan -- lihat komentar di atas */ }
+    return category !== 'backup_nota' || !!(await getUnduhanEntry(id));
+  }catch(e){ return false; }
 }
 function pruneUnduhanOldEntries(db){
   return new Promise((resolve) => {
     const tx = db.transaction(UNDUHAN_STORE, 'readwrite');
     const store = tx.objectStore(UNDUHAN_STORE);
     const idx = store.index('createdAt');
-    const keys = [];
+    let umumCount = 0;
+    const backupStats = new Map();
     idx.openCursor(null, 'prev').onsuccess = (e) => {
       const cursor = e.target.result;
-      if(cursor){ keys.push(cursor.primaryKey); cursor.continue(); }
-      else { keys.slice(UNDUHAN_MAX_ITEMS).forEach(id => store.delete(id)); resolve(); }
+      if(!cursor) return;
+      const item = cursor.value || {};
+      if(item.category === 'backup_nota' && item.ownerId){
+        const ownerId = String(item.ownerId);
+        const stats = backupStats.get(ownerId) || { count:0, bytes:0 };
+        const size = Number(item.size) || Number(item.blob && item.blob.size) || 0;
+        if(stats.count >= UNDUHAN_MAX_BACKUP_ITEMS || stats.bytes + size > UNDUHAN_MAX_BACKUP_BYTES){
+          store.delete(cursor.primaryKey);
+        }else{
+          stats.count++;
+          stats.bytes += size;
+          backupStats.set(ownerId, stats);
+        }
+      }else if(umumCount >= UNDUHAN_MAX_ITEMS){
+        store.delete(cursor.primaryKey);
+      }else{
+        umumCount++;
+      }
+      cursor.continue();
     };
+    tx.oncomplete = resolve;
     tx.onerror = () => resolve();
   });
 }
-async function loadUnduhanList(){
+async function loadUnduhanList(category, ownerId){
   try{
     const db = await openUnduhanDB();
     return await new Promise((resolve, reject) => {
@@ -67,7 +94,12 @@ async function loadUnduhanList(){
       idx.openCursor(null, 'prev').onsuccess = (e) => {
         const cursor = e.target.result;
         if(cursor){ results.push(cursor.value); cursor.continue(); }
-        else resolve(results);
+        else{
+          const filtered = category === 'backup_nota'
+            ? results.filter(item => item.category === 'backup_nota' && ownerId && String(item.ownerId) === String(ownerId))
+            : results;
+          resolve(filtered);
+        }
       };
       tx.onerror = () => reject(tx.error);
     });
@@ -88,23 +120,33 @@ function fmtUnduhanDate(ts){
   const d = new Date(ts);
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 }
-async function openUnduhanModal(){
+async function openUnduhanModal(category){
+  unduhanCategoryFilter = category === 'backup_nota' ? 'backup_nota' : 'all';
   document.getElementById('unduhanModal').classList.add('show');
+  await renderUnduhanList();
+}
+async function showUnduhanCategory(category){
+  unduhanCategoryFilter = category === 'backup_nota' ? 'backup_nota' : 'all';
   await renderUnduhanList();
 }
 function closeUnduhanModal(){ document.getElementById('unduhanModal').classList.remove('show'); }
 async function renderUnduhanList(){
   const el = document.getElementById('unduhanList');
-  const items = await loadUnduhanList();
+  const ownerId = (typeof shopOwnerId !== 'undefined' && shopOwnerId) ? String(shopOwnerId) : '';
+  const items = await loadUnduhanList(unduhanCategoryFilter, ownerId);
+  const tabs = `<div class="row2" style="margin:0 0 12px;">
+    <button class="btn ${unduhanCategoryFilter==='all'?'btn-primary':'btn-outline'} btn-sm" type="button" onclick="showUnduhanCategory('all')">${t('Semua File')}</button>
+    <button class="btn ${unduhanCategoryFilter==='backup_nota'?'btn-primary':'btn-outline'} btn-sm" type="button" onclick="showUnduhanCategory('backup_nota')">${t('Arsip Backup Nota')}</button>
+  </div>`;
   if(items.length===0){
-    el.innerHTML = `<div class="empty">
+    el.innerHTML = tabs + `<div class="empty">
       <svg class="bubble-icon" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="21" stroke="#146C8E" stroke-width="2" opacity="0.4"/><circle cx="24" cy="24" r="12" stroke="#5FC9BE" stroke-width="2"/></svg>
-      <h3>${t('Belum ada file')}</h3>
-      <p>${t('Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.')}</p>
+      <h3>${unduhanCategoryFilter==='backup_nota' ? t('Belum ada backup nota') : t('Belum ada file')}</h3>
+      <p>${unduhanCategoryFilter==='backup_nota' ? t('JPG dari fitur backup akan tersimpan di arsip ini setelah kamu membuat backup nota.') : t('Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.')}</p>
     </div>`;
     return;
   }
-  el.innerHTML = items.map(it => `
+  el.innerHTML = tabs + items.map(it => `
     <div class="item-line" style="align-items:center;">
       <span>${escapeHTML(it.filename)}<br><span style="font-size:11px;color:var(--ink-soft);">${fmtUnduhanDate(it.createdAt)}</span></span>
       <span style="display:flex;gap:6px;flex:none;">
