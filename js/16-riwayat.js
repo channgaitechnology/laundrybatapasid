@@ -193,17 +193,22 @@ async function downloadHistoryBackup(){
       showToast(t('Tidak ada nota dalam rentang tanggal ini.'));
       return;
     }
-    let berhasil = 0, gagal = 0;
+    let berhasil = 0, gagal = 0, tersimpanDiArsip = 0;
     for(let i=0;i<notes.length;i++){
       const note = notes[i];
       try{
         const blob = await buildNotaJPEGBlob(note.lines, 80);
         if(!blob){ gagal++; continue; }
         const safeBase = note.nome.replace(/[^a-zA-Z0-9._-]+/g, '-');
+        const filename = safeBase + '-' + note.tanggal + '.jpg';
+        if(typeof saveToDownloadsGallery === 'function'){
+          const ownerId = (typeof shopOwnerId !== 'undefined' && shopOwnerId) ? String(shopOwnerId) : '';
+          if(await saveToDownloadsGallery(blob, filename, { category:'backup_nota', ownerId })) tersimpanDiArsip++;
+        }
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = safeBase + '-' + note.tanggal + '.jpg';
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -219,7 +224,7 @@ async function downloadHistoryBackup(){
     }else if(gagal > 0){
       showToast(t('Sebagian nota gagal dibuat. JPG berhasil diunduh') + ': ' + berhasil + '/' + notes.length);
     }else{
-      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG');
+      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG · ' + t('tersimpan di arsip aplikasi') + ': ' + tersimpanDiArsip);
     }
   }finally{
     if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
