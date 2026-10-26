@@ -6626,6 +6626,40 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Backup beberapa nota: semua JPG disiapkan dan penulisan folder menyimpan tiap file', async () => {
+    const previousFiles = pendingHistoryBackupJPGs;
+    const files = [
+      { filename:'nota-a.jpg', blob:new Blob(['gambar a'], { type:'image/jpeg' }) },
+      { filename:'nota-b.jpg', blob:new Blob(['gambar b'], { type:'image/jpeg' }) }
+    ];
+    const writes = [];
+    try{
+      pendingHistoryBackupJPGs = files;
+      renderHistoryBackupResult(files);
+      const select = document.getElementById('historyBackupFileSelect');
+      if(!select || select.options.length !== 2) throw new Error('daftar unduh satu per satu harus memuat semua JPG');
+      const directory = {
+        async getFileHandle(filename, options){
+          if(!options || options.create !== true) throw new Error('file harus dibuat di folder pilihan');
+          return {
+            async createWritable(){
+              return {
+                async write(blob){ writes.push({ filename, blob }); },
+                async close(){}
+              };
+            }
+          };
+        }
+      };
+      const result = await writeHistoryBackupFilesToFolder(directory, files);
+      if(result.saved !== 2 || result.failed !== 0 || writes.length !== 2) throw new Error('semua nota harus ditulis ke folder yang dipilih');
+      if(writes[0].filename !== 'nota-a.jpg' || writes[1].filename !== 'nota-b.jpg') throw new Error('nama JPG harus dipertahankan');
+    }finally{
+      pendingHistoryBackupJPGs = previousFiles;
+      renderHistoryBackupResult(previousFiles);
+    }
+  });
+
   await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() memakai navigator.share() di HP MAUPUN desktop kalau didukung (TIDAK di-gate isMobileDevice() seperti shareOrDownloadNotaImage() -- filenya sudah tersimpan di galeri, jadi tidak butuh fallback simpan), baru unduh biasa kalau Web Share benar-benar tidak didukung', async () => {
     const blob = new Blob(['isi tes share'], { type: 'text/plain' });
     await saveToDownloadsGallery(blob, 'tes-share-unduhan.txt');
