@@ -6592,6 +6592,35 @@ const result = await page.evaluate(async () => {
     if (afterDelete.some(it => it.id === items[0].id)) throw new Error('deleteUnduhanEntry() tidak menghapus entry dari IndexedDB');
   });
 
+  await step('Unduhan: arsip backup nota disimpan di perangkat dan dipisahkan per toko', async () => {
+    const blobA = new Blob(['nota backup A'], { type:'image/jpeg' });
+    const blobB = new Blob(['nota backup B'], { type:'image/jpeg' });
+    const ownerA = 'tes-arsip-' + Date.now();
+    const ownerB = ownerA + '-lain';
+    let idA = '', idB = '';
+    const previousOwner = shopOwnerId;
+    try{
+      const savedA = await saveToDownloadsGallery(blobA, 'nota-arsip-a.jpg', { category:'backup_nota', ownerId:ownerA });
+      const savedB = await saveToDownloadsGallery(blobB, 'nota-arsip-b.jpg', { category:'backup_nota', ownerId:ownerB });
+      if(!savedA || !savedB) throw new Error('JPG harus tersimpan di galeri lokal');
+      const archiveA = await loadUnduhanList('backup_nota', ownerA);
+      const archiveB = await loadUnduhanList('backup_nota', ownerB);
+      if(archiveA.length !== 1 || archiveA[0].filename !== 'nota-arsip-a.jpg') throw new Error('arsip hanya menampilkan backup toko yang diminta');
+      if(archiveB.length !== 1 || archiveB[0].filename !== 'nota-arsip-b.jpg') throw new Error('arsip toko lain harus terpisah');
+      idA = archiveA[0].id;
+      idB = archiveB[0].id;
+      shopOwnerId = ownerA;
+      await openUnduhanModal('backup_nota');
+      const list = document.getElementById('unduhanList');
+      if(!list.textContent.includes('nota-arsip-a.jpg') || list.textContent.includes('nota-arsip-b.jpg')) throw new Error('filter arsip app harus membatasi hasil ke toko aktif');
+    }finally{
+      shopOwnerId = previousOwner;
+      closeUnduhanModal();
+      if(idA) await deleteUnduhanEntry(idA);
+      if(idB) await deleteUnduhanEntry(idB);
+    }
+  });
+
   await step('Unduhan: tombol "Bagikan" ada di tiap baris, dan shareUnduhanEntry() memakai navigator.share() di HP MAUPUN desktop kalau didukung (TIDAK di-gate isMobileDevice() seperti shareOrDownloadNotaImage() -- filenya sudah tersimpan di galeri, jadi tidak butuh fallback simpan), baru unduh biasa kalau Web Share benar-benar tidak didukung', async () => {
     const blob = new Blob(['isi tes share'], { type: 'text/plain' });
     await saveToDownloadsGallery(blob, 'tes-share-unduhan.txt');
