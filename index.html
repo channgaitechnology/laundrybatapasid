@@ -746,6 +746,8 @@
       </select>
       <p style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 10px;">Pilih rentang Dari Tanggal dan Sampai Tanggal di atas. Pencarian dan filter status tidak memengaruhi isi backup. Setiap nota diunduh sebagai file JPG terpisah ke perangkat. Browser mungkin meminta izin jika nota banyak.</p>
       <button class="btn btn-ghost" id="historyBackupBtn" type="button" onclick="downloadHistoryBackup()">📦 Unduh Backup Nota</button>
+      <button class="btn btn-outline" id="historyBackupArchiveBtn" type="button" style="margin-top:8px;" onclick="openUnduhanModal('backup_nota')">📁 Lihat Arsip Backup Nota</button>
+      <p style="font-size:11.5px;color:var(--ink-soft);line-height:1.45;margin:8px 0 0;">Salinan JPG juga tersimpan di arsip aplikasi pada perangkat ini (maksimal 200 file atau 75 MB per toko).</p>
     </div>
     <div id="historyList"></div>
   </section>
