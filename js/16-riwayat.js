@@ -284,7 +284,7 @@ async function saveHistoryBackupToFolder(){
   const files = pendingHistoryBackupJPGs.slice();
   if(files.length === 0){ showToast(t('Tidak ada JPG backup untuk disimpan.')); return; }
   if(!window.isSecureContext || typeof window.showDirectoryPicker !== 'function'){
-    showToast(t('Peramban ini tidak mendukung penyimpanan ke folder; unduh satu per satu.'));
+    showToast(t('Peramban ini tidak mendukung penyimpanan ke folder; gunakan unduh satu per satu.'));
     return;
   }
   let pickerPromise;
