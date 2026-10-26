@@ -54,6 +54,7 @@ const I18N_EN = {
   'Folder tidak dapat ditulis. Unduh JPG satu per satu sebagai gantinya.':
     'Could not write to the folder. Download JPGs one at a time instead.',
   'JPG berhasil disiapkan': 'JPGs prepared',
+  'Sebagian nota gagal dibuat. JPG berhasil disiapkan': 'Some receipts could not be created. JPG files prepared',
   'siap diunduh': 'ready to save',
   'Belum ada file': 'No files yet',
   'Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.':
