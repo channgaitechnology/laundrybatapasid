@@ -194,39 +194,126 @@ async function downloadHistoryBackup(){
       return;
     }
     let berhasil = 0, gagal = 0, tersimpanDiArsip = 0;
+    const backupRunId = Date.now();
+    const jpgFiles = [];
     for(let i=0;i<notes.length;i++){
       const note = notes[i];
       try{
         const blob = await buildNotaJPEGBlob(note.lines, 80);
         if(!blob){ gagal++; continue; }
         const safeBase = note.nome.replace(/[^a-zA-Z0-9._-]+/g, '-');
-        const filename = safeBase + '-' + note.tanggal + '.jpg';
+        const nomor = String(i + 1).padStart(4, '0');
+        const filename = safeBase + '-' + note.tanggal + '-backup-' + backupRunId + '-' + nomor + '.jpg';
         if(typeof saveToDownloadsGallery === 'function'){
           const ownerId = (typeof shopOwnerId !== 'undefined' && shopOwnerId) ? String(shopOwnerId) : '';
           if(await saveToDownloadsGallery(blob, filename, { category:'backup_nota', ownerId })) tersimpanDiArsip++;
         }
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        jpgFiles.push({ blob, filename });
         berhasil++;
-        if(i < notes.length - 1) await new Promise(resolve => setTimeout(resolve, 350));
       }catch(e){
         gagal++;
       }
     }
+    pendingHistoryBackupJPGs = jpgFiles;
+    renderHistoryBackupResult(jpgFiles, { failed:gagal });
     if(berhasil === 0){
       showToast(t('Gagal membuat semua gambar nota. Coba lagi.'));
     }else if(gagal > 0){
-      showToast(t('Sebagian nota gagal dibuat. JPG berhasil diunduh') + ': ' + berhasil + '/' + notes.length);
+      showToast(t('Sebagian nota gagal dibuat. JPG berhasil disiapkan') + ': ' + berhasil + '/' + notes.length);
     }else{
-      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG · ' + t('tersimpan di arsip aplikasi') + ': ' + tersimpanDiArsip);
+      showToast(t('Backup selesai') + ': ' + berhasil + ' JPG ' + t('siap diunduh') + ' · ' + t('tersimpan di arsip aplikasi') + ': ' + tersimpanDiArsip);
     }
   }finally{
     if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
+}
+
+var pendingHistoryBackupJPGs = [];
+function renderHistoryBackupResult(files, options){
+  const el = document.getElementById('historyBackupResult');
+  if(!el) return;
+  const failed = Number(options && options.failed) || 0;
+  if(!files || files.length === 0){ el.innerHTML = ''; return; }
+  const supportsFolderPicker = window.isSecureContext && typeof window.showDirectoryPicker === 'function';
+  const fileOptions = files.map((file,index) => `<option value="${index}">${escapeHTML(file.filename)}</option>`).join('');
+  el.innerHTML = `<div class="card" style="margin-top:10px;" aria-live="polite">
+    <h3 style="margin:0 0 6px;">${files.length} ${t('nota siap disimpan sebagai JPG')}</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 10px;">${t('Pilih folder untuk menyimpan semua JPG sekaligus. Jika tidak tersedia, unduh setiap nota satu per satu dari daftar ini.')}</p>
+    ${failed ? `<p style="font-size:12px;color:var(--danger);">${failed} ${t('nota gagal dibuat; coba ulangi dengan rentang tanggal lebih kecil.')}</p>` : ''}
+    ${supportsFolderPicker ? `<button class="btn btn-primary" type="button" id="historyBackupSaveFolderBtn" onclick="saveHistoryBackupToFolder()">📁 ${t('Pilih Folder dan Simpan Semua JPG')}</button>` : `<p style="font-size:12px;color:var(--ink-soft);">${t('Peramban ini tidak mendukung penyimpanan ke folder; gunakan unduh satu per satu.')}</p>`}
+    <label for="historyBackupFileSelect">${t('Pilih nota untuk diunduh')}</label>
+    <select id="historyBackupFileSelect">${fileOptions}</select>
+    <button class="btn btn-outline" type="button" id="historyBackupSingleDownloadBtn" onclick="downloadSelectedHistoryBackupJPG()">⬇️ ${t('Unduh JPG Terpilih')}</button>
+    <p id="historyBackupFolderStatus" role="status" style="font-size:12px;color:var(--ink-soft);margin:8px 0 0;"></p>
+  </div>`;
+}
+function downloadSelectedHistoryBackupJPG(){
+  const select = document.getElementById('historyBackupFileSelect');
+  const file = select && pendingHistoryBackupJPGs[Number(select.value)];
+  if(!file){ showToast(t('File backup tidak ditemukan.')); return; }
+  const url = URL.createObjectURL(file.blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  showToast(t('Unduhan untuk nota diproses.'));
+}
+async function writeHistoryBackupFilesToFolder(directory, files){
+  let saved = 0, failed = 0;
+  for(const file of files){
+    let writable = null;
+    try{
+      const handle = await directory.getFileHandle(file.filename, { create:true });
+      writable = await handle.createWritable();
+      await writable.write(file.blob);
+      await writable.close();
+      saved++;
+    }catch(e){
+      failed++;
+      if(writable && typeof writable.abort === 'function'){
+        try{ await writable.abort(); }catch(_){}
+      }
+    }
+  }
+  return { saved, failed };
+}
+async function saveHistoryBackupToFolder(){
+  const files = pendingHistoryBackupJPGs.slice();
+  if(files.length === 0){ showToast(t('Tidak ada JPG backup untuk disimpan.')); return; }
+  if(!window.isSecureContext || typeof window.showDirectoryPicker !== 'function'){
+    showToast(t('Peramban ini tidak mendukung penyimpanan ke folder; unduh satu per satu.'));
+    return;
+  }
+  let pickerPromise;
+  try{
+    // Panggil pemilih folder sebelum await lain agar tetap berada dalam gestur pengguna.
+    pickerPromise = window.showDirectoryPicker({ mode:'readwrite' });
+  }catch(e){
+    showToast(t('Folder tidak dapat dibuka. Unduh JPG satu per satu sebagai gantinya.'));
+    return;
+  }
+  const btn = document.getElementById('historyBackupSaveFolderBtn');
+  if(btn){ btn.disabled = true; btn.textContent = t('Menyimpan semua JPG...'); }
+  try{
+    const directory = await pickerPromise;
+    const result = await writeHistoryBackupFilesToFolder(directory, files);
+    const status = document.getElementById('historyBackupFolderStatus');
+    if(status) status.textContent = result.failed
+      ? result.saved + '/' + files.length + ' ' + t('JPG tersimpan; sebagian gagal.')
+      : result.saved + ' ' + t('JPG tersimpan di folder yang dipilih.');
+    showToast(result.failed
+      ? result.saved + '/' + files.length + ' ' + t('JPG berhasil disimpan; sebagian gagal.')
+      : result.saved + ' ' + t('JPG berhasil disimpan di folder.'));
+  }catch(e){
+    if(e && e.name === 'AbortError'){
+      showToast(t('Pemilihan folder dibatalkan. JPG tetap tersedia di arsip app.'));
+    }else{
+      showToast(t('Folder tidak dapat ditulis. Unduh JPG satu per satu sebagai gantinya.'));
+    }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '📁 ' + t('Pilih Folder dan Simpan Semua JPG'); }
   }
 }
