@@ -19,6 +19,15 @@ const I18N_EN = {
   '📥 Unduhan': '📥 Downloads',
   'Salinan nota/laporan yang pernah diunduh dari app ini, tersimpan di sini juga (di perangkat ini saja) supaya gampang dibuka lagi tanpa perlu keluar dari app.':
     'Copies of receipts/reports you\'ve downloaded from this app are also kept here (on this device only), so you can reopen them without leaving the app.',
+  '📁 Lihat Arsip Backup Nota': '📁 View Receipt Backup Archive',
+  'Salinan JPG juga tersimpan di arsip aplikasi pada perangkat ini (maksimal 200 file atau 75 MB per toko).':
+    'JPG copies are also kept in this app archive on this device (up to 200 files or 75 MB per store).',
+  'Semua File': 'All Files',
+  'Arsip Backup Nota': 'Receipt Backup Archive',
+  'Belum ada backup nota': 'No receipt backups yet',
+  'JPG dari fitur backup akan tersimpan di arsip ini setelah kamu membuat backup nota.':
+    'JPG files created by the backup feature will appear in this archive after you back up receipts.',
+  'tersimpan di arsip aplikasi': 'saved in the app archive',
   'Belum ada file': 'No files yet',
   'Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.':
     'Receipts/reports you download will also be saved here, so they\'re easy to reopen without leaving the app.',
