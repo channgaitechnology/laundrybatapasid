@@ -5,7 +5,8 @@
    dari app, setiap kali sesuatu diunduh (lihat saveToDownloadsGallery() dipanggil dari
    js/10-nota-cetak.js, js/17-papan-laundry.js, js/18-laporan.js, dll), salinannya juga
    disimpan di sini -- IndexedDB, lokal di perangkat itu saja, TIDAK dikirim ke server
-   mana pun. Dibatasi 50 file terbaru supaya penyimpanan lokal tidak membengkak terus. */
+   mana pun. Unduhan umum dibatasi 50 file; arsip backup nota dibatasi 200 JPG/75 MB
+   per toko agar penyimpanan lokal tidak membengkak terus. */
 const UNDUHAN_DB_NAME = 'laundry_unduhan';
 const UNDUHAN_STORE = 'files';
 const UNDUHAN_MAX_ITEMS = 50;
@@ -120,6 +121,13 @@ function fmtUnduhanDate(ts){
   const d = new Date(ts);
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 }
+var unduhanPreview = null;
+function closeUnduhanPreview(){
+  if(!unduhanPreview) return;
+  try{ URL.revokeObjectURL(unduhanPreview.url); }catch(e){}
+  unduhanPreview.element.remove();
+  unduhanPreview = null;
+}
 async function openUnduhanModal(category){
   unduhanCategoryFilter = category === 'backup_nota' ? 'backup_nota' : 'all';
   document.getElementById('unduhanModal').classList.add('show');
@@ -160,6 +168,45 @@ async function renderUnduhanList(){
 async function openUnduhanEntry(id){
   const record = await getUnduhanEntry(id);
   if(!record){ showToast(t('File tidak ditemukan')); return; }
+  if(record.category === 'backup_nota' && (record.type === 'image/jpeg' || /\\.jpe?g$/i.test(record.filename||''))){
+    closeUnduhanPreview();
+    const url = URL.createObjectURL(record.blob);
+    const overlay = document.createElement('div');
+    overlay.id = 'unduhanPreview';
+    overlay.className = 'modal-bg show';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.zIndex = '10002';
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.maxWidth = '680px';
+    modal.style.maxHeight = '90vh';
+    modal.style.overflow = 'auto';
+    const close = document.createElement('button');
+    close.className = 'modal-close';
+    close.type = 'button';
+    close.setAttribute('aria-label', t('Tutup'));
+    close.textContent = '✕';
+    close.addEventListener('click', closeUnduhanPreview);
+    const title = document.createElement('h3');
+    title.textContent = record.filename;
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = record.filename;
+    image.style.display = 'block';
+    image.style.maxWidth = '100%';
+    image.style.maxHeight = '70vh';
+    image.style.objectFit = 'contain';
+    image.style.margin = '0 auto';
+    modal.append(close, title, image);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', event => {
+      if(event.target === overlay) closeUnduhanPreview();
+    });
+    document.body.appendChild(overlay);
+    unduhanPreview = { element:overlay, url };
+    return;
+  }
   const url = URL.createObjectURL(record.blob);
   window.open(url, '_blank');
   setTimeout(()=> URL.revokeObjectURL(url), 60000);
