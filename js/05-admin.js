@@ -94,6 +94,25 @@ function updateMidtransButtonVisibility(){
   const btn = document.getElementById('btnPayMidtrans');
   if(btn) btn.style.display = appBranding.midtransEnabled ? '' : 'none';
 }
+async function loadAdminVisitorSummary(){
+  try{
+    const { data, error } = await sb.from('visitor_logs').select('id, visitor_id, created_at');
+    if(error || !data) return;
+    const total = data.length;
+    const uniques = new Set(data.map(d=>d.visitor_id)).size;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayCount = data.filter(d=>(d.created_at||'').slice(0, 10) === todayStr).length;
+
+    const elTotal = document.getElementById('adminVisitorStatTotal');
+    const elUnik = document.getElementById('adminVisitorStatUnik');
+    const elHariIni = document.getElementById('adminVisitorStatHariIni');
+
+    if(elTotal) elTotal.textContent = total.toLocaleString('id-ID');
+    if(elUnik) elUnik.textContent = uniques.toLocaleString('id-ID');
+    if(elHariIni) elHariIni.textContent = todayCount.toLocaleString('id-ID');
+  }catch(e){}
+}
+
 async function loadAdminData(){
   const { data: codes } = await sb.from('registration_codes').select('*').order('created_at', { ascending:false });
   regCodeCache = codes || [];
@@ -102,6 +121,7 @@ async function loadAdminData(){
   paymentReqCache = reqs || [];
   renderPaymentReqList();
   await loadAdminSubscriptionsOverview();
+  await loadAdminVisitorSummary();
 }
 /* LIFETIME_DAYS_THRESHOLD/isLifetimePaidUntil() ada di js/09-utils.js --
    dipakai bersama dengan js/03-langganan.js (badge/Pengaturan toko sendiri)
@@ -431,6 +451,47 @@ if('serviceWorker' in navigator){
     }
   });
 }
+
+/* ===================== PELACAK PENGUNJUNG (VISITOR TRACKER) ===================== */
+function getOrCreateVisitorId(){
+  let id = '';
+  try{
+    id = localStorage.getItem('nk_visitor_id');
+    if(!id){
+      id = 'v_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+      localStorage.setItem('nk_visitor_id', id);
+    }
+  }catch(e){
+    id = 'v_anon_' + Math.random().toString(36).substring(2, 10);
+  }
+  return id;
+}
+
+function trackVisitorPage(){
+  try{
+    const path = (window.location.pathname || '/').slice(0, 100);
+    const sessionKey = 'nk_visited_' + path;
+    if(sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, '1');
+
+    const visitorId = getOrCreateVisitorId();
+    const referrer = (document.referrer || '').slice(0, 250);
+    const userAgent = (navigator.userAgent || '').slice(0, 250);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    const deviceType = isMobile ? 'mobile' : 'desktop';
+
+    sb.from('visitor_logs').insert([{
+      visitor_id: visitorId,
+      page_path: path,
+      referrer: referrer,
+      user_agent: userAgent,
+      device_type: deviceType
+    }]).then(()=>{}).catch(()=>{});
+  }catch(e){}
+}
+
+// Otomatis catat kunjungan di index.html saat script dimuat
+trackVisitorPage();
 
 /* ===================== NOTIFIKASI PUSH ADMIN PLATFORM (Web Push) ===================== */
 /* Lonceng + badge di atas cuma kelihatan SELAGI tab app ini terbuka --
