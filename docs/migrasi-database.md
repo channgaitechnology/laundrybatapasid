@@ -336,8 +336,17 @@ create table if not exists visitor_logs (
   referrer text,
   user_agent text,
   device_type text,
+  user_email text,
+  user_name text,
+  device_name text,
+  event_type text default 'pageview',
   created_at timestamptz not null default now()
 );
+
+alter table visitor_logs add column if not exists user_email text;
+alter table visitor_logs add column if not exists user_name text;
+alter table visitor_logs add column if not exists device_name text;
+alter table visitor_logs add column if not exists event_type text default 'pageview';
 
 alter table visitor_logs enable row level security;
 

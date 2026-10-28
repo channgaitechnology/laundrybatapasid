@@ -96,20 +96,24 @@ function updateMidtransButtonVisibility(){
 }
 async function loadAdminVisitorSummary(){
   try{
-    const { data, error } = await sb.from('visitor_logs').select('id, visitor_id, created_at');
+    const { data, error } = await sb.from('visitor_logs').select('id, visitor_id, created_at, event_type');
     if(error || !data) return;
-    const total = data.length;
+    const pageviewLogs = data.filter(d => !d.event_type || d.event_type === 'pageview');
+    const total = pageviewLogs.length;
     const uniques = new Set(data.map(d=>d.visitor_id)).size;
     const todayStr = new Date().toISOString().slice(0, 10);
-    const todayCount = data.filter(d=>(d.created_at||'').slice(0, 10) === todayStr).length;
+    const todayCount = pageviewLogs.filter(d=>(d.created_at||'').slice(0, 10) === todayStr).length;
+    const clickDaftarCount = data.filter(d => d.event_type === 'click_daftar').length;
 
     const elTotal = document.getElementById('adminVisitorStatTotal');
     const elUnik = document.getElementById('adminVisitorStatUnik');
     const elHariIni = document.getElementById('adminVisitorStatHariIni');
+    const elClickDaftar = document.getElementById('adminVisitorStatClickDaftar');
 
     if(elTotal) elTotal.textContent = total.toLocaleString('id-ID');
     if(elUnik) elUnik.textContent = uniques.toLocaleString('id-ID');
     if(elHariIni) elHariIni.textContent = todayCount.toLocaleString('id-ID');
+    if(elClickDaftar) elClickDaftar.textContent = clickDaftarCount.toLocaleString('id-ID');
   }catch(e){}
 }
 
@@ -467,25 +471,66 @@ function getOrCreateVisitorId(){
   return id;
 }
 
+function getDetailedDeviceName(ua){
+  ua = ua || navigator.userAgent || '';
+  let os = 'Desktop';
+  if(/Android/i.test(ua)) os = 'Android';
+  else if(/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+  else if(/Windows/i.test(ua)) os = 'Windows';
+  else if(/Macintosh|Mac OS/i.test(ua)) os = 'Mac';
+  else if(/Linux/i.test(ua)) os = 'Linux';
+
+  let browser = 'Browser';
+  if(/Edg/i.test(ua)) browser = 'Edge';
+  else if(/Chrome/i.test(ua)) browser = 'Chrome';
+  else if(/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+  else if(/Firefox/i.test(ua)) browser = 'Firefox';
+  else if(/Opera|OPR/i.test(ua)) browser = 'Opera';
+
+  return `${browser} di ${os}`;
+}
+
 function trackVisitorPage(){
+  trackVisitorEvent('pageview');
+}
+
+function trackVisitorEvent(eventType){
   try{
+    eventType = eventType || 'pageview';
     const path = (window.location.pathname || '/').slice(0, 100);
-    const sessionKey = 'nk_visited_' + path;
-    if(sessionStorage.getItem(sessionKey)) return;
-    sessionStorage.setItem(sessionKey, '1');
+
+    if(eventType === 'pageview'){
+      const sessionKey = 'nk_visited_' + path;
+      if(sessionStorage.getItem(sessionKey)) return;
+      sessionStorage.setItem(sessionKey, '1');
+    }
 
     const visitorId = getOrCreateVisitorId();
     const referrer = (document.referrer || '').slice(0, 250);
     const userAgent = (navigator.userAgent || '').slice(0, 250);
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
     const deviceType = isMobile ? 'mobile' : 'desktop';
+    const deviceName = getDetailedDeviceName(userAgent);
+
+    let userEmail = null;
+    let userName = null;
+    if(typeof currentUser !== 'undefined' && currentUser && currentUser.email){
+      userEmail = currentUser.email;
+      if(typeof settings !== 'undefined' && settings.shopName){
+        userName = settings.shopName;
+      }
+    }
 
     sb.from('visitor_logs').insert([{
       visitor_id: visitorId,
       page_path: path,
       referrer: referrer,
       user_agent: userAgent,
-      device_type: deviceType
+      device_type: deviceType,
+      device_name: deviceName,
+      user_email: userEmail,
+      user_name: userName,
+      event_type: eventType
     }]).then(()=>{}).catch(()=>{});
   }catch(e){}
 }

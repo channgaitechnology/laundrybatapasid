@@ -224,12 +224,16 @@ Pengaturan Admin Platform (`index.html`) untuk memantau trafik & statistik
 pengunjung Dokter Laundry:
 
 - **Ringkasan Angka Utama**: Total Kunjungan (Pageviews), Pengunjung Unik,
-  Kunjungan Hari Ini, serta Kunjungan 7 Hari & 30 Hari Terakhir.
+  Kunjungan Hari Ini, Pengunjung Unik Hari Ini, dan Total Klik Pendaftaran.
 - **Filter Periode Waktu**: 7 Hari Terakhir, 30 Hari Terakhir, dan Semua Waktu.
 - **Grafik Tren Harian**: Tampilan bar chart interaktif yang memperlihatkan tren
   kunjungan total & pengunjung unik per hari.
-- **Rincian Perangkat & Halaman**: Persentase/jumlah pengunjung berdasarkan jenis
-  perangkat (Mobile vs Desktop) dan halaman populer (`/index.html`, `/marketing.html`, dll).
+- **Rincian Perangkat & Browser Spesifik**: Identifikasi rinci seperti "Chrome di Android",
+  "Safari di iPhone", "Edge di Windows", dll.
+- **Pelacakan Event Pendaftaran**: Melacak pengunjung yang mengklik tab/tombol "Daftar"
+  atau mengirim konfirmasi pendaftaran (`click_daftar`).
+- **Identifikasi Akun Pengunjung**: Mencatat email dan nama akun pengguna secara otomatis
+  apabila pengunjung sudah melakukan login / memiliki akun.
 
 Pelacakan dilakukan secara otomatis & non-blocking saat pengunjung membuka
 aplikasi, menggunakan `visitor_id` anonim persisten di `localStorage`, serta
