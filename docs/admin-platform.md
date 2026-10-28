@@ -217,6 +217,27 @@ using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundroma
 Sebelum tabel ini ada, tab "Kontak Laundry" akan gagal memuat data (toast
 error) — tab/fitur lain tidak terpengaruh.
 
+### Analitik Pengunjung (📊 Analitik Pengunjung)
+
+Tab baru **📊 Analitik Pengunjung** di `marketing.html` dan widget di
+Pengaturan Admin Platform (`index.html`) untuk memantau trafik & statistik
+pengunjung Dokter Laundry:
+
+- **Ringkasan Angka Utama**: Total Kunjungan (Pageviews), Pengunjung Unik,
+  Kunjungan Hari Ini, serta Kunjungan 7 Hari & 30 Hari Terakhir.
+- **Filter Periode Waktu**: 7 Hari Terakhir, 30 Hari Terakhir, dan Semua Waktu.
+- **Grafik Tren Harian**: Tampilan bar chart interaktif yang memperlihatkan tren
+  kunjungan total & pengunjung unik per hari.
+- **Rincian Perangkat & Halaman**: Persentase/jumlah pengunjung berdasarkan jenis
+  perangkat (Mobile vs Desktop) dan halaman populer (`/index.html`, `/marketing.html`, dll).
+
+Pelacakan dilakukan secara otomatis & non-blocking saat pengunjung membuka
+aplikasi, menggunakan `visitor_id` anonim persisten di `localStorage`, serta
+pencegahan spam/pencatatan ganda dalam 1 sesi menggunakan `sessionStorage`.
+
+Membutuhkan tabel `visitor_logs` di Supabase — lihat petunjuk SQL di
+[docs/migrasi-database.md](migrasi-database.md#analitik-pengunjung-visitor_logs).
+
 Tab lain di halaman ini (Konten Promosi, Landing Page, Program Referral)
 baru placeholder ("Segera") — akan dikerjakan satu-satu sesuai permintaan.
 

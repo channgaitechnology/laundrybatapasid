@@ -96,6 +96,18 @@
 
   .mkt-tab-content{ display:none; }
   .mkt-tab-content.active{ display:block; }
+  /* ---- Chart Analitik Pengunjung ---- */
+  .v-stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px; }
+  .v-stat-card{ background:var(--mist); border-radius:12px; padding:12px; text-align:center; }
+  .v-stat-card .v-label{ font-size:11px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+  .v-stat-card .v-val{ font-size:18px; font-weight:800; color:var(--suds-deep); }
+  .v-chart{ display:flex; align-items:flex-end; gap:6px; height:130px; margin:16px 0 8px; padding-top:22px; border-bottom:1px solid var(--line); overflow-x:auto; }
+  .v-bar-wrap{ flex:1; min-width:22px; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; position:relative; }
+  .v-bar{ width:100%; max-width:28px; background:linear-gradient(180deg,var(--bubble),var(--suds)); border-radius:4px 4px 0 0; min-height:4px; position:relative; }
+  .v-bar-val{ position:absolute; bottom:100%; font-size:9.5px; font-weight:700; color:var(--suds-deep); margin-bottom:2px; white-space:nowrap; }
+  .v-bar-label{ font-size:9px; color:var(--ink-soft); margin-top:4px; text-align:center; white-space:nowrap; }
+  .breakdown-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px dashed var(--line); font-size:12.5px; }
+
   .lead-links{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   .lead-links a{ background:var(--suds); color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:8px; }
   .lead-links a.email-link{ background:var(--bubble); }
@@ -147,6 +159,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="komunitas" onclick="switchMktTab('komunitas')">🌐 Riset Komunitas</button>
       <button class="tab-btn" data-tab="kontak" onclick="switchMktTab('kontak')">📇 Kontak Laundry</button>
+      <button class="tab-btn" data-tab="analitik" onclick="switchMktTab('analitik')">📊 Analitik Pengunjung</button>
       <button class="tab-btn upcoming">📝 Konten Promosi <span class="badge-segera">Segera</span></button>
       <button class="tab-btn upcoming">📄 Landing Page <span class="badge-segera">Segera</span></button>
       <button class="tab-btn upcoming">🎁 Program Referral <span class="badge-segera">Segera</span></button>
@@ -224,6 +237,48 @@
       <div class="filter-count" id="leadFilterCount"></div>
 
       <div id="leadList"></div>
+    </div>
+
+    <div id="tab-analitik" class="mkt-tab-content">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <h2 style="margin:0;">📊 Analitik Pengunjung Dokter Laundry</h2>
+          <button class="btn btn-primary" style="width:auto; padding:8px 14px; font-size:12.5px;" onclick="loadVisitorAnalytics()">🔄 Refresh Analitik</button>
+        </div>
+        <p>Memantau jumlah pengunjung/kunjungan halaman, pengunjung unik, perangkat yang digunakan, dan tren harian.</p>
+        <div style="margin-top:12px;">
+          <label style="font-size:12px; font-weight:600; color:var(--ink-soft);">Rentang Waktu Data:</label>
+          <select id="analyticsRange" onchange="loadVisitorAnalytics()" style="padding:8px 10px; border:1px solid var(--line); border-radius:10px; font-size:13px; margin-top:4px;">
+            <option value="7">7 Hari Terakhir</option>
+            <option value="30" selected>30 Hari Terakhir</option>
+            <option value="all">Semua Waktu</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="v-stat-grid" id="visitorStatCards">
+        <div class="v-stat-card"><div class="v-label">Total Kunjungan</div><div class="v-val" id="vTotalPageviews">-</div></div>
+        <div class="v-stat-card"><div class="v-label">Pengunjung Unik</div><div class="v-val" id="vUniqueVisitors">-</div></div>
+        <div class="v-stat-card"><div class="v-label">Hari Ini (Kunjungan)</div><div class="v-val" id="vTodayPageviews">-</div></div>
+        <div class="v-stat-card"><div class="v-label">Hari Ini (Unik)</div><div class="v-val" id="vTodayUniques">-</div></div>
+      </div>
+
+      <div class="card">
+        <h2>📈 Tren Kunjungan Harian</h2>
+        <p>Jumlah total kunjungan halaman per hari dalam rentang waktu yang dipilih.</p>
+        <div class="v-chart" id="visitorTrendChart"></div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+        <div class="card">
+          <h2>📱 Perangkat Pengunjung</h2>
+          <div id="visitorDeviceBreakdown"><div class="empty-state">Memuat data...</div></div>
+        </div>
+        <div class="card">
+          <h2>📄 Halaman Populer</h2>
+          <div id="visitorPagesBreakdown"><div class="empty-state">Memuat data...</div></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -358,12 +413,14 @@ function enterDashboard(){
   document.getElementById('dashScreen').classList.add('show');
   loadCommunities();
   loadLeads();
+  loadVisitorAnalytics();
 }
 function switchMktTab(name){
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
   document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
   document.querySelectorAll('.mkt-tab-content').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
+  if(name === 'analitik') loadVisitorAnalytics();
 }
 /* marketing.html file terpisah total dari index.html (lihat arsitektur di
    CLAUDE.md), jadi tidak bisa import normalizePhone() dari js/09-utils.js --
@@ -675,6 +732,125 @@ async function toggleLeadContacted(id, checked){
   if(error){ showToast('Gagal menyimpan status'); renderLeads(); return; }
   const l = leadCache.find(x=>String(x.id)===String(id));
   if(l) l.sudah_dihubungi = checked;
+}
+
+/* ===================== ANALITIK PENGUNJUNG ===================== */
+var visitorLogsCache = [];
+
+async function loadVisitorAnalytics(){
+  const rangeEl = document.getElementById('analyticsRange');
+  const days = rangeEl ? rangeEl.value : '30';
+  const chartEl = document.getElementById('visitorTrendChart');
+  const deviceEl = document.getElementById('visitorDeviceBreakdown');
+  const pagesEl = document.getElementById('visitorPagesBreakdown');
+
+  if(chartEl) chartEl.innerHTML = '<div class="empty-state">Sedang memuat data analitik...</div>';
+
+  let query = sb.from('visitor_logs').select('*').order('created_at', { ascending: true });
+  if(days !== 'all'){
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - Number(days));
+    query = query.gte('created_at', startDate.toISOString());
+  }
+
+  const { data, error } = await query;
+  if(error){
+    if(chartEl) chartEl.innerHTML = '<div class="empty-state">Gagal memuat data (pastikan tabel visitor_logs sudah dibuat di Supabase).</div>';
+    return;
+  }
+
+  visitorLogsCache = data || [];
+  renderVisitorAnalytics();
+}
+
+function renderVisitorAnalytics(){
+  const logs = visitorLogsCache;
+  const totalPageviews = logs.length;
+  const uniqueVisitors = new Set(logs.map(l=>l.visitor_id)).size;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayLogs = logs.filter(l=>(l.created_at||'').slice(0, 10) === todayStr);
+  const todayPageviews = todayLogs.length;
+  const todayUniques = new Set(todayLogs.map(l=>l.visitor_id)).size;
+
+  document.getElementById('vTotalPageviews').textContent = totalPageviews.toLocaleString('id-ID');
+  document.getElementById('vUniqueVisitors').textContent = uniqueVisitors.toLocaleString('id-ID');
+  document.getElementById('vTodayPageviews').textContent = todayPageviews.toLocaleString('id-ID');
+  document.getElementById('vTodayUniques').textContent = todayUniques.toLocaleString('id-ID');
+
+  // Trend Chart Harian
+  const chartEl = document.getElementById('visitorTrendChart');
+  if(logs.length === 0){
+    chartEl.innerHTML = '<div class="empty-state">Belum ada data kunjungan untuk rentang waktu ini.</div>';
+  } else {
+    const dailyMap = {};
+    logs.forEach(l=>{
+      const d = (l.created_at||'').slice(0, 10);
+      if(!d) return;
+      if(!dailyMap[d]) dailyMap[d] = { pageviews: 0, visitors: new Set() };
+      dailyMap[d].pageviews++;
+      dailyMap[d].visitors.add(l.visitor_id);
+    });
+
+    const dates = Object.keys(dailyMap).sort();
+    let maxVal = 1;
+    dates.forEach(d=>{ if(dailyMap[d].pageviews > maxVal) maxVal = dailyMap[d].pageviews; });
+
+    chartEl.innerHTML = dates.map(d=>{
+      const pv = dailyMap[d].pageviews;
+      const un = dailyMap[d].visitors.size;
+      const pct = Math.max(6, Math.round((pv / maxVal) * 100));
+      const shortDate = d.slice(5).replace('-', '/');
+      return `
+      <div class="v-bar-wrap" title="${d}: ${pv} kunjungan, ${un} unik">
+        <div class="v-bar-val">${pv}</div>
+        <div class="v-bar" style="height:${pct}%;"></div>
+        <div class="v-bar-label">${shortDate}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Device Breakdown
+  const deviceEl = document.getElementById('visitorDeviceBreakdown');
+  const deviceCounts = { mobile: 0, desktop: 0 };
+  logs.forEach(l=>{
+    const dev = (l.device_type || 'desktop').toLowerCase();
+    if(dev === 'mobile') deviceCounts.mobile++;
+    else deviceCounts.desktop++;
+  });
+
+  const totalDev = logs.length || 1;
+  const mobPct = Math.round((deviceCounts.mobile / totalDev) * 100);
+  const deskPct = 100 - mobPct;
+
+  deviceEl.innerHTML = `
+    <div class="breakdown-row">
+      <span>📱 Perangkat HP / Mobile</span>
+      <b>${deviceCounts.mobile.toLocaleString('id-ID')} (${mobPct}%)</b>
+    </div>
+    <div class="breakdown-row">
+      <span>💻 Komputer / Desktop</span>
+      <b>${deviceCounts.desktop.toLocaleString('id-ID')} (${deskPct}%)</b>
+    </div>`;
+
+  // Popular Pages Breakdown
+  const pagesEl = document.getElementById('visitorPagesBreakdown');
+  const pageMap = {};
+  logs.forEach(l=>{
+    const p = l.page_path || '/';
+    pageMap[p] = (pageMap[p] || 0) + 1;
+  });
+
+  const sortedPages = Object.keys(pageMap).sort((a,b)=>pageMap[b] - pageMap[a]);
+  if(sortedPages.length === 0){
+    pagesEl.innerHTML = '<div class="empty-state">Belum ada data halaman.</div>';
+  } else {
+    pagesEl.innerHTML = sortedPages.map(p=>`
+      <div class="breakdown-row">
+        <span><code>${escapeHTML(p)}</code></span>
+        <b>${pageMap[p].toLocaleString('id-ID')} kunjungan</b>
+      </div>`).join('');
+  }
 }
 
 /* ===================== CARI KONTAK LAUNDRY ONLINE ===================== */
