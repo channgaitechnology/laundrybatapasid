@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="100%" height="100%">
+  <defs>
+    <filter id="shadow5" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F4C74" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <rect width="700" height="500" fill="#F4F8FA" rx="20"/>
+
+  <g transform="translate(30, 25)" filter="url(#shadow5)">
+    <rect width="640" height="450" fill="#FFFFFF" rx="16"/>
+    <rect width="640" height="42" fill="#0F4C74" rx="16" clip-path="polygon(0 0, 640 0, 640 42, 0 42)"/>
+    
+    <circle cx="25" cy="21" r="5" fill="#FF5F56"/>
+    <circle cx="42" cy="21" r="5" fill="#FFBD2E"/>
+    <circle cx="59" cy="21" r="5" fill="#27C93F"/>
+    
+    <text x="320" y="26" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="13" font-weight="600" text-anchor="middle">Dokter Laundry — Keamanan Toko &amp; Jejak Audit Kasir</text>
+    
+    <rect x="525" y="9" width="95" height="24" rx="6" fill="#2E9E63"/>
+    <text x="572" y="25" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">🛡️ Aman 100%</text>
+
+    <!-- Subheader: Role explanation -->
+    <g transform="translate(20, 54)">
+      <rect width="600" height="40" rx="8" fill="#EEF5F7" stroke="#CBD5E1" stroke-width="1"/>
+      <text x="14" y="25" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">Akun Terpisah: <tspan fill="#1768AC">Pemilik (Akses Laporan &amp; Keuangan)</tspan> vs <tspan fill="#5C7180">Kasir (Hanya Transaksi &amp; Cuci)</tspan></text>
+    </g>
+
+    <!-- Audit Trail Log Modal Mockup -->
+    <g transform="translate(20, 106)">
+      <rect width="600" height="318" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.2"/>
+      
+      <!-- Log Header -->
+      <g transform="translate(16, 16)">
+        <text x="0" y="16" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="13" font-weight="800">🕘 Jejak Audit Riwayat Edit (Anti-Kecurangan Kasir)</text>
+        <text x="0" y="32" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Semua perubahan data transaksi dan uang muka terekam otomatis beserta waktu dan nama pelakunya.</text>
+      </g>
+
+      <!-- Log Entries -->
+      <g transform="translate(16, 60)">
+        
+        <!-- Entry 1 -->
+        <g transform="translate(0, 0)">
+          <rect width="568" height="66" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+          <circle cx="24" cy="24" r="10" fill="#E4F5EC"/>
+          <text x="24" y="28" fill="#2E9E63" font-family="system-ui, sans-serif" font-size="10" font-weight="800" text-anchor="middle">✓</text>
+          
+          <text x="44" y="22" fill="#122430" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">Kasir Rina mengedit Transaksi #DL-202611-042 (Ibu Sarah)</text>
+          <text x="550" y="22" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5" text-anchor="end">Hari Ini, 11:24 WIB</text>
+          
+          <!-- Changes -->
+          <rect x="44" y="32" width="510" height="24" rx="4" fill="#F8FAFC"/>
+          <text x="54" y="48" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Field diubah: <tspan fill="#D9822B" font-weight="600">DP (Uang Muka)</tspan> dari <tspan fill="#C23B32" text-decoration="line-through">Rp 0</tspan> ➔ <tspan fill="#2E9E63" font-weight="700">Rp 30.000 (Pelunasan Sebagian)</tspan></text>
+        </g>
+
+        <!-- Entry 2 -->
+        <g transform="translate(0, 76)">
+          <rect width="568" height="66" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+          <circle cx="24" cy="24" r="10" fill="#FBEBD8"/>
+          <text x="24" y="28" fill="#D9822B" font-family="system-ui, sans-serif" font-size="10" font-weight="800" text-anchor="middle">!</text>
+          
+          <text x="44" y="22" fill="#122430" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">Kasir Budi mengubah Berat Cucian #DL-202611-039 (Pak Agus)</text>
+          <text x="550" y="22" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5" text-anchor="end">Kemarin, 16:45 WIB</text>
+          
+          <rect x="44" y="32" width="510" height="24" rx="4" fill="#F8FAFC"/>
+          <text x="54" y="48" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Field diubah: <tspan fill="#1768AC" font-weight="600">Berat Kiloan</tspan> dari <tspan fill="#C23B32" text-decoration="line-through">4.0 Kg</tspan> ➔ <tspan fill="#2E9E63" font-weight="700">4.8 Kg (Penyesuaian timbangan basah)</tspan></text>
+        </g>
+
+        <!-- Entry 3 -->
+        <g transform="translate(0, 152)">
+          <rect width="568" height="66" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+          <circle cx="24" cy="24" r="10" fill="#EEF5F7"/>
+          <text x="24" y="28" fill="#1768AC" font-family="system-ui, sans-serif" font-size="10" font-weight="800" text-anchor="middle">★</text>
+          
+          <text x="44" y="22" fill="#122430" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">Pemilik Toko menyetujui Undangan Kasir Baru: maya@laundry.com</text>
+          <text x="550" y="22" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5" text-anchor="end">01 Nov 2026</text>
+          
+          <rect x="44" y="32" width="510" height="24" rx="4" fill="#F8FAFC"/>
+          <text x="54" y="48" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Status: <tspan fill="#2E9E63" font-weight="700">Kasir Aktif (Tanpa Hak Akses Pengeluaran &amp; Laporan Laba Bersih Toko)</tspan></text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

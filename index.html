@@ -395,11 +395,139 @@
     .tabbar,.appbar{display:none;}
   }
 
-  /* ---- Auth screen ---- */
+  /* ---- Auth screen & Showcase Landing ---- */
   #authScreen{
     position:fixed;inset:0;z-index:100;
     background:linear-gradient(160deg,var(--suds) 0%, var(--suds-deep) 65%);
-    display:flex;align-items:center;justify-content:center;padding:20px;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    overflow-y:auto;overflow-x:hidden;padding:32px 16px 80px;
+    -webkit-overflow-scrolling:touch;
+    scroll-behavior:smooth;
+  }
+  .auth-top-wrap{
+    width:100%;max-width:400px;display:flex;flex-direction:column;align-items:center;position:relative;
+    margin-bottom:20px;
+  }
+  .auth-scroll-hint{
+    margin-top:16px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);
+    color:#fff;padding:8px 16px;border-radius:24px;font-size:12px;font-weight:700;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;
+    backdrop-filter:blur(6px);text-decoration:none;text-align:center;
+  }
+  .auth-scroll-hint:hover{background:rgba(255,255,255,0.28);transform:translateY(2px);}
+
+  /* Section Showcase Fitur */
+  .auth-features-section{
+    width:100%;max-width:960px;margin-top:10px;
+    background:rgba(255,255,255,0.98);border-radius:28px;padding:40px 28px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.25);color:var(--ink);
+  }
+  @media(max-width:600px){
+    .auth-features-section{padding:24px 14px;border-radius:20px;}
+  }
+  .auth-features-header{text-align:center;max-width:720px;margin:0 auto 32px;}
+  .auth-badge-pill{
+    display:inline-block;background:var(--suds);color:#fff;padding:5px 14px;border-radius:20px;
+    font-size:11px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px;
+  }
+  .auth-features-header h2{
+    font-size:24px;color:var(--suds-deep);margin:0 0 10px;font-weight:800;line-height:1.3;
+  }
+  .auth-features-header p{
+    font-size:13.5px;color:var(--ink-soft);line-height:1.6;margin:0 auto 20px;
+  }
+
+  /* 4 Quick Highlight Cards */
+  .auth-quick-stats{
+    display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;margin-top:16px;
+  }
+  .quick-stat-card{
+    background:var(--mist);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center;
+  }
+  .quick-stat-icon{font-size:22px;display:block;margin-bottom:4px;}
+  .quick-stat-title{font-size:12px;font-weight:800;color:var(--suds-deep);display:block;}
+  .quick-stat-sub{font-size:10.5px;color:var(--ink-soft);display:block;margin-top:2px;}
+
+  /* Detailed Feature Cards List */
+  .auth-features-list{display:flex;flex-direction:column;gap:32px;margin-top:28px;}
+  .auth-feature-item{
+    background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;
+    display:grid;grid-template-columns:1fr 1.15fr;gap:24px;align-items:center;
+    box-shadow:0 6px 18px rgba(15,76,116,0.06);transition:transform 0.2s, box-shadow 0.2s;
+  }
+  .auth-feature-item:hover{
+    transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,76,116,0.10);
+  }
+  .auth-feature-item.reverse{grid-template-columns:1.15fr 1fr;}
+  .auth-feature-item.reverse .auth-feature-info{order:2;}
+  .auth-feature-item.reverse .auth-feature-media{order:1;}
+
+  @media(max-width:768px){
+    .auth-feature-item, .auth-feature-item.reverse{
+      grid-template-columns:1fr;gap:18px;padding:16px;
+    }
+    .auth-feature-item.reverse .auth-feature-info{order:1;}
+    .auth-feature-item.reverse .auth-feature-media{order:2;}
+  }
+
+  .auth-feature-tag{
+    font-size:10.5px;font-weight:800;color:var(--suds);text-transform:uppercase;letter-spacing:0.5px;
+    margin-bottom:6px;display:inline-flex;align-items:center;gap:6px;
+  }
+  .auth-feature-info h3{
+    font-size:18px;font-weight:800;color:var(--suds-deep);margin:0 0 10px;line-height:1.35;
+  }
+  .auth-problem-box{
+    background:#FFF5F5;border-left:3.5px solid var(--danger);border-radius:0 8px 8px 0;
+    padding:8px 12px;font-size:11.5px;color:#991B1B;margin-bottom:8px;line-height:1.45;
+  }
+  .auth-solution-box{
+    background:#F0FDF4;border-left:3.5px solid var(--success);border-radius:0 8px 8px 0;
+    padding:8px 12px;font-size:11.5px;color:#166534;margin-bottom:12px;line-height:1.45;
+  }
+  .auth-feature-bullets{list-style:none;padding:0;margin:0;}
+  .auth-feature-bullets li{
+    font-size:12px;color:var(--ink);margin-bottom:6px;display:flex;align-items:flex-start;gap:8px;line-height:1.4;
+  }
+  .auth-feature-bullets li span.check{color:var(--success);font-weight:800;flex:none;}
+
+  /* Screenshot Graphic Frame */
+  .auth-feature-media{
+    width:100%;border-radius:14px;overflow:hidden;
+    background:#F8FAFC;border:1px solid var(--line);
+    box-shadow:0 4px 14px rgba(0,0,0,0.06);
+  }
+  .auth-feature-screenshot{
+    width:100%;aspect-ratio:700 / 500;
+    background-size:contain;background-repeat:no-repeat;background-position:center;
+    background-color:#F8FAFC;display:block;
+  }
+  .auth-report-tab{
+    background:#fff;border:1px solid var(--line);border-radius:16px;padding:5px 12px;
+    font-size:11px;font-weight:700;color:var(--ink-soft);cursor:pointer;transition:all 0.15s;
+  }
+  .auth-report-tab.active{
+    background:var(--suds);border-color:var(--suds);color:#fff;box-shadow:0 2px 6px rgba(23,104,172,0.25);
+  }
+  .auth-feature-media-caption{
+    font-size:10.5px;color:var(--ink-soft);text-align:center;padding:5px 10px;background:#F1F5F9;
+    border-top:1px solid #E2E8F0;font-weight:600;
+  }
+
+  /* Bottom CTA Banner */
+  .auth-features-cta{
+    margin-top:36px;background:linear-gradient(145deg, var(--suds-deep) 0%, var(--suds) 100%);
+    border-radius:20px;padding:32px 20px;text-align:center;color:#fff;box-shadow:0 12px 30px rgba(15,76,116,0.22);
+  }
+  .auth-features-cta h3{font-size:20px;margin:0 0 8px;font-weight:800;color:#fff;}
+  .auth-features-cta p{font-size:13px;color:rgba(255,255,255,0.9);max-width:520px;margin:0 auto 18px;line-height:1.5;}
+  .btn-cta-signup{
+    background:#fff;color:var(--suds-deep);font-weight:800;font-size:14px;
+    padding:12px 26px;border-radius:12px;border:none;cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.18);transition:all 0.2s;display:inline-block;
+  }
+  .btn-cta-signup:hover{
+    transform:translateY(-2px);background:#F0FDF4;color:#166534;
   }
   #authScreen.hidden{display:none;}
   .auth-lang-switch{position:absolute;top:18px;right:18px;display:flex;gap:6px;z-index:5;}
@@ -1729,51 +1857,251 @@
 
 <!-- Auth screen -->
 <div id="authScreen">
-  <div class="auth-lang-switch">
-    <button type="button" class="auth-lang-btn" id="authLangBtnId" onclick="setLanguage('id')">🇮🇩 ID</button>
-    <button type="button" class="auth-lang-btn" id="authLangBtnEn" onclick="setLanguage('en')">🇬🇧 EN</button>
-  </div>
-  <div class="auth-card">
-    <div class="logo-wrap">
+  <div class="auth-top-wrap">
+    <div class="auth-lang-switch">
+      <button type="button" class="auth-lang-btn" id="authLangBtnId" onclick="setLanguage('id')">🇮🇩 ID</button>
+      <button type="button" class="auth-lang-btn" id="authLangBtnEn" onclick="setLanguage('en')">🇬🇧 EN</button>
+    </div>
+    <div class="auth-card">
+      <div class="logo-wrap">
 <img src="icons/logo-auth.png" alt="Logo Dokter Laundry" style="width:120px;height:120px;object-fit:contain;border-radius:16px;">
+      </div>
+      <h1>Dokter Laundry</h1>
+      <p class="sub" style="margin-bottom:2px;font-weight:600;">Diagnosa Masalah Admin, Kami Kasih Obatnya</p>
+      <p class="sub">Capek nota manual, hitung-hitung sendiri, dan laporan kacau gara-gara hitungan manual? Masuk dan mulai sembuhkan admin laundry kamu.</p>
+      <div class="auth-toggle">
+        <button id="tabMasuk" class="active" onclick="setAuthMode('masuk')">Masuk</button>
+        <button id="tabDaftar" onclick="setAuthMode('daftar')">Daftar</button>
+      </div>
+      <div id="regCodeField" style="display:none;">
+        <label for="regCodeInput">Kode Pendaftaran (opsional)</label>
+        <input id="regCodeInput" placeholder="Kosongkan untuk trial 30 hari gratis" style="text-transform:uppercase;">
+        <p style="font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin? <a href="#" onclick="openPaymentInfo();return false;" style="color:var(--suds);font-weight:600;">Lihat cara daftar &amp; bayar</a></p>
+      </div>
+      <label for="authEmail">Email</label>
+      <input id="authEmail" type="email" placeholder="nama@email.com">
+      <p id="authEmailHint" style="display:none;font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Pakai email aktif yang bisa kamu buka -- nanti ada link konfirmasi yang wajib diklik dulu sebelum bisa masuk.</p>
+      <label for="authPassword">Password</label>
+      <div style="position:relative;">
+        <input id="authPassword" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
+        <button type="button" onclick="togglePasswordVisibility('authPassword','eyeIcon')" aria-label="Tampilkan password"
+          style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;padding:10.5px;color:var(--ink-soft);cursor:pointer;">
+          <svg id="eyeIcon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="auth-msg" id="authMsg"></div>
+      <label id="authTosField" class="auth-tos-check" style="display:none;">
+        <input type="checkbox" id="authTosCheck">
+        <span>Saya sudah membaca &amp; setuju dengan <a href="syarat-ketentuan.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Refund</a></span>
+      </label>
+      <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
+      <button class="btn btn-ghost" style="margin-top:10px;" onclick="openForgotPassword()">Lupa Password?</button>
+      <button class="btn btn-outline" id="offlineContinueBtn" style="display:none;margin-top:10px;width:100%;" onclick="offlineContinueFromAuth()">📴 Lanjut offline (data terakhir)</button>
+      <div class="auth-footer-links">
+        <a href="syarat-ketentuan.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener">Kebijakan Refund</a>
+      </div>
     </div>
-    <h1>Dokter Laundry</h1>
-    <p class="sub" style="margin-bottom:2px;font-weight:600;">Diagnosa Masalah Admin, Kami Kasih Obatnya</p>
-    <p class="sub">Capek nota manual, hitung-hitung sendiri, dan laporan kacau gara-gara hitungan manual? Masuk dan mulai sembuhkan admin laundry kamu.</p>
-    <div class="auth-toggle">
-      <button id="tabMasuk" class="active" onclick="setAuthMode('masuk')">Masuk</button>
-      <button id="tabDaftar" onclick="setAuthMode('daftar')">Daftar</button>
+
+    <!-- Tombol Teaser Scroll ke Fitur -->
+    <a href="#authFeaturesSection" class="auth-scroll-hint" onclick="document.getElementById('authFeaturesSection').scrollIntoView({behavior:'smooth'});return false;">
+      ✨ Kenapa Ratusan Pemilik Laundry Memilih Kami? Lihat Fitur Unggulan 👇
+    </a>
+  </div>
+
+  <!-- Showcase Fitur Utama Dokter Laundry (Di Bagian Bawah Halaman Login & Daftar) -->
+  <section class="auth-features-section" id="authFeaturesSection">
+    
+    <!-- Header Showcase -->
+    <div class="auth-features-header">
+      <span class="auth-badge-pill">Fitur Unggulan Dokter Laundry</span>
+      <h2>Diagnosa Masalah Laundry Anda, Kami Berikan Solusinya</h2>
+      <p>Dirancang khusus dari pengalaman nyata ratusan pengusaha laundry di Indonesia. Tinggalkan nota kertas yang boros, hitungan kas yang sering selisih, dan risiko cucian tertukar.</p>
+      
+      <!-- 4 Quick Stats -->
+      <div class="auth-quick-stats">
+        <div class="quick-stat-card">
+          <span class="quick-stat-icon">⚡</span>
+          <span class="quick-stat-title">3 Detik</span>
+          <span class="quick-stat-sub">Terbit &amp; Cetak Nota</span>
+        </div>
+        <div class="quick-stat-card">
+          <span class="quick-stat-icon">📋</span>
+          <span class="quick-stat-title">Papan Kerja</span>
+          <span class="quick-stat-sub">Alur Cuci Anti-Tertukar</span>
+        </div>
+        <div class="quick-stat-card">
+          <span class="quick-stat-icon">💰</span>
+          <span class="quick-stat-title">Kas Riil</span>
+          <span class="quick-stat-sub">Laporan Keuangan Pasti</span>
+        </div>
+        <div class="quick-stat-card">
+          <span class="quick-stat-icon">📴</span>
+          <span class="quick-stat-title">Mode Offline</span>
+          <span class="quick-stat-sub">Tetap Jalan Tanpa Kuota</span>
+        </div>
+      </div>
     </div>
-    <div id="regCodeField" style="display:none;">
-      <label for="regCodeInput">Kode Pendaftaran (opsional)</label>
-      <input id="regCodeInput" placeholder="Kosongkan untuk trial 30 hari gratis" style="text-transform:uppercase;">
-      <p style="font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin? <a href="#" onclick="openPaymentInfo();return false;" style="color:var(--suds);font-weight:600;">Lihat cara daftar &amp; bayar</a></p>
+
+    <!-- Rincian Fitur Utama & Foto Screenshot -->
+    <div class="auth-features-list">
+
+      <!-- Fitur 1: Kasir & Nota Digital -->
+      <article class="auth-feature-item">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 01 • KASIR &amp; NOTA OTOMATIS</span>
+          <h3>Kasir Kilat: Kirim Nota WhatsApp &amp; Cetak Bluetooth Thermal</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Kertas nota manual mahal, gampang basah/hilang, tulisan tangan kasir sulit dibaca, dan pelanggan sering lupa sisa tagihan.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Input order dalam 3 detik, otomatis hitung kiloan, satuan, diskon, dan DP. Kirim nota resmi ke WA atau cetak nirkabel.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Kirim Nota Otomatis ke WA:</b> Pelanggan langsung menerima rincian cucian rapi tanpa biaya cetak kertas.</li>
+            <li><span class="check">✓</span> <b>Printer Bluetooth 58mm/80mm:</b> Sekali sambung via Bluetooth nirkabel langsung jalan tanpa install driver rumit.</li>
+            <li><span class="check">✓</span> <b>Status DP &amp; Pelunasan:</b> Status pembayaran terpisah transparan antara uang muka dan sisa tagihan saat ambil.</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media" style="display:flex;flex-direction:column;align-items:center;background:#F1F5F9;padding:16px 12px 0;">
+          <div class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-kasir-nota.png');width:100%;max-width:250px;aspect-ratio:241/424;background-size:contain;background-repeat:no-repeat;background-position:center;box-shadow:0 8px 24px rgba(0,0,0,0.12);border-radius:10px;background-color:#fff;" role="img" aria-label="Foto Screenshot Nota Kasir Laundry"></div>
+          <div class="auth-feature-media-caption" style="width:100%;margin-top:14px;">Tampilan Nota Thermal &amp; Kirim WhatsApp Resmi (Laundry Batapas)</div>
+        </div>
+      </article>
+
+      <!-- Fitur 2: Papan Kerja Kanban -->
+      <article class="auth-feature-item reverse">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 02 • ALUR OPERASIONAL CUCIAN</span>
+          <h3>Papan Kerja / Daftar Tugas Digital: Anti Cucian Tertukar &amp; Hilang</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Karyawan bingung mana cucian yang harus didahulukan, cucian tercecer atau tertukar antar pelanggan, komplain pelanggan membludak.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Papan alur visual meniru papan tulis fisik: Antrian ➔ Cuci ➔ Kering ➔ Setrika ➔ Siap Ambil.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Label Prioritas Kilat / Express:</b> Order mendesak otomatis ditandai merah agar dikerjakan lebih dulu.</li>
+            <li><span class="check">✓</span> <b>Catatan Posisi Rak (Rak A-01, dll):</b> Kasir langsung tahu letak pakaian saat pelanggan datang mengambil.</li>
+            <li><span class="check">✓</span> <b>Notifikasi Otomatis Cucian Selesai:</b> Kirim pesan WA ke pelanggan begitu status cucian digeser ke "Siap Ambil".</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media">
+          <div class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-papan-kerja.png');aspect-ratio:1024/498;background-size:cover;background-position:top center;" role="img" aria-label="Foto Screenshot Papan Tugas Alur Cucian"></div>
+          <div class="auth-feature-media-caption">Papan Kerja Digital: Pantau Alur Cucian Setiap Hari</div>
+        </div>
+      </article>
+
+      <!-- Fitur 3: Laporan Keuangan Kas Riil -->
+      <article class="auth-feature-item">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 03 • KEUANGAN &amp; AKUNTANSI</span>
+          <h3>Laporan Keuangan Kas Riil: Uang Masuk Pasti, Tanpa Omzet Semu</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Merasa omzet puluhan juta tapi uang di laci kasir tidak ada karena kas bercampur dengan piutang yang belum dilunasi.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Akuntansi berbasis kas riil — hanya menghitung DP dan pelunasan nyata yang sudah masuk kantong.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Pemisahan Kas vs Piutang:</b> Pantau dengan tepat berapa uang tunai riil vs berapa nota yang masih menggantung.</li>
+            <li><span class="check">✓</span> <b>Buku Pengeluaran &amp; Laba Bersih:</b> Catat belanja deterjen, pewangi, listrik, dan gaji untuk melihat profit bersih toko.</li>
+            <li><span class="check">✓</span> <b>Ekspor Laporan PDF Resmi:</b> Unduh laporan bulanan siap cetak dalam format PDF untuk arsip pemilik.</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media">
+          <div style="display:flex;gap:6px;padding:8px 10px;background:#F1F5F9;border-bottom:1px solid #E2E8F0;justify-content:center;">
+            <button type="button" class="auth-report-tab active" onclick="switchReportPreview(this, 'ringkasan')">📊 Kas &amp; Omzet Bulan Ini</button>
+            <button type="button" class="auth-report-tab" onclick="switchReportPreview(this, 'grafik')">📈 Tren 6 Bulan &amp; Ekspor PDF</button>
+          </div>
+          <div id="reportImgRingkasan" class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-laporan-keuangan-ringkasan.png');aspect-ratio:1024/482;background-size:cover;background-position:top center;" role="img" aria-label="Screenshot Ringkasan Laporan Keuangan"></div>
+          <div id="reportImgGrafik" class="auth-feature-screenshot" style="display:none;background-image:url('img/screenshots/fitur-laporan-keuangan-grafik.png');aspect-ratio:1024/430;background-size:cover;background-position:top center;" role="img" aria-label="Screenshot Grafik Omzet dan Laba Rugi"></div>
+          <div class="auth-feature-media-caption">Laporan Riil Dokter Laundry: Kas Masuk, Piutang, Grafik Tren &amp; Laba Rugi</div>
+        </div>
+      </article>
+
+      <!-- Fitur 4: Paket Langganan Member -->
+      <article class="auth-feature-item reverse">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 04 • LOYALITAS &amp; CASHFLOW</span>
+          <h3>Paket Kiloan Member &amp; Langganan: Uang Tunai Masuk di Depan</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Pelanggan mudah pindah ke laundry sebelah, dan kas toko sering kembang-kempis di awal bulan.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Jual paket deposit kuota (50 kg, 100 kg, atau kemeja satuan). Kas jutaan masuk di muka, pelanggan terkunci setia.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Potong Kuota Otomatis:</b> Tiap pelanggan drop pakaian, kuota berkurang otomatis tanpa perlu kartu kertas kupon.</li>
+            <li><span class="check">✓</span> <b>Pantau Masa Aktif &amp; Riwayat:</b> Tanggal jatuh tempo dan sisa kg terpampang jelas di layar kasir.</li>
+            <li><span class="check">✓</span> <b>Tingkatkan Omzet 2x Lipat:</b> Mempermudah kerja sama cuci seragam kantor, keluarga, atau anak kos.</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media">
+          <div class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-paket-pelanggan.svg');" role="img" aria-label="Foto Screenshot Paket Pelanggan"></div>
+          <div class="auth-feature-media-caption">Manajemen Paket Kuota Kiloan &amp; Pelanggan Member</div>
+        </div>
+      </article>
+
+      <!-- Fitur 5: Keamanan & Multi-Kasir -->
+      <article class="auth-feature-item">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 05 • KEAMANAN &amp; HAK AKSES</span>
+          <h3>Anti-Kecurangan: Jejak Audit Riwayat Edit &amp; Akun Kasir Terpisah</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Pemilik cemas kasir memanipulasi data nota, mengubah harga/DP diam-diam, atau menghapus transaksi tanpa izin.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Pemisahan akun Pemilik vs Kasir, dilengkapi sistem jejak audit riwayat edit yang tidak bisa dihapus.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Hak Akses Terkunci:</b> Kasir tidak dapat melihat laporan keuntungan, pengeluaran sensitif, atau data rahasia toko.</li>
+            <li><span class="check">✓</span> <b>Pencatatan Audit Otomatis:</b> Siapa yang mengedit transaksi, kapan waktunya, dan field apa yang diubah terekam abadi.</li>
+            <li><span class="check">✓</span> <b>Dukungan Multi-Outlet / Cabang:</b> Kelola beberapa cabang laundry dalam satu akun pemilik terpusat.</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media">
+          <div class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-keamanan-audit.svg');" role="img" aria-label="Foto Screenshot Jejak Audit dan Keamanan"></div>
+          <div class="auth-feature-media-caption">Audit Trail: Jejak Rekam Perubahan Data Transaksi Kasir</div>
+        </div>
+      </article>
+
+      <!-- Fitur 6: Mode Offline PWA -->
+      <article class="auth-feature-item reverse">
+        <div class="auth-feature-info">
+          <span class="auth-feature-tag">FITUR 06 • TEKNOLOGI OFFLINE &amp; PWA</span>
+          <h3>100% Siap Offline: Tetap Jalan Saat Mati Lampu &amp; Sinyal Macet</h3>
+          <div class="auth-problem-box">
+            <b>❌ Masalah Laundry Umum:</b> Aplikasi kasir online lain langsung macet total (blank) begitu listrik padam, kuota habis, atau sinyal operator drop.
+          </div>
+          <div class="auth-solution-box">
+            <b>✅ Solusi Dokter Laundry:</b> Arsitektur Progressive Web App (PWA) dengan penyimpanan lokal. Kasir tetap bisa bekerja tanpa internet.
+          </div>
+          <ul class="auth-feature-bullets">
+            <li><span class="check">✓</span> <b>Buka App Tanpa Internet:</b> Caching cerdas memastikan aplikasi terbuka instan kapan saja.</li>
+            <li><span class="check">✓</span> <b>Antrian Sinkronisasi Otomatis:</b> Transaksi offline disimpan aman di HP/laptop dan otomatis diunggah begitu online.</li>
+            <li><span class="check">✓</span> <b>Bisa Dipasang di Homescreen:</b> Jadikan aplikasi di HP Android, iPhone, atau laptop tanpa download file puluhan MB.</li>
+          </ul>
+        </div>
+        <div class="auth-feature-media">
+          <div class="auth-feature-screenshot" style="background-image:url('img/screenshots/fitur-mode-offline.svg');" role="img" aria-label="Foto Screenshot Mode Offline dan PWA"></div>
+          <div class="auth-feature-media-caption">Teknologi Offline Snapshot: Bisnis Tetap Berjalan Tanpa Gangguan</div>
+        </div>
+      </article>
+
     </div>
-    <label for="authEmail">Email</label>
-    <input id="authEmail" type="email" placeholder="nama@email.com">
-    <p id="authEmailHint" style="display:none;font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Pakai email aktif yang bisa kamu buka -- nanti ada link konfirmasi yang wajib diklik dulu sebelum bisa masuk.</p>
-    <label for="authPassword">Password</label>
-    <div style="position:relative;">
-      <input id="authPassword" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
-      <button type="button" onclick="togglePasswordVisibility('authPassword','eyeIcon')" aria-label="Tampilkan password"
-        style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;padding:10.5px;color:var(--ink-soft);cursor:pointer;">
-        <svg id="eyeIcon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-        </svg>
+
+    <!-- Bottom CTA: Ajak Pengguna Daftar Sekarang -->
+    <div class="auth-features-cta">
+      <h3>Siap Buat Pengelolaan Laundry Anda Lebih Rapi &amp; Menguntungkan?</h3>
+      <p>Coba langsung seluruh fitur Dokter Laundry tanpa risiko. Dapatkan <b>Trial Gratis 30 Hari Penuh</b> tanpa perlu kartu kredit.</p>
+      <button type="button" class="btn-cta-signup" onclick="scrollToAuthForm('daftar')">
+        Daftar Sekarang — Mulai Trial Gratis 30 Hari 🚀
       </button>
     </div>
-    <div class="auth-msg" id="authMsg"></div>
-    <label id="authTosField" class="auth-tos-check" style="display:none;">
-      <input type="checkbox" id="authTosCheck">
-      <span>Saya sudah membaca &amp; setuju dengan <a href="syarat-ketentuan.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Refund</a></span>
-    </label>
-    <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
-    <button class="btn btn-ghost" style="margin-top:10px;" onclick="openForgotPassword()">Lupa Password?</button>
-    <button class="btn btn-outline" id="offlineContinueBtn" style="display:none;margin-top:10px;width:100%;" onclick="offlineContinueFromAuth()">📴 Lanjut offline (data terakhir)</button>
-    <div class="auth-footer-links">
-      <a href="syarat-ketentuan.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener">Kebijakan Refund</a>
-    </div>
-  </div>
+
+  </section>
 </div>
 
 <!-- Forgot password modal -->

@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="100%" height="100%">
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F4C74" flood-opacity="0.12" />
+    </filter>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1768AC"/>
+      <stop offset="100%" stop-color="#0F4C74"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4FD1C5"/>
+      <stop offset="100%" stop-color="#028090"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="700" height="500" fill="#F4F8FA" rx="20"/>
+
+  <!-- Device Window Mockup -->
+  <g transform="translate(30, 25)" filter="url(#shadow)">
+    <!-- Browser/App Header -->
+    <rect width="640" height="450" fill="#FFFFFF" rx="16"/>
+    <rect width="640" height="42" fill="#0F4C74" rx="16" clip-path="polygon(0 0, 640 0, 640 42, 0 42)"/>
+    
+    <!-- Header Controls -->
+    <circle cx="25" cy="21" r="5" fill="#FF5F56"/>
+    <circle cx="42" cy="21" r="5" fill="#FFBD2E"/>
+    <circle cx="59" cy="21" r="5" fill="#27C93F"/>
+    
+    <!-- Header Title -->
+    <text x="320" y="26" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" text-anchor="middle">Dokter Laundry — Kasir &amp; Nota Digital</text>
+    
+    <!-- Status Badge -->
+    <rect x="525" y="10" width="95" height="22" rx="11" fill="#4FD1C5" fill-opacity="0.25"/>
+    <text x="572" y="25" fill="#E4F5EC" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">⚡ Kasir Kilat</text>
+
+    <!-- Content Split Layout -->
+    <!-- Left Column: Form Transaksi Baru -->
+    <g transform="translate(24, 60)">
+      <rect width="280" height="366" fill="#F8FAFC" rx="12" stroke="#E2E8F0" stroke-width="1"/>
+      <text x="16" y="28" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="14" font-weight="700">Form Transaksi Baru</text>
+      
+      <!-- Input: Pelanggan -->
+      <text x="16" y="54" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11" font-weight="600">Nama Pelanggan &amp; WhatsApp</text>
+      <rect x="16" y="62" width="248" height="32" rx="6" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+      <text x="26" y="82" fill="#122430" font-family="system-ui, sans-serif" font-size="12">Ibu Sarah (0812-9876-5432)</text>
+      
+      <!-- Layanan Dipilih -->
+      <text x="16" y="112" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11" font-weight="600">Layanan &amp; Berat</text>
+      <rect x="16" y="120" width="248" height="66" rx="8" fill="#FFFFFF" stroke="#1768AC" stroke-width="1.5"/>
+      <text x="26" y="142" fill="#122430" font-family="system-ui, sans-serif" font-size="12" font-weight="600">Cuci Komplit Reguler (2 Hari)</text>
+      <text x="26" y="162" fill="#1768AC" font-family="system-ui, sans-serif" font-size="13" font-weight="700">4.5 Kg × Rp 8.000</text>
+      <text x="210" y="162" fill="#122430" font-family="system-ui, sans-serif" font-size="13" font-weight="700">Rp 36.000</text>
+
+      <!-- Layanan Satuan Tambahan -->
+      <rect x="16" y="194" width="248" height="42" rx="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+      <text x="26" y="212" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="600">Bedcover King (1 pcs)</text>
+      <text x="210" y="222" fill="#122430" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Rp 25.000</text>
+
+      <!-- Ringkasan Bayar -->
+      <g transform="translate(16, 248)">
+        <rect width="248" height="64" rx="8" fill="#EEF5F7"/>
+        <text x="12" y="22" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Total Tagihan:</text>
+        <text x="236" y="22" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="13" font-weight="700" text-anchor="end">Rp 61.000</text>
+        <text x="12" y="44" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Uang Muka (DP):</text>
+        <text x="236" y="44" fill="#2E9E63" font-family="system-ui, sans-serif" font-size="13" font-weight="700" text-anchor="end">Rp 30.000</text>
+      </g>
+
+      <!-- Tombol Simpan -->
+      <rect x="16" y="322" width="248" height="34" rx="8" fill="url(#primaryGrad)"/>
+      <text x="140" y="344" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">✓ Simpan &amp; Terbitkan Nota</text>
+    </g>
+
+    <!-- Right Column: Nota Digital Siap Kirim -->
+    <g transform="translate(328, 60)">
+      <!-- Nota Paper Card -->
+      <rect width="288" height="366" fill="#FBF8EF" rx="12" stroke="#DCE6EA" stroke-width="1"/>
+      
+      <!-- Nota Header -->
+      <text x="144" y="28" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="15" font-weight="800" text-anchor="middle">DOKTER LAUNDRY</text>
+      <text x="144" y="44" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">Jl. Ahmad Yani No. 42 • WA: 0812-3344-5566</text>
+      
+      <line x1="20" y1="54" x2="268" y2="54" stroke="#DCE6EA" stroke-dasharray="4,4" stroke-width="1.5"/>
+
+      <!-- Nota Info -->
+      <text x="20" y="72" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Nota: <tspan fill="#122430" font-weight="700">#DL-202611-042</tspan></text>
+      <text x="268" y="72" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11" text-anchor="end">03 Nov 2026</text>
+      <text x="20" y="90" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Pelanggan: <tspan fill="#122430" font-weight="600">Ibu Sarah</tspan></text>
+      <text x="268" y="90" fill="#D9822B" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="end">⏳ DP Diterima</text>
+
+      <line x1="20" y1="102" x2="268" y2="102" stroke="#DCE6EA" stroke-width="1"/>
+
+      <!-- Item Rows -->
+      <text x="20" y="122" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="600">Cuci Komplit Reguler</text>
+      <text x="20" y="138" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">4.5 Kg × Rp 8.000</text>
+      <text x="268" y="132" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="end">Rp 36.000</text>
+
+      <text x="20" y="162" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="600">Bedcover King (1 pcs)</text>
+      <text x="268" y="168" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="end">Rp 25.000</text>
+
+      <line x1="20" y1="185" x2="268" y2="185" stroke="#DCE6EA" stroke-dasharray="4,4" stroke-width="1.5"/>
+
+      <!-- Total & Sisa Tagihan -->
+      <text x="20" y="205" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Total</text>
+      <text x="268" y="205" fill="#122430" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="end">Rp 61.000</text>
+
+      <text x="20" y="225" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Kas Diterima (DP)</text>
+      <text x="268" y="225" fill="#2E9E63" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="end">Rp 30.000</text>
+
+      <rect x="20" y="238" width="248" height="28" rx="6" fill="#FBEBD8"/>
+      <text x="30" y="256" fill="#D9822B" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Sisa Saat Ambil:</text>
+      <text x="258" y="256" fill="#D9822B" font-family="system-ui, sans-serif" font-size="12" font-weight="800" text-anchor="end">Rp 31.000</text>
+
+      <!-- Action Buttons -->
+      <g transform="translate(20, 276)">
+        <!-- WhatsApp Button -->
+        <rect width="248" height="34" rx="8" fill="#25D366"/>
+        <text x="124" y="22" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">📲 Kirim Nota via WhatsApp</text>
+      </g>
+
+      <g transform="translate(20, 318)">
+        <!-- Bluetooth Thermal Print Button -->
+        <rect width="248" height="34" rx="8" fill="#1768AC"/>
+        <text x="124" y="22" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">🖨️ Cetak Printer Bluetooth (58/80mm)</text>
+      </g>
+    </g>
+  </g>
+</svg>
