@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="100%" height="100%">
+  <defs>
+    <filter id="shadow2" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F4C74" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="700" height="500" fill="#F4F8FA" rx="20"/>
+
+  <!-- Device Window Mockup -->
+  <g transform="translate(30, 25)" filter="url(#shadow2)">
+    <!-- App Window -->
+    <rect width="640" height="450" fill="#FFFFFF" rx="16"/>
+    <rect width="640" height="42" fill="#0F4C74" rx="16" clip-path="polygon(0 0, 640 0, 640 42, 0 42)"/>
+    
+    <!-- Window Controls -->
+    <circle cx="25" cy="21" r="5" fill="#FF5F56"/>
+    <circle cx="42" cy="21" r="5" fill="#FFBD2E"/>
+    <circle cx="59" cy="21" r="5" fill="#27C93F"/>
+    
+    <text x="320" y="26" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="13" font-weight="600" text-anchor="middle">Dokter Laundry — Papan Kerja &amp; Alur Cucian</text>
+    
+    <!-- Action Button inside Header -->
+    <rect x="500" y="9" width="124" height="24" rx="6" fill="#4FD1C5" fill-opacity="0.25"/>
+    <text x="562" y="25" fill="#E4F5EC" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">📥 Unduh Papan Kerja</text>
+
+    <!-- Subheader with Filter & Days -->
+    <g transform="translate(20, 52)">
+      <rect width="600" height="34" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+      <text x="14" y="22" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="12" font-weight="700">📋 Papan Alur Proses (Anti Cucian Tertukar &amp; Hilang)</text>
+      <rect x="495" y="6" width="95" height="22" rx="6" fill="#1768AC"/>
+      <text x="542" y="21" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" text-anchor="middle">Hari Ini: 18 Order</text>
+    </g>
+
+    <!-- Kanban / Work Columns -->
+    <g transform="translate(20, 96)">
+      
+      <!-- Column 1: Antrian Cucian -->
+      <g transform="translate(0, 0)">
+        <rect width="142" height="334" rx="10" fill="#EEF5F7"/>
+        <rect width="142" height="30" rx="10" fill="#E0EDF2" clip-path="polygon(0 0, 142 0, 142 30, 0 30)"/>
+        <text x="12" y="20" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">⏳ Antrian (3)</text>
+        
+        <!-- Task Card 1 -->
+        <rect x="8" y="38" width="126" height="78" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+        <rect x="14" y="44" width="48" height="16" rx="4" fill="#C23B32" fill-opacity="0.15"/>
+        <text x="38" y="56" fill="#C23B32" font-family="system-ui, sans-serif" font-size="9" font-weight="800" text-anchor="middle">KILAT 4 JAM</text>
+        <text x="14" y="74" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Pak Hendra</text>
+        <text x="14" y="89" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-089 • 3.2 Kg</text>
+        <text x="14" y="103" fill="#D9822B" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700">Tenggat: 14:00</text>
+
+        <!-- Task Card 2 -->
+        <rect x="8" y="124" width="126" height="74" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+        <text x="14" y="142" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Bu Mega</text>
+        <text x="14" y="157" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-090 • 6.0 Kg</text>
+        <rect x="14" y="166" width="55" height="16" rx="4" fill="#EEF5F7"/>
+        <text x="41" y="178" fill="#1768AC" font-family="system-ui, sans-serif" font-size="9" font-weight="700" text-anchor="middle">Cuci Reguler</text>
+      </g>
+
+      <!-- Column 2: Proses Cuci & Kering -->
+      <g transform="translate(152, 0)">
+        <rect width="142" height="334" rx="10" fill="#EEF5F7"/>
+        <rect width="142" height="30" rx="10" fill="#E0EDF2" clip-path="polygon(0 0, 142 0, 142 30, 0 30)"/>
+        <text x="12" y="20" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">🧼 Cuci / Kering (4)</text>
+
+        <!-- Task Card -->
+        <rect x="8" y="38" width="126" height="82" rx="8" fill="#FFFFFF" stroke="#1768AC" stroke-width="1.5"/>
+        <rect x="14" y="44" width="62" height="16" rx="4" fill="#1768AC" fill-opacity="0.15"/>
+        <text x="45" y="56" fill="#1768AC" font-family="system-ui, sans-serif" font-size="9" font-weight="800" text-anchor="middle">MESIN 02</text>
+        <text x="14" y="75" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Ibu Sarah</text>
+        <text x="14" y="90" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-042 • 4.5 Kg</text>
+        <rect x="14" y="98" width="112" height="6" rx="3" fill="#E2E8F0"/>
+        <rect x="14" y="98" width="75" height="6" rx="3" fill="#4FD1C5"/>
+
+        <!-- Task Card Bedcover -->
+        <rect x="8" y="128" width="126" height="74" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+        <text x="14" y="146" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Pak Dokter Rian</text>
+        <text x="14" y="161" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-088 • Bedcover</text>
+        <text x="14" y="180" fill="#D9822B" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700">Masuk Pengering</text>
+      </g>
+
+      <!-- Column 3: Setrika & Lipat -->
+      <g transform="translate(304, 0)">
+        <rect width="142" height="334" rx="10" fill="#EEF5F7"/>
+        <rect width="142" height="30" rx="10" fill="#E0EDF2" clip-path="polygon(0 0, 142 0, 142 30, 0 30)"/>
+        <text x="12" y="20" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">🧺 Setrika (2)</text>
+
+        <rect x="8" y="38" width="126" height="78" rx="8" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+        <text x="14" y="56" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Mbak Nadia</text>
+        <text x="14" y="72" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-082 • 5.5 Kg</text>
+        <rect x="14" y="82" width="68" height="18" rx="4" fill="#FBEBD8"/>
+        <text x="48" y="95" fill="#D9822B" font-family="system-ui, sans-serif" font-size="9" font-weight="700" text-anchor="middle">Sedang Setrika</text>
+      </g>
+
+      <!-- Column 4: Siap Diambil -->
+      <g transform="translate(456, 0)">
+        <rect width="144" height="334" rx="10" fill="#E4F5EC" stroke="#2E9E63" stroke-width="1.5"/>
+        <rect width="144" height="30" rx="10" fill="#2E9E63" clip-path="polygon(0 0, 144 0, 144 30, 0 30)"/>
+        <text x="12" y="20" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="11.5" font-weight="800">✅ Siap Ambil (5)</text>
+
+        <!-- Ready Card 1 -->
+        <rect x="8" y="38" width="128" height="84" rx="8" fill="#FFFFFF" stroke="#A7F3D0" stroke-width="1"/>
+        <text x="14" y="56" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Mas Dimas</text>
+        <text x="14" y="72" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-076 • Rak B-03</text>
+        <rect x="14" y="82" width="114" height="24" rx="5" fill="#25D366"/>
+        <text x="71" y="98" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="9.5" font-weight="700" text-anchor="middle">📲 Kirim WA Selesai</text>
+
+        <!-- Ready Card 2 -->
+        <rect x="8" y="130" width="128" height="74" rx="8" fill="#FFFFFF" stroke="#A7F3D0" stroke-width="1"/>
+        <text x="14" y="148" fill="#122430" font-family="system-ui, sans-serif" font-size="11" font-weight="700">Ibu Ratna</text>
+        <text x="14" y="164" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10">#DL-079 • Rak A-01</text>
+        <text x="14" y="186" fill="#2E9E63" font-family="system-ui, sans-serif" font-size="10" font-weight="700">Sudah Lunas (Rp 40k)</text>
+      </g>
+    </g>
+  </g>
+</svg>

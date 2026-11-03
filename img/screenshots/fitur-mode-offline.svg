@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="100%" height="100%">
+  <defs>
+    <filter id="shadow6" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F4C74" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <rect width="700" height="500" fill="#F4F8FA" rx="20"/>
+
+  <g transform="translate(30, 25)" filter="url(#shadow6)">
+    <rect width="640" height="450" fill="#FFFFFF" rx="16"/>
+    <rect width="640" height="42" fill="#0F4C74" rx="16" clip-path="polygon(0 0, 640 0, 640 42, 0 42)"/>
+    
+    <circle cx="25" cy="21" r="5" fill="#FF5F56"/>
+    <circle cx="42" cy="21" r="5" fill="#FFBD2E"/>
+    <circle cx="59" cy="21" r="5" fill="#27C93F"/>
+    
+    <text x="320" y="26" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="13" font-weight="600" text-anchor="middle">Dokter Laundry — Mode Kerja Offline &amp; PWA Siap Pakai</text>
+    
+    <rect x="500" y="9" width="124" height="24" rx="6" fill="#F2A54A"/>
+    <text x="562" y="25" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">📴 Offline Ready</text>
+
+    <!-- Prominent Offline Banner Mockup -->
+    <g transform="translate(20, 54)">
+      <rect width="600" height="44" rx="8" fill="#FBEBD8" stroke="#D9822B" stroke-width="1.5"/>
+      <text x="20" y="27" fill="#D9822B" font-family="system-ui, sans-serif" font-size="12" font-weight="700">📴 Mode offline aktif — Internet sedang mati? Tidak masalah!</text>
+      <text x="580" y="27" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11" text-anchor="end">3 transaksi tersimpan lokal</text>
+    </g>
+
+    <!-- Side-by-side comparison: Normal Cashier vs Cloud Cashier -->
+    <g transform="translate(20, 112)">
+      <!-- Left: Aplikasi Kasir Biasa (Mati saat sinyal hilang) -->
+      <g transform="translate(0, 0)">
+        <rect width="288" height="220" rx="12" fill="#FDF2F2" stroke="#FCA5A5" stroke-width="1"/>
+        <rect width="288" height="34" rx="12" fill="#EF4444" clip-path="polygon(0 0, 288 0, 288 34, 0 34)"/>
+        <text x="144" y="22" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">❌ Kasir Cloud Biasa Lainnya</text>
+        
+        <text x="20" y="65" fill="#C23B32" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Saat Sinyal Drop / Mati Lampu:</text>
+        <text x="20" y="92" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Halaman loading terus-menerus (stuck).</text>
+        <text x="20" y="118" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Tidak bisa timbang &amp; cetak nota ke pelanggan.</text>
+        <text x="20" y="144" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Kasir panik kembali pakai nota kertas.</text>
+        <text x="20" y="170" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Hitungan berantakan dan data hilang.</text>
+        
+        <rect x="20" y="184" width="248" height="24" rx="6" fill="#FEE2E2"/>
+        <text x="144" y="200" fill="#B91C1C" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" text-anchor="middle">Operasional toko terhenti total</text>
+      </g>
+
+      <!-- Right: Dokter Laundry PWA -->
+      <g transform="translate(312, 0)">
+        <rect width="288" height="220" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.5"/>
+        <rect width="288" height="34" rx="12" fill="#2E9E63" clip-path="polygon(0 0, 288 0, 288 34, 0 34)"/>
+        <text x="144" y="22" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="middle">✅ Dokter Laundry PWA</text>
+        
+        <text x="20" y="65" fill="#15803D" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Teknologi Offline Snapshot &amp; Queue:</text>
+        <text x="20" y="92" fill="#166534" font-family="system-ui, sans-serif" font-size="11">✓ Tetap bisa buka app tanpa kuota internet.</text>
+        <text x="20" y="118" fill="#166534" font-family="system-ui, sans-serif" font-size="11">✓ Catat transaksi, hitung kiloan, cetak nota.</text>
+        <text x="20" y="144" fill="#166534" font-family="system-ui, sans-serif" font-size="11">✓ Tersimpan aman di memori HP/komputer.</text>
+        <text x="20" y="170" fill="#166534" font-family="system-ui, sans-serif" font-size="11">✓ Otomatis upload saat internet nyala kembali!</text>
+
+        <rect x="20" y="184" width="248" height="24" rx="6" fill="#DCFCE7"/>
+        <text x="144" y="200" fill="#15803D" font-family="system-ui, sans-serif" font-size="10.5" font-weight="700" text-anchor="middle">Operasional tetap lancar 100%</text>
+      </g>
+    </g>
+
+    <!-- Bottom Installable PWA Banner -->
+    <g transform="translate(20, 348)">
+      <rect width="600" height="74" rx="10" fill="#EEF5F7" stroke="#CBD5E1" stroke-width="1"/>
+      <circle cx="36" cy="37" r="18" fill="#1768AC"/>
+      <text x="36" y="43" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="16" text-anchor="middle">📲</text>
+      
+      <text x="68" y="28" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="12" font-weight="800">Pasang Langsung ke Layar Utama (Homescreen HP &amp; Laptop)</text>
+      <text x="68" y="46" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Tanpa perlu download dari PlayStore / AppStore yang makan memori ratusan MB.</text>
+      <text x="68" y="62" fill="#1768AC" font-family="system-ui, sans-serif" font-size="10.5" font-weight="600">Klik "Tambahkan ke Layar Utama" di browser Chrome/Safari, langsung jadi aplikasi!</text>
+    </g>
+  </g>
+</svg>

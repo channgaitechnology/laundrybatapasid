@@ -40,7 +40,7 @@
  * di index.html, SESUAIKAN APP_SHELL / CDN_ASSETS di bawah dan NAIKKAN
  * CACHE_NAME.
  */
-const CACHE_NAME = 'laundry-batapas-v12';
+const CACHE_NAME = 'laundry-batapas-v13';
 /* Cache CDN terpisah: isinya pustaka dengan versi dipin, tidak perlu ikut
    dibuang tiap CACHE_NAME dinaikkan (hemat unduhan ulang ~600 KB). Naikkan
    suffix-nya HANYA kalau URL pustaka di index.html berubah. */
@@ -55,6 +55,16 @@ const APP_SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/logo-auth.png',
+  'img/screenshots/fitur-kasir-nota.svg',
+  'img/screenshots/fitur-kasir-nota.png',
+  'img/screenshots/fitur-papan-kerja.png',
+  'img/screenshots/fitur-papan-kerja.svg',
+  'img/screenshots/fitur-laporan-keuangan-ringkasan.png',
+  'img/screenshots/fitur-laporan-keuangan-grafik.png',
+  'img/screenshots/fitur-laporan-keuangan.svg',
+  'img/screenshots/fitur-paket-pelanggan.svg',
+  'img/screenshots/fitur-keamanan-audit.svg',
+  'img/screenshots/fitur-mode-offline.svg',
   'js/00-globals.js',
   'js/01-auth.js',
   'js/02-init-data.js',

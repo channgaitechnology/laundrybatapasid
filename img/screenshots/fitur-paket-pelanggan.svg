@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" width="100%" height="100%">
+  <defs>
+    <filter id="shadow4" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F4C74" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <rect width="700" height="500" fill="#F4F8FA" rx="20"/>
+
+  <g transform="translate(30, 25)" filter="url(#shadow4)">
+    <rect width="640" height="450" fill="#FFFFFF" rx="16"/>
+    <rect width="640" height="42" fill="#0F4C74" rx="16" clip-path="polygon(0 0, 640 0, 640 42, 0 42)"/>
+    
+    <circle cx="25" cy="21" r="5" fill="#FF5F56"/>
+    <circle cx="42" cy="21" r="5" fill="#FFBD2E"/>
+    <circle cx="59" cy="21" r="5" fill="#27C93F"/>
+    
+    <text x="320" y="26" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="13" font-weight="600" text-anchor="middle">Dokter Laundry — Paket Member &amp; Kuota Langganan</text>
+    
+    <!-- Action Button inside Header -->
+    <rect x="495" y="9" width="128" height="24" rx="6" fill="#4FD1C5" fill-opacity="0.25"/>
+    <text x="559" y="25" fill="#E4F5EC" font-family="system-ui, sans-serif" font-size="11" font-weight="700" text-anchor="middle">+ Tambah Paket Baru</text>
+
+    <!-- Subheader: Cashflow booster message -->
+    <g transform="translate(20, 54)">
+      <rect width="600" height="34" rx="8" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1"/>
+      <text x="14" y="22" fill="#15803D" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700">🎁 Dapatkan Uang di Depan! Pelanggan beli paket 50-100 kg, potong otomatis saat cuci.</text>
+    </g>
+
+    <!-- 2 Member Package Cards Grid -->
+    <g transform="translate(20, 98)">
+      
+      <!-- Member Card 1 -->
+      <g transform="translate(0, 0)">
+        <rect width="292" height="220" rx="12" fill="#FFFFFF" stroke="#1768AC" stroke-width="1.5"/>
+        <rect width="292" height="38" rx="12" fill="#1768AC" clip-path="polygon(0 0, 292 0, 292 38, 0 38)"/>
+        
+        <text x="14" y="24" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Ibu Sarah • Paket Keluarga 50 Kg</text>
+        <rect x="226" y="9" width="54" height="20" rx="10" fill="#2E9E63"/>
+        <text x="253" y="23" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="10" font-weight="700" text-anchor="middle">AKTIF</text>
+
+        <!-- Body details -->
+        <text x="14" y="60" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Sisa Kuota Kiloan:</text>
+        <text x="14" y="88" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="24" font-weight="800">32.5 <tspan font-size="14" font-weight="500" fill="#5C7180">/ 50.0 Kg</tspan></text>
+
+        <!-- Progress bar -->
+        <rect x="14" y="98" width="264" height="10" rx="5" fill="#E2E8F0"/>
+        <rect x="14" y="98" width="172" height="10" rx="5" fill="#4FD1C5"/>
+
+        <text x="14" y="126" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Masa Berlaku: <tspan fill="#122430" font-weight="600">Hingga 28 Des 2026</tspan></text>
+        <text x="14" y="144" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Pemakaian Terakhir: <tspan fill="#122430" font-weight="600">4.5 Kg (Kemarin)</tspan></text>
+
+        <!-- Action Button -->
+        <rect x="14" y="162" width="264" height="34" rx="8" fill="#1768AC"/>
+        <text x="146" y="184" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700" text-anchor="middle">⚡ Potong Kuota untuk Order Baru</text>
+      </g>
+
+      <!-- Member Card 2 -->
+      <g transform="translate(308, 0)">
+        <rect width="292" height="220" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+        <rect width="292" height="38" rx="12" fill="#0F4C74" clip-path="polygon(0 0, 292 0, 292 38, 0 38)"/>
+        
+        <text x="14" y="24" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Pak Hendra • Paket Eksekutif Satuan</text>
+        <rect x="226" y="9" width="54" height="20" rx="10" fill="#2E9E63"/>
+        <text x="253" y="23" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="10" font-weight="700" text-anchor="middle">AKTIF</text>
+
+        <text x="14" y="60" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">Sisa Kuota Kemeja &amp; Jas:</text>
+        <text x="14" y="88" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="24" font-weight="800">14 <tspan font-size="14" font-weight="500" fill="#5C7180">/ 20 Pcs</tspan></text>
+
+        <rect x="14" y="98" width="264" height="10" rx="5" fill="#E2E8F0"/>
+        <rect x="14" y="98" width="185" height="10" rx="5" fill="#F2A54A"/>
+
+        <text x="14" y="126" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Masa Berlaku: <tspan fill="#122430" font-weight="600">Hingga 15 Jan 2027</tspan></text>
+        <text x="14" y="144" fill="#5C7180" font-family="system-ui, sans-serif" font-size="10.5">Pemakaian Terakhir: <tspan fill="#122430" font-weight="600">2 Pcs Kemeja Kantor</tspan></text>
+
+        <rect x="14" y="162" width="264" height="34" rx="8" fill="#0F4C74"/>
+        <text x="146" y="184" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="11.5" font-weight="700" text-anchor="middle">⚡ Potong Kuota untuk Order Baru</text>
+      </g>
+    </g>
+
+    <!-- Bottom Info -->
+    <g transform="translate(20, 332)">
+      <rect width="600" height="92" rx="10" fill="#EEF5F7"/>
+      <text x="16" y="26" fill="#0F4C74" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Kenapa Fitur Paket Ini Menghasilkan Cuan?</text>
+      <text x="16" y="48" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Pelanggan mengikatkan diri ke laundry Anda dan tidak akan pindah ke kompetitor.</text>
+      <text x="16" y="68" fill="#5C7180" font-family="system-ui, sans-serif" font-size="11">• Kas langsung masuk jutaan rupiah di awal bulan sebelum pekerjaan selesai.</text>
+    </g>
+  </g>
+</svg>

@@ -10,6 +10,23 @@ function togglePasswordVisibility(inputId, eyeId){
     eye.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
   }
 }
+function switchReportPreview(btn, type){
+  if(btn && btn.parentElement){
+    btn.parentElement.querySelectorAll('.auth-report-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const r1 = document.getElementById('reportImgRingkasan');
+  const r2 = document.getElementById('reportImgGrafik');
+  if(r1 && r2){
+    r1.style.display = type === 'ringkasan' ? 'block' : 'none';
+    r2.style.display = type === 'grafik' ? 'block' : 'none';
+  }
+}
+function scrollToAuthForm(mode){
+  const el = document.getElementById('authScreen');
+  if(el){ el.scrollTo({ top: 0, behavior: 'smooth' }); }
+  if(mode && typeof setAuthMode === 'function'){ setAuthMode(mode); }
+}
 function setAuthMode(mode){
   authMode = mode;
   document.getElementById('tabMasuk').classList.toggle('active', mode==='masuk');
