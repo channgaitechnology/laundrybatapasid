@@ -128,9 +128,21 @@ function translateAuthError(msg){
 async function handleLogout(){
   /* Keluar akun butuh internet: signOut() ke server gagal saat offline dan sesi
      tetap tersimpan, sedangkan data toko di perangkat tidak boleh dihapus
-     sebelum benar-benar keluar. */
+     sebelum benar-benar keluar. Antrean juga harus selesai lebih dulu supaya
+     data nota tidak tertinggal atau ikut diproses oleh akun berikutnya. */
   if(offlineMode || navigator.onLine === false){
     showToast(t('Keluar akun butuh internet. Sambungkan internet dulu.'));
+    return;
+  }
+  try{
+    await offlineSyncQueue();
+    const pending = await offlineGetQueue();
+    if(pending.length){
+      showToast(t('Masih ada perubahan offline yang belum tersinkron. Tetap masuk dan sambungkan internet sebelum keluar akun.'));
+      return;
+    }
+  }catch(e){
+    showToast(t('Antrean offline belum dapat diperiksa. Tetap masuk dan coba lagi.'));
     return;
   }
   offlineSnapshotPaused = true;

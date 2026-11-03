@@ -536,7 +536,7 @@ async function addUsage(){
       type: 'pemakaian', layananNama: '', qty: 0, satuan: '', harga: 0, subtotal: 0,
       berat: Number(berat)||0, catatan, workStatus: 'belum'
     });
-    await offlineEnqueue('ADD_USAGE', insertPayload);
+    await offlineEnqueue('ADD_USAGE', insertPayload, offUsgId);
     await offlineSaveSnapshot();
     document.getElementById('usageEstimasi').value = '';
     document.getElementById('usageBerat').value = '';
@@ -556,7 +556,7 @@ async function addUsage(){
         type: 'pemakaian', layananNama: '', qty: 0, satuan: '', harga: 0, subtotal: 0,
         berat: Number(berat)||0, catatan, workStatus: 'belum'
       });
-      await offlineEnqueue('ADD_USAGE', insertPayload);
+      await offlineEnqueue('ADD_USAGE', insertPayload, offUsgId);
       await offlineSaveSnapshot();
       document.getElementById('usageEstimasi').value = '';
       document.getElementById('usageBerat').value = '';
@@ -724,7 +724,7 @@ async function submitExtraServiceBatch(){
       };
       insertedIds.push(offUsgId);
       insertedRows.push({ id: offUsgId, subscriptionId: s.id, tanggal: it.tanggal, estimasi: it.estimasi, type: 'layanan_tambahan', layananNama: it.nama, qty: Number(it.qty)||0, satuan: it.satuan||'', harga: Number(it.harga)||0, subtotal: Number(it.subtotal)||0, workStatus: 'belum', batchId });
-      await offlineEnqueue('ADD_USAGE', payload);
+      await offlineEnqueue('ADD_USAGE', payload, offUsgId);
     }
     insertedRows.forEach(r => allWorkUsage.push(r));
     await offlineSaveSnapshot();

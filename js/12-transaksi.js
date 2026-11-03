@@ -283,7 +283,7 @@ async function submitTransaction(){
       outletId: currentOutletId ? String(currentOutletId) : null
     };
     transactions.push(trx);
-    await offlineEnqueue('ADD_TRANSACTION', insertPayload);
+    await offlineEnqueue('ADD_TRANSACTION', insertPayload, offTrxId);
     await offlineSaveSnapshot();
     resetTransactionForm();
     showToast(autoPromotedToLunas ? t('Transaksi tersimpan (offline) — DP menutupi total') : t('Transaksi tersimpan secara offline. Akan disinkronkan saat online.'));
@@ -305,7 +305,7 @@ async function submitTransaction(){
         outletId: currentOutletId ? String(currentOutletId) : null
       };
       transactions.push(trx);
-      await offlineEnqueue('ADD_TRANSACTION', insertPayload);
+      await offlineEnqueue('ADD_TRANSACTION', insertPayload, offTrxId);
       await offlineSaveSnapshot();
       resetTransactionForm();
       showToast(t('Sinyal putus. Transaksi tersimpan secara offline.'));
