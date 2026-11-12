@@ -19,6 +19,43 @@ const I18N_EN = {
   '📥 Unduhan': '📥 Downloads',
   'Salinan nota/laporan yang pernah diunduh dari app ini, tersimpan di sini juga (di perangkat ini saja) supaya gampang dibuka lagi tanpa perlu keluar dari app.':
     'Copies of receipts/reports you\'ve downloaded from this app are also kept here (on this device only), so you can reopen them without leaving the app.',
+  '📁 Lihat Arsip Backup Nota': '📁 View Receipt Backup Archive',
+  'Salinan JPG juga tersimpan di arsip aplikasi pada perangkat ini (maksimal 200 file atau 75 MB per toko).':
+    'JPG copies are also kept in this app archive on this device (up to 200 files or 75 MB per store).',
+  'Semua File': 'All Files',
+  'Arsip Backup Nota': 'Receipt Backup Archive',
+  'Belum ada backup nota': 'No receipt backups yet',
+  'JPG dari fitur backup akan tersimpan di arsip ini setelah kamu membuat backup nota.':
+    'JPG files created by the backup feature will appear in this archive after you back up receipts.',
+  'tersimpan di arsip aplikasi': 'saved in the app archive',
+  '📦 Siapkan Backup Nota': '📦 Prepare Receipt Backup',
+  'nota siap disimpan sebagai JPG': 'receipts ready to save as JPG files',
+  'Pilih folder untuk menyimpan semua JPG sekaligus. Jika tidak tersedia, unduh setiap nota satu per satu dari daftar ini.':
+    'Choose a folder to save all JPGs at once. If unavailable, download each receipt one by one from this list.',
+  'nota gagal dibuat; coba ulangi dengan rentang tanggal lebih kecil.':
+    'receipts could not be created; try a smaller date range.',
+  'Pilih Folder dan Simpan Semua JPG': 'Choose Folder and Save All JPGs',
+  'Peramban ini tidak mendukung penyimpanan ke folder; gunakan unduh satu per satu.':
+    'This browser cannot save to a folder; download receipts one at a time.',
+  'Pilih nota untuk diunduh': 'Choose a receipt to download',
+  'Unduh JPG Terpilih': 'Download Selected JPG',
+  'File backup tidak ditemukan.': 'Backup file not found.',
+  'Unduhan untuk nota diproses.': 'Receipt download started.',
+  'Tidak ada JPG backup untuk disimpan.': 'No backup JPGs to save.',
+  'Folder tidak dapat dibuka. Unduh JPG satu per satu sebagai gantinya.':
+    'Could not open the folder. Download JPGs one at a time instead.',
+  'Menyimpan semua JPG...': 'Saving all JPGs...',
+  'JPG tersimpan; sebagian gagal.': 'JPGs saved; some failed.',
+  'JPG tersimpan di folder yang dipilih.': 'JPGs saved to the selected folder.',
+  'JPG berhasil disimpan; sebagian gagal.': 'JPGs saved; some failed.',
+  'JPG berhasil disimpan di folder.': 'JPGs saved to the folder.',
+  'Pemilihan folder dibatalkan. JPG tetap tersedia di arsip app.':
+    'Folder selection was canceled. JPGs remain available in the app archive.',
+  'Folder tidak dapat ditulis. Unduh JPG satu per satu sebagai gantinya.':
+    'Could not write to the folder. Download JPGs one at a time instead.',
+  'JPG berhasil disiapkan': 'JPGs prepared',
+  'Sebagian nota gagal dibuat. JPG berhasil disiapkan': 'Some receipts could not be created. JPG files prepared',
+  'siap diunduh': 'ready to save',
   'Belum ada file': 'No files yet',
   'Nota/laporan yang kamu unduh akan tersimpan di sini juga, supaya gampang dibuka lagi tanpa keluar dari app.':
     'Receipts/reports you download will also be saved here, so they\'re easy to reopen without leaving the app.',
