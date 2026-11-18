@@ -102,6 +102,51 @@ function attachSuggestKeyNav(inputId, boxId){
   });
 }
 
+/* ===================== NAVIGASI KEYBOARD FORM (GRID) =====================
+   Pola yang sama dengan form Transaksi Baru (lihat TRX_FORM_GRID di
+   js/12-transaksi.js), dibuat generik supaya form lain (Pengeluaran, Layanan
+   Tambahan Tempo/Bulanan) berperilaku PERSIS sama:
+   - Enter: pindah ke kolom berikutnya (urut baris kiri->kanan, atas->bawah);
+     di kolom TERAKHIR, Enter menjalankan `onLastEnter` (menyimpan/menambah).
+   - Home / End: pindah ke kolom kiri / kanan dalam baris yang sama.
+   - PageUp / PageDown: pindah ke baris atas / bawah.
+   - ArrowUp/ArrowDown di kolom yang punya saran tetap milik
+     attachSuggestKeyNav() -- PANGGIL attachSuggestKeyNav() LEBIH DULU supaya
+     listener Enter-nya terdaftar duluan dan bisa stopImmediatePropagation()
+     saat user sedang memilih saran.
+   Home/End SELALU pindah kolom (tidak menggeser kursor teks), sama seperti
+   di Transaksi. */
+function attachFormGridNav(grid, onLastEnter){
+  const flat = grid.flat();
+  function pos(id){
+    for(let r=0;r<grid.length;r++){ const c = grid[r].indexOf(id); if(c!==-1) return { r, c }; }
+    return null;
+  }
+  function focusAt(r, c){
+    const row = grid[r]; if(!row) return;
+    const el = document.getElementById(row[Math.min(c, row.length-1)]);
+    if(el) el.focus();
+  }
+  flat.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el || el.dataset.gridNavBound) return;
+    el.dataset.gridNavBound = '1';
+    el.addEventListener('keydown', function(e){
+      const p = pos(id); if(!p) return;
+      if(e.key==='Enter'){
+        e.preventDefault();
+        const i = flat.indexOf(id);
+        if(i < flat.length-1){ const nx = document.getElementById(flat[i+1]); if(nx) nx.focus(); }
+        else if(typeof onLastEnter==='function') onLastEnter();
+      }
+      else if(e.key==='Home' && p.c>0){ e.preventDefault(); focusAt(p.r, p.c-1); }
+      else if(e.key==='End' && p.c<grid[p.r].length-1){ e.preventDefault(); focusAt(p.r, p.c+1); }
+      else if(e.key==='PageUp' && p.r>0){ e.preventDefault(); focusAt(p.r-1, p.c); }
+      else if(e.key==='PageDown' && p.r<grid.length-1){ e.preventDefault(); focusAt(p.r+1, p.c); }
+    });
+  });
+}
+
 /* ===================== SUPABASE SETUP ===================== */
 const SUPABASE_URL = 'https://ffpgapgvlzhetrkzmhqh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TEP3jcXZqkhcBqRpaLSyPQ_1szM0vLB';
@@ -241,6 +286,7 @@ var currentOutletId = null;
 var reportOutletFilter = '';
 var editingExpenseCatalogId = null;
 var expenseReportCache = null;
+var editingExpenseId = null;
 var labaRugiCache = null;
 var peringkatPelangganCache = null;
 var currentSubscriptionId = null;

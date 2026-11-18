@@ -356,3 +356,21 @@ on visitor_logs
 for select
 using ((auth.jwt() ->> 'email') in ('mukhlispertama@gmail.com', 'dokterlaundromat@gmail.com'));
 ```
+
+## Kolom Nama Toko / Tempat Bayar pada Pengeluaran (18 November 2026)
+
+Fitur **Nama Toko / Tempat Bayar** di tab Pengeluaran butuh satu kolom baru di
+tabel `expenses`. Jalankan sekali di Supabase SQL Editor (aman diulang, tidak
+menghapus data). Sebelum dijalankan, pengeluaran **tanpa** nama toko tetap bisa
+disimpan/diedit seperti biasa; yang diisi nama toko akan gagal dengan toast
+error sampai kolomnya dibuat:
+
+```sql
+alter table expenses add column if not exists toko text;
+```
+
+Edit dan hapus/ganti nama **kategori** pengeluaran TIDAK butuh migrasi: kategori
+disimpan sebagai teks di kolom `expenses.kategori`, jadi mengganti nama atau
+memindahkan kategori cukup meng-UPDATE baris `expenses` milik toko itu sendiri.
+Kategori bawaan yang "dihapus" cuma disembunyikan dari daftar di perangkat
+yang dipakai (tersimpan di localStorage, per toko).

@@ -1057,9 +1057,13 @@
   <section class="view" id="view-pengeluaran">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
-        <h2 style="margin:0;">Catat Pengeluaran</h2>
-        <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="openExpenseCatalog()">📋 Kelola Katalog</button>
+        <h2 style="margin:0;" id="expFormTitle">Catat Pengeluaran</h2>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="openExpenseCategories()">🏷️ Kategori</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:6px 12px;" onclick="openExpenseCatalog()">📋 Katalog</button>
+        </div>
       </div>
+      <div id="expEditBanner" style="display:none;background:#FFF6E0;border:1px solid #F0D58A;border-radius:10px;padding:8px 10px;font-size:12.5px;margin:6px 0;">✏️ Sedang mengedit pengeluaran — ubah lalu tekan <b>Simpan Perubahan</b>.</div>
       <label for="expTanggal">Tanggal</label>
       <input id="expTanggal" type="date">
 
@@ -1093,13 +1097,20 @@
 
       <label for="expKategori">Kategori</label>
       <div style="position:relative;">
-        <input id="expKategori" placeholder="cth. Listrik, Gaji Karyawan, ... (bisa tambah baru)" oninput="showExpKategoriSuggest()" onfocus="showExpKategoriSuggest()" onblur="hideExpKategoriSuggestDelayed()" autocomplete="off">
+        <input id="expKategori" maxlength="60" placeholder="cth. Listrik, Gaji Karyawan, ... (bisa tambah baru)" oninput="showExpKategoriSuggest()" onfocus="showExpKategoriSuggest()" onblur="hideExpKategoriSuggestDelayed()" autocomplete="off">
         <div id="expKategoriSuggestBox" class="suggest-dropdown"></div>
+      </div>
+
+      <label for="expToko">Nama Toko / Tempat Bayar (opsional)</label>
+      <div style="position:relative;">
+        <input id="expToko" maxlength="80" placeholder="cth. Toko Sinar Jaya, PLN, Agen Gas Pak Budi" oninput="showExpTokoSuggest()" onfocus="showExpTokoSuggest()" onblur="hideExpTokoSuggestDelayed()" autocomplete="off">
+        <div id="expTokoSuggestBox" class="suggest-dropdown"></div>
       </div>
 
       <label for="expCatatan">Catatan (opsional)</label>
       <input id="expCatatan" placeholder="cth. Bayar listrik bulan Agustus">
-      <button class="btn btn-primary" style="margin-top:10px;" onclick="submitExpense()">+ Simpan Pengeluaran</button>
+      <button class="btn btn-primary" style="margin-top:10px;" id="expSubmitBtn" onclick="submitExpense()">+ Simpan Pengeluaran</button>
+      <button class="btn btn-ghost" style="margin-top:8px;display:none;" id="expCancelBtn" onclick="cancelExpenseEdit()">Batal Edit</button>
     </div>
 
     <div class="card">
@@ -1121,6 +1132,20 @@
     </div>
 
     <div class="card">
+      <h2 style="margin:0 0 4px;">Rekap per Kategori</h2>
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;" id="expKatRekapLabel">Total pengeluaran tiap kategori pada periode di atas.</p>
+      <div id="expKatRekap"></div>
+
+      <h2 style="font-size:13px;margin:16px 0 4px;">Per Bulan dalam Setahun</h2>
+      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;">Pilih satu kategori (mis. Gas) untuk lihat total tiap bulan.</p>
+      <div class="row2">
+        <div><label for="expKatBulanSel">Kategori</label><select id="expKatBulanSel" onchange="expKatBulanChanged()"></select></div>
+        <div><label for="expKatBulanYear">Tahun</label><input id="expKatBulanYear" type="number" min="2000" max="2100" onchange="renderExpenseCategoryMonthly()"></div>
+      </div>
+      <div id="expKatBulanList" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <h2 style="margin:0;">Riwayat Pengeluaran</h2>
         <button class="btn btn-accent btn-sm" style="width:auto;" onclick="downloadExpensePDF()">Unduh PDF</button>
@@ -1130,6 +1155,17 @@
   </section>
 
 </main>
+
+<!-- Kelola Kategori Pengeluaran modal -->
+<div class="modal-bg" id="expenseCategoryModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeExpenseCategories()" aria-label="Tutup">✕</button>
+    <h3>Kelola Kategori Pengeluaran</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:12px;">Ubah nama kategori akan ikut mengubah semua pengeluaran di dalamnya. Saat menghapus kategori, pengeluarannya dipindahkan ke kategori lain (tidak ikut terhapus).</p>
+    <div id="expCatMgrList"></div>
+    <div id="expCatMgrAction" style="display:none;margin-top:12px;"></div>
+  </div>
+</div>
 
 <!-- New Subscription modal -->
 <div class="modal-bg" id="subsModal">
@@ -1708,6 +1744,9 @@
           <li>Isi <b>Kategori</b> (Listrik, Gaji Karyawan, Deterjen & Perlengkapan, dll) — bebas ketik kategori baru sendiri, tidak terbatas pilihan tetap</li>
           <li>Tekan <b>+ Simpan Pengeluaran</b> untuk mencatatnya</li>
           <li>Pilih periode Harian/Bulanan/Tahunan untuk lihat riwayat pengeluaran yang sudah tercatat, atau <b>Hapus</b> kalau salah input (ada <b>Urungkan</b> juga kalau salah hapus)</li>
+          <li>Salah isi? Tekan <b>✏️ Edit</b> di kartu pengeluaran, ubah, lalu <b>Simpan Perubahan</b>. Isi juga <b>Nama Toko / Tempat Bayar</b> kalau perlu</li>
+          <li>Tombol <b>🏷️ Kategori</b>: ganti nama atau hapus kategori (pengeluarannya bisa dipindah ke kategori lain). <b>Rekap per Kategori</b> di bawah menunjukkan total tiap kategori, dan <b>Per Bulan dalam Setahun</b> menunjukkan mis. pengeluaran Gas tiap bulan</li>
+          <li>Pakai keyboard? <b>Enter</b> pindah kolom, <b>Home/End</b> kiri-kanan, <b>PageUp/PageDown</b> atas-bawah</li>
           <li>Untuk lihat untung/rugi toko, buka tab <b>Laporan</b> → bagian <b>Laba Rugi</b> — pilih per bulan atau per tahun untuk lihat Pendapatan Bersih (omzet dikurangi pengeluaran) lengkap dengan rincian per kategori</li>
         </ol>
       </div>

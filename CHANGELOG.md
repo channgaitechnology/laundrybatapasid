@@ -6,6 +6,24 @@ Log kronologis perbaikan, regresi, dan audit — dipindah dari README supaya pan
 
 <!-- isi-dipindah-dari-README -->
 
+## Revisi tab Pengeluaran & layanan tambahan (18 November 2026)
+
+- **Edit pengeluaran**: tombol ✏️ Edit di tiap kartu; form berubah ke mode edit
+  (Simpan Perubahan / Batal Edit), perubahan dicatat di `edit_log`. Edit butuh
+  internet (pengeluaran yang masih antre offline belum bisa diedit).
+- **Nama Toko / Tempat Bayar** (kolom baru `expenses.toko`, lihat
+  docs/migrasi-database.md) + saran dari toko yang pernah dipakai; tampil di
+  kartu dan PDF Rincian Pengeluaran.
+- **Rekap per Kategori** di tab Pengeluaran (total, jumlah catatan, persen) dan
+  **Per Bulan dalam Setahun** per kategori (mis. Gas per bulan). Ikut masuk PDF
+  Rincian Pengeluaran; PDF Laba Rugi periode Tahunan menambah rincian per bulan
+  per kategori.
+- **Kelola Kategori**: ganti nama (nama sama dengan kategori lain = digabung) dan
+  hapus kategori dengan pilihan memindahkan pengeluarannya ke kategori lain.
+- **Keyboard**: helper generik `attachFormGridNav()` (js/00-globals.js) dipakai
+  form Pengeluaran dan Layanan Tambahan Tempo/Paket Bulanan supaya Enter,
+  Home/End, PageUp/PageDown berperilaku sama seperti form Transaksi Baru.
+
 ## Diketahui rusak — SELESAI DIPERBAIKI (19 Agustus 2026)
 
 `index.html` me-link dua berkas yang **ternyata tidak ikut ter-deploy** ke

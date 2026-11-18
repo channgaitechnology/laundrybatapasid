@@ -719,13 +719,21 @@ async function ensureAllTransactionsLoaded(){
 async function loadExpensesFromDB(){
   const { data, error } = await sb.from('expenses').select('*').eq('user_id', shopOwnerId).order('tanggal', { ascending:true });
   if(error){ expenses = []; return; }
-  expenses = (data||[]).map(row => ({
+  expenses = (data||[]).map(mapExpenseRow);
+}
+/* Satu-satunya tempat baris tabel `expenses` -> objek di memori (dipakai
+   loadExpensesFromDB(), submitExpense(), edit & undo hapus di
+   js/14-pengeluaran.js) supaya kolom baru (mis. `toko`) cukup ditambah di
+   sini, tidak di 5 tempat berbeda. */
+function mapExpenseRow(row){
+  return {
     id: row.id, tanggal: row.tanggal, nama: row.nama || row.kategori || '-',
     qty: row.qty!=null ? Number(row.qty) : null, satuan: row.satuan || '',
     harga: row.harga!=null ? Number(row.harga) : null,
     jumlah: Number(row.jumlah)||0, kategori: row.kategori || t('Lain-lain'), catatan: row.catatan||'',
+    toko: row.toko || '',
     outletId: row.outlet_id!=null ? String(row.outlet_id) : null
-  }));
+  };
 }
 /* Tabel expense_catalog (opsional, untuk saran otomatis/autocomplete saat catat
    pengeluaran) — sama seperti loadExpensesFromDB(), diamkan kalau tabelnya
