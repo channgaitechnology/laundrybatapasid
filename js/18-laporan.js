@@ -437,12 +437,12 @@ async function renderLabaRugi(){
       <div class="item-line"><span>${escapeHTML(kat)}</span><span>${rupiah(tot)}</span></div>
     `).join('');
   }
-  labaRugiCache = { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows };
+  labaRugiCache = { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows, expList };
 }
 function downloadLabaRugiPDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
   if(!labaRugiCache){ showToast(t('Tampilkan laporan dulu sebelum unduh PDF')); return; }
-  const { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows } = labaRugiCache;
+  const { range, totalOmzet, totalPengeluaran, pendapatanBersih, kategoriRows, expList } = labaRugiCache;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
 
@@ -479,6 +479,11 @@ function downloadLabaRugiPDF(){
     doc.text(rupiah(tot), 196, y, { align:'right' });
     y += 6.5;
   });
+  // Periode Tahunan: tambahkan rincian tiap kategori per bulan (mis. Gas per bulan).
+  if(kategoriRows.length>0 && range.dari.endsWith('-01-01') && range.sampai.endsWith('-12-31')){
+    y += 6;
+    y = pdfExpenseCategorySection(doc, y, expList || [], totalPengeluaran, range, true);
+  }
 
   const filenameLabaRugi = `Laba-Rugi-${range.label.replace(/\s+/g,'-')}.pdf`;
   saveToDownloadsGallery(doc.output('blob'), filenameLabaRugi);

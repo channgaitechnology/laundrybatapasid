@@ -608,6 +608,19 @@ function selectExtraLayananSuggest(id){
   document.getElementById('extraLayananSuggestBox').classList.remove('show');
 }
 attachSuggestKeyNav('extraLayanan','extraLayananSuggestBox');
+/* Navigasi keyboard form Layanan Tambahan (Tempo & Paket Bulanan) -- sama
+   seperti form Layanan di Transaksi Baru: Enter = kolom berikutnya (di Harga
+   = tambahkan layanan lalu fokus balik ke Nama Layanan), Home/End = kiri/
+   kanan, PageUp/PageDown = atas/bawah. Dipasang SETELAH attachSuggestKeyNav()
+   supaya Enter saat memilih saran tidak ikut pindah kolom. */
+attachFormGridNav([
+  ['extraTanggal','extraEstimasi'],
+  ['extraLayanan'],
+  ['extraQty','extraSatuan'],
+  ['extraHarga'],
+], function(){
+  Promise.resolve(addExtraService()).then(()=>{ const n = document.getElementById('extraLayanan'); if(n) n.focus(); });
+});
 /* Untuk Tempo: "+ Tambah Layanan Ini" hanya menambah ke daftar draft (belum
    tersimpan ke database) supaya bisa input banyak layanan sekaligus dalam satu
    kunjungan, persis seperti Layanan di Transaksi Baru — baru benar-benar

@@ -28,8 +28,21 @@ function updateExpenseSubtotalPreview(){
   const harga = parseFloat(document.getElementById('expHarga').value) || 0;
   document.getElementById('expJumlahPreview').textContent = rupiah(qty*harga);
 }
+/* Kategori bawaan yang "dihapus" user disembunyikan lewat daftar ini
+   (disimpan per toko di perangkat ini) -- kategori bawaan itu hardcode di
+   DEFAULT_EXPENSE_CATEGORIES, jadi tidak ada baris database yang bisa
+   dihapus. Kategori buatan sendiri tidak butuh ini: ia otomatis hilang dari
+   daftar begitu tidak ada lagi pengeluaran yang memakainya. */
+function expHiddenCatsKey(){ return 'nk_hiddenExpCats_' + (shopOwnerId||''); }
+function getHiddenExpenseCategories(){
+  try{ const a = JSON.parse(localStorage.getItem(expHiddenCatsKey())||'[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+}
+function setHiddenExpenseCategories(arr){
+  try{ localStorage.setItem(expHiddenCatsKey(), JSON.stringify(arr)); }catch(e){}
+}
 function distinctExpenseCategories(){
-  const set = new Set(DEFAULT_EXPENSE_CATEGORIES);
+  const hidden = getHiddenExpenseCategories();
+  const set = new Set(DEFAULT_EXPENSE_CATEGORIES.filter(k=>!hidden.includes(k)));
   expenses.forEach(e=>{ if(e.kategori) set.add(e.kategori); });
   return Array.from(set);
 }
@@ -64,6 +77,38 @@ function selectExpKategoriSuggest(i){
   document.getElementById('expKategoriSuggestBox').classList.remove('show');
 }
 attachSuggestKeyNav('expKategori','expKategoriSuggestBox');
+
+/* Saran nama toko/tempat bayar dari pengeluaran sebelumnya (pola index ke
+   array, sama alasannya dengan kategori di atas -- nama toko free-text, tidak
+   boleh masuk atribut HTML mentah). */
+let expTokoSuggestOptions = [];
+function distinctExpenseStores(){
+  const seen = new Map();
+  expenses.forEach(e=>{
+    const k = (e.toko||'').trim();
+    if(k && !seen.has(k.toLowerCase())) seen.set(k.toLowerCase(), k);
+  });
+  return Array.from(seen.values()).sort((a,b)=>a.localeCompare(b,'id'));
+}
+function showExpTokoSuggest(){
+  const val = document.getElementById('expToko').value.trim().toLowerCase();
+  const box = document.getElementById('expTokoSuggestBox');
+  const options = distinctExpenseStores().filter(k=>!val || k.toLowerCase().includes(val)).slice(0,30);
+  expTokoSuggestOptions = options;
+  if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = options.map((k,i)=>`<div class="suggest-item" onmousedown="event.preventDefault();selectExpTokoSuggest(${i})">${escapeHTML(k)}</div>`).join('');
+  box.classList.add('show');
+}
+function hideExpTokoSuggestDelayed(){
+  setTimeout(()=>{ const box=document.getElementById('expTokoSuggestBox'); if(box) box.classList.remove('show'); }, 150);
+}
+function selectExpTokoSuggest(i){
+  const k = expTokoSuggestOptions[i];
+  if(k===undefined) return;
+  document.getElementById('expToko').value = k;
+  document.getElementById('expTokoSuggestBox').classList.remove('show');
+}
+attachSuggestKeyNav('expToko','expTokoSuggestBox');
 
 /* ---- Katalog Barang/Jasa Pengeluaran (saran otomatis, mirip Katalog Layanan) ---- */
 function openExpenseCatalog(){
@@ -132,33 +177,113 @@ function renderExpenseCatalogList(){
     </div>`).join('');
 }
 
-/* ---- Catat & hapus pengeluaran (nota per item, mirip Transaksi Baru) ---- */
+/* ---- Catat, edit & hapus pengeluaran (nota per item, mirip Transaksi Baru) ---- */
+function clearExpenseForm(){
+  document.getElementById('expNama').value = '';
+  document.getElementById('expQty').value = '1';
+  document.getElementById('expHarga').value = '';
+  document.getElementById('expCatatan').value = '';
+  updateExpenseSubtotalPreview();
+}
+function setExpenseEditUI(on){
+  document.getElementById('expFormTitle').textContent = on ? t('Edit Pengeluaran') : t('Catat Pengeluaran');
+  document.getElementById('expSubmitBtn').textContent = on ? t('Simpan Perubahan') : t('+ Simpan Pengeluaran');
+  document.getElementById('expCancelBtn').style.display = on ? 'block' : 'none';
+  document.getElementById('expEditBanner').style.display = on ? 'block' : 'none';
+}
+function cancelExpenseEdit(){
+  editingExpenseId = null;
+  clearExpenseForm();
+  document.getElementById('expToko').value = '';
+  setExpenseEditUI(false);
+}
+function editExpense(id){
+  const exp = expenses.find(e=>String(e.id)===String(id));
+  if(!exp) return;
+  if(String(exp.id).startsWith('off_exp_')){
+    showToast(t('Pengeluaran ini belum tersinkron. Tunggu sampai online lalu edit.'));
+    return;
+  }
+  editingExpenseId = exp.id;
+  document.getElementById('expTanggal').value = exp.tanggal;
+  document.getElementById('expNama').value = exp.nama || '';
+  document.getElementById('expQty').value = exp.qty!=null ? exp.qty : 1;
+  const sat = document.getElementById('expSatuan');
+  if(exp.satuan && !Array.from(sat.options).some(o=>o.value===exp.satuan || o.text===exp.satuan)){
+    sat.add(new Option(exp.satuan, exp.satuan));
+  }
+  if(exp.satuan) sat.value = exp.satuan;
+  document.getElementById('expHarga').value = exp.harga!=null ? exp.harga : '';
+  document.getElementById('expKategori').value = exp.kategori || '';
+  document.getElementById('expToko').value = exp.toko || '';
+  document.getElementById('expCatatan').value = exp.catatan || '';
+  updateExpenseSubtotalPreview();
+  setExpenseEditUI(true);
+  window.scrollTo(0,0);
+  document.getElementById('expNama').focus();
+}
 async function submitExpense(){
   const tanggal = document.getElementById('expTanggal').value || todayISO();
   const nama = document.getElementById('expNama').value.trim();
   const qty = parseFloat(document.getElementById('expQty').value) || 0;
   const satuan = document.getElementById('expSatuan').value;
   const harga = parseFloat(document.getElementById('expHarga').value) || 0;
-  const kategori = document.getElementById('expKategori').value.trim() || t('Lain-lain');
+  const kategori = document.getElementById('expKategori').value.trim().slice(0,60) || t('Lain-lain');
+  const toko = document.getElementById('expToko').value.trim().slice(0,80);
   const catatan = document.getElementById('expCatatan').value.trim();
   const jumlah = qty*harga;
   if(!nama){ showToast(t('Isi nama barang/jasa yang dibeli')); return; }
   if(jumlah<=0){ showToast(t('Isi qty dan harga dengan benar')); return; }
+
+  /* ---- Mode EDIT ---- */
+  if(editingExpenseId){
+    if(offlineMode || navigator.onLine === false){
+      showToast(t('Edit pengeluaran butuh internet. Sambungkan internet dulu.'));
+      return;
+    }
+    const exp = expenses.find(e=>String(e.id)===String(editingExpenseId));
+    if(!exp){ cancelExpenseEdit(); return; }
+    const updatePayload = { tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan };
+    // Kolom `toko` baru -- hanya dikirim kalau ada isinya atau sebelumnya ada
+    // isinya (untuk mengosongkan), supaya edit tetap jalan walau migrasi
+    // kolom belum dijalankan.
+    if(toko || exp.toko) updatePayload.toko = toko || null;
+    const { data, error } = await sb.from('expenses').update(updatePayload).eq('id', exp.id).select().single();
+    if(error){
+      showToast(t('Gagal menyimpan perubahan pengeluaran'));
+      return;
+    }
+    const before = { ...exp };
+    const updated = mapExpenseRow(data);
+    Object.assign(exp, updated);
+    const fields = [
+      ['tanggal', t('Tanggal'), v=>fmtDate(v)], ['nama', t('Nama Barang/Jasa'), v=>v||'-'],
+      ['qty', t('Qty'), v=>String(v??'-')], ['satuan', t('Satuan'), v=>v||'-'],
+      ['harga', t('Harga / Satuan'), v=>rupiah(v||0)], ['kategori', t('Kategori'), v=>v||'-'],
+      ['toko', t('Nama Toko / Tempat Bayar'), v=>v||'-'], ['catatan', t('Catatan'), v=>v||'-']
+    ];
+    const changes = fields.filter(([k])=>String(before[k]??'')!==String(exp[k]??''))
+      .map(([k,label,fmt])=>({ field:k, label, from:fmt(before[k]), to:fmt(exp[k]) }));
+    if(changes.length) await logEditHistory('expense', exp.id, changes);
+    cancelExpenseEdit();
+    showToast(t('Pengeluaran diperbarui'));
+    renderExpenseList();
+    return;
+  }
+
+  /* ---- Mode TAMBAH ---- */
   const insertPayload = {
     user_id: shopOwnerId, tanggal, nama, qty, satuan, harga, jumlah, kategori, catatan,
+    ...(toko ? { toko } : {}),
     ...(currentOutletId ? { outlet_id: currentOutletId } : {})
   };
+  const localRow = (id)=>({ id, tanggal, nama, qty: Number(qty)||0, satuan, harga: Number(harga)||0, jumlah: Number(jumlah)||0, kategori, catatan, toko, outletId: currentOutletId ? String(currentOutletId) : null });
 
   if(offlineMode || navigator.onLine === false){
-    const offExpId = 'off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
-    expenses.push({ id: offExpId, tanggal, nama, qty: Number(qty)||0, satuan, harga: Number(harga)||0, jumlah: Number(jumlah)||0, kategori, catatan, outletId: currentOutletId ? String(currentOutletId) : null });
+    expenses.push(localRow('off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)));
     await offlineEnqueue('ADD_EXPENSE', insertPayload);
     await offlineSaveSnapshot();
-    document.getElementById('expNama').value = '';
-    document.getElementById('expQty').value = '1';
-    document.getElementById('expHarga').value = '';
-    document.getElementById('expCatatan').value = '';
-    updateExpenseSubtotalPreview();
+    clearExpenseForm();
     showToast(t('Pengeluaran dicatat (offline)'));
     renderExpenseList();
     return;
@@ -167,28 +292,21 @@ async function submitExpense(){
   const { data, error } = await sb.from('expenses').insert(insertPayload).select().single();
   if(error){
     if(offlineIsNetworkError(error)){
-      const offExpId = 'off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
-      expenses.push({ id: offExpId, tanggal, nama, qty: Number(qty)||0, satuan, harga: Number(harga)||0, jumlah: Number(jumlah)||0, kategori, catatan, outletId: currentOutletId ? String(currentOutletId) : null });
+      expenses.push(localRow('off_exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8)));
       await offlineEnqueue('ADD_EXPENSE', insertPayload);
       await offlineSaveSnapshot();
-      document.getElementById('expNama').value = '';
-      document.getElementById('expQty').value = '1';
-      document.getElementById('expHarga').value = '';
-      document.getElementById('expCatatan').value = '';
-      updateExpenseSubtotalPreview();
+      clearExpenseForm();
       showToast(t('Sinyal putus. Pengeluaran dicatat (offline)'));
       renderExpenseList();
       return;
     }
-    showToast(t('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'));
+    showToast(toko
+      ? t('Gagal menyimpan pengeluaran — pastikan kolom toko sudah dimigrasi (lihat docs/migrasi-database.md)')
+      : t('Gagal menyimpan pengeluaran — pastikan tabel expenses sudah dimigrasi (lihat README)'));
     return;
   }
-  expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
-  document.getElementById('expNama').value = '';
-  document.getElementById('expQty').value = '1';
-  document.getElementById('expHarga').value = '';
-  document.getElementById('expCatatan').value = '';
-  updateExpenseSubtotalPreview();
+  expenses.push(mapExpenseRow(data));
+  clearExpenseForm();
   showToast(t('Pengeluaran dicatat'));
   renderExpenseList();
 }
@@ -199,6 +317,7 @@ async function deleteExpense(id){
   const { error } = await sb.from('expenses').delete().eq('id', id);
   if(error){ showToast(t('Gagal menghapus pengeluaran')); return; }
   expenses = expenses.filter(e=>e.id!==id);
+  if(String(editingExpenseId)===String(id)) cancelExpenseEdit();
   renderExpenseList();
   // Tercatat di edit_log (entity_type 'expense') -- lihat komentar di
   // js/13-riwayat-edit.js kenapa ini perlu walau pengeluaran tidak punya
@@ -211,10 +330,11 @@ async function deleteExpense(id){
       const { data, error: err2 } = await sb.from('expenses').insert({
         user_id: shopOwnerId, tanggal: exp.tanggal, nama: exp.nama, qty: exp.qty, satuan: exp.satuan,
         harga: exp.harga, jumlah: exp.jumlah, kategori: exp.kategori, catatan: exp.catatan,
+        ...(exp.toko ? { toko: exp.toko } : {}),
         ...(exp.outletId ? { outlet_id: exp.outletId } : {})
       }).select().single();
       if(err2){ showToast(t('Gagal mengembalikan pengeluaran')); return; }
-      expenses.push({ id:data.id, tanggal:data.tanggal, nama:data.nama, qty:Number(data.qty)||0, satuan:data.satuan||'', harga:Number(data.harga)||0, jumlah:Number(data.jumlah)||0, kategori:data.kategori, catatan:data.catatan||'', outletId: data.outlet_id!=null ? String(data.outlet_id) : null });
+      expenses.push(mapExpenseRow(data));
       renderExpenseList();
       // Undo juga dicatat -- kalau tidak, "Urungkan" jadi cara diam-diam
       // menghapus jejak penghapusan di atas (baris baru dapat id baru, tidak
@@ -263,6 +383,8 @@ function renderExpenseList(){
     document.getElementById('expStCount').textContent = '0';
     el.innerHTML = `<div class="empty"><h3>${t('Lengkapi periode dulu')}</h3></div>`;
     expenseReportCache = null;
+    renderExpenseCategoryRecap([]);
+    renderExpenseCategoryMonthly();
     return;
   }
   const listAsc = sortByTanggalAsc(visibleExpenses().filter(e=>e.tanggal>=range.dari && e.tanggal<=range.sampai));
@@ -287,14 +409,18 @@ function renderExpenseList(){
           <span class="trx-total" style="color:var(--warn);">-${rupiah(e.jumlah)}</span>
         </div>
         ${e.qty ? `<div class="trx-meta">${e.qty} ${escapeHTML(e.satuan||'')} x ${rupiah(e.harga||0)}</div>` : ''}
+        ${e.toko ? `<div class="trx-meta">🏪 ${escapeHTML(e.toko)}</div>` : ''}
         ${e.catatan ? `<div class="trx-meta">${escapeHTML(e.catatan)}</div>` : ''}
         <div class="trx-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editExpense('${e.id}')">${t('✏️ Edit')}</button>
           <button class="btn btn-danger-ghost btn-sm" onclick="deleteExpense('${e.id}')">${t('🗑️ Hapus')}</button>
         </div>
       </div>
     `).join('');
   }
   expenseReportCache = { range, list: listAsc, total };
+  renderExpenseCategoryRecap(listAsc);
+  renderExpenseCategoryMonthly();
 }
 function downloadExpensePDF(){
   if(!isSubscriptionActive()){ showPaywallModal(); return; }
@@ -339,10 +465,11 @@ function downloadExpensePDF(){
     doc.text(kategori.length>16 ? kategori.slice(0,16)+'…' : kategori, colX.kategori, y);
     doc.text(e.qty ? `${e.qty} ${e.satuan||''}` : '-', colX.qty, y);
     doc.text(rupiah(e.jumlah), colX.total, y, { align:'right' });
-    if(e.catatan){
+    const sub = [e.toko ? `${t('Toko')}: ${e.toko}` : '', e.catatan || ''].filter(Boolean).join(' · ');
+    if(sub){
       y += 4.5;
       doc.setFontSize(7.5); doc.setTextColor(120);
-      doc.text(e.catatan.length>70 ? e.catatan.slice(0,70)+'…' : e.catatan, colX.nama, y);
+      doc.text(sub.length>80 ? sub.slice(0,80)+'…' : sub, colX.nama, y);
       doc.setFontSize(8.5); doc.setTextColor(0);
     }
     y += 6.5;
@@ -355,9 +482,281 @@ function downloadExpensePDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
   doc.text(t('Total Pengeluaran'), colX.kategori, y);
   doc.text(rupiah(total), colX.total, y, { align:'right' });
+  y += 12;
+  y = pdfExpenseCategorySection(doc, y, list, total, range);
 
   const filenamePengeluaran = `Pengeluaran-${range.label.replace(/\s+/g,'-')}.pdf`;
   saveToDownloadsGallery(doc.output('blob'), filenamePengeluaran);
   doc.save(filenamePengeluaran);
 }
 
+
+
+/* ===================== REKAP PER KATEGORI ===================== */
+const EXP_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+/* Total & jumlah catatan per kategori dari satu daftar pengeluaran, diurut
+   dari yang terbesar. Dipakai tab Pengeluaran, PDF Rincian Pengeluaran, dan
+   PDF Laba Rugi (js/18-laporan.js) supaya angkanya selalu sama. */
+function expenseCategoryTotals(list){
+  const m = {};
+  list.forEach(e=>{
+    const k = e.kategori || t('Lain-lain');
+    if(!m[k]) m[k] = { kat:k, total:0, count:0 };
+    m[k].total += e.jumlah; m[k].count += 1;
+  });
+  return Object.values(m).sort((a,b)=>b.total-a.total);
+}
+/* { kategori: [Jan..Des] } untuk satu tahun. */
+function expenseMonthlyByCategory(list, year){
+  const m = {};
+  list.forEach(e=>{
+    if(!e.tanggal || e.tanggal.slice(0,4)!==String(year)) return;
+    const k = e.kategori || t('Lain-lain');
+    if(!m[k]) m[k] = new Array(12).fill(0);
+    m[k][Number(e.tanggal.slice(5,7))-1] += e.jumlah;
+  });
+  return m;
+}
+function renderExpenseCategoryRecap(list){
+  const el = document.getElementById('expKatRekap');
+  if(!el) return;
+  const rows = expenseCategoryTotals(list);
+  const total = rows.reduce((s,r)=>s+r.total,0);
+  if(rows.length===0){
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada pengeluaran periode ini')}</div>`;
+    return;
+  }
+  el.innerHTML = rows.map(r=>`
+    <div class="item-line"><span>${escapeHTML(r.kat)} <span style="color:var(--ink-soft);font-size:11.5px;">(${r.count}x · ${total>0 ? Math.round(r.total/total*100) : 0}%)</span></span><span>${rupiah(r.total)}</span></div>
+  `).join('') + `<div class="total-line"><span>${t('Total')}</span><span>${rupiah(total)}</span></div>`;
+}
+function expKatBulanChanged(){
+  const sel = document.getElementById('expKatBulanSel');
+  sel.dataset.selText = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  renderExpenseCategoryMonthly();
+}
+function renderExpenseCategoryMonthly(){
+  const sel = document.getElementById('expKatBulanSel');
+  const yearEl = document.getElementById('expKatBulanYear');
+  const out = document.getElementById('expKatBulanList');
+  if(!sel || !yearEl || !out) return;
+  const cats = distinctExpenseCategories().sort((a,b)=>a.localeCompare(b,'id'));
+  // value option = indeks (bukan nama) supaya nama kategori bebas-ketik tidak
+  // pernah masuk atribut HTML; pilihan sebelumnya dipulihkan lewat teks.
+  sel.innerHTML = cats.map((k,i)=>`<option value="${i}">${escapeHTML(k)}</option>`).join('');
+  const keep = sel.dataset.selText ? cats.indexOf(sel.dataset.selText) : -1;
+  sel.value = String(keep>=0 ? keep : 0);
+  sel.dataset.selText = cats[Number(sel.value)] || '';
+  if(!yearEl.value) yearEl.value = (getExpPeriodeRange() ? getExpPeriodeRange().dari.slice(0,4) : todayISO().slice(0,4));
+  const kat = cats[Number(sel.value)];
+  if(kat===undefined){ out.innerHTML=''; return; }
+  const year = yearEl.value;
+  const monthly = (expenseMonthlyByCategory(visibleExpenses(), year)[kat]) || new Array(12).fill(0);
+  const sum = monthly.reduce((a,b)=>a+b,0);
+  out.innerHTML = monthly.map((v,i)=>`
+    <div class="item-line"><span>${EXP_BULAN_ID[i]} ${escapeHTML(String(year))}</span><span style="${v===0?'color:var(--ink-soft);':''}">${rupiah(v)}</span></div>
+  `).join('') + `<div class="total-line"><span>${t('Total')} ${escapeHTML(kat)} ${escapeHTML(String(year))}</span><span>${rupiah(sum)}</span></div>`;
+}
+/* Bagian "Rekap per Kategori" (+ rincian per bulan untuk periode Tahunan)
+   di PDF. Mengembalikan posisi y berikutnya. Dipakai PDF Rincian
+   Pengeluaran di sini dan PDF Laba Rugi di js/18-laporan.js. */
+function pdfExpenseCategorySection(doc, y, list, total, range, onlyMonthly){
+  const rows = expenseCategoryTotals(list);
+  const ensure = (need)=>{ if(y+need > 285){ doc.addPage(); y = 20; } };
+  if(!onlyMonthly){
+    ensure(20);
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0);
+    doc.text(t('Rekap per Kategori'), 14, y); y += 7;
+    doc.setLineWidth(0.3); doc.line(14, y-3, 196, y-3);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+    if(rows.length===0){ doc.text(t('Tidak ada pengeluaran pada periode ini.'), 14, y); return y+8; }
+    rows.forEach(r=>{
+      ensure(7);
+      const nm = r.kat.length>40 ? r.kat.slice(0,40)+'…' : r.kat;
+      doc.text(`${nm} (${r.count}x)`, 14, y);
+      doc.text(`${total>0 ? Math.round(r.total/total*100) : 0}%`, 150, y, { align:'right' });
+      doc.text(rupiah(r.total), 196, y, { align:'right' });
+      y += 6.2;
+    });
+    y += 2;
+  }
+  // Periode tahunan: tambahkan rincian tiap kategori per bulan.
+  const isYear = range && range.dari.endsWith('-01-01') && range.sampai.endsWith('-12-31') && range.dari.slice(0,4)===range.sampai.slice(0,4);
+  if(isYear){
+    const year = range.dari.slice(0,4);
+    const monthly = expenseMonthlyByCategory(list, year);
+    ensure(16);
+    y += 4;
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(`${t('Rincian per Bulan per Kategori')} ${year}`, 14, y); y += 7;
+    rows.forEach(r=>{
+      const arr = monthly[r.kat]; if(!arr) return;
+      ensure(14);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+      const nm = r.kat.length>40 ? r.kat.slice(0,40)+'…' : r.kat;
+      doc.text(nm, 14, y);
+      doc.text(rupiah(r.total), 196, y, { align:'right' });
+      y += 5.5;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(70);
+      arr.forEach((v,i)=>{
+        if(v===0) return;
+        ensure(5);
+        doc.text(EXP_BULAN_ID[i], 20, y);
+        doc.text(rupiah(v), 196, y, { align:'right' });
+        y += 4.8;
+      });
+      doc.setTextColor(0);
+      y += 2.5;
+    });
+  }
+  return y;
+}
+
+/* ===================== KELOLA KATEGORI (EDIT / HAPUS + PINDAH) ===================== */
+let expCatMgrNames = [];
+function openExpenseCategories(){
+  expenseCategoryAction(null);
+  renderExpenseCategoryManager();
+  document.getElementById('expenseCategoryModal').classList.add('show');
+}
+function closeExpenseCategories(){
+  document.getElementById('expenseCategoryModal').classList.remove('show');
+  renderExpenseList();
+}
+function renderExpenseCategoryManager(){
+  const el = document.getElementById('expCatMgrList');
+  const totals = expenseCategoryTotals(expenses); // semua outlet: kategori milik toko, bukan outlet
+  const byName = {}; totals.forEach(r=>{ byName[r.kat]=r; });
+  expCatMgrNames = distinctExpenseCategories().sort((a,b)=>a.localeCompare(b,'id'));
+  if(expCatMgrNames.length===0){
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:14px 0;">${t('Belum ada kategori.')}</div>`;
+    return;
+  }
+  el.innerHTML = expCatMgrNames.map((k,i)=>{
+    const r = byName[k];
+    return `<div class="item-line" style="align-items:center;">
+      <span>${escapeHTML(k)} <span style="color:var(--ink-soft);font-size:11.5px;">(${r ? r.count : 0} ${t('catatan')})</span></span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        <button onclick="expenseCategoryAction('rename',${i})" style="background:none;border:none;color:var(--suds);font-size:13px;cursor:pointer;">${t('Edit')}</button>
+        <button onclick="expenseCategoryAction('delete',${i})" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;">${t('Hapus')}</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+/* Panel kecil di bawah daftar: form ganti nama, atau pilihan tujuan pindah
+   saat hapus. Nama kategori selalu diambil dari expCatMgrNames[index] --
+   tidak pernah disuntik ke atribut HTML. */
+function expenseCategoryAction(kind, i){
+  const box = document.getElementById('expCatMgrAction');
+  if(!kind){ box.style.display='none'; box.innerHTML=''; return; }
+  const name = expCatMgrNames[i];
+  if(name===undefined) return;
+  const count = expenses.filter(e=>e.kategori===name).length;
+  const total = expenses.filter(e=>e.kategori===name).reduce((s,e)=>s+e.jumlah,0);
+  box.style.display = 'block';
+  if(kind==='rename'){
+    box.innerHTML = `<div class="card" style="margin:0;background:var(--bg-soft,#F4F8FB);">
+      <label for="expCatRenameInput">${t('Nama baru untuk kategori')} <b>${escapeHTML(name)}</b></label>
+      <input id="expCatRenameInput" maxlength="60" value="${escapeHTML(name)}" autocomplete="off">
+      <p style="font-size:12px;color:var(--ink-soft);margin:6px 0 0;">${count>0 ? `${count} ${t('pengeluaran di kategori ini ikut berganti nama.')} ` : ''}${t('Kalau nama baru sama dengan kategori lain, keduanya digabung.')}</p>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-primary btn-sm" onclick="confirmRenameExpenseCategory(${i})">${t('Simpan Nama')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="expenseCategoryAction(null)">${t('Batal')}</button>
+      </div></div>`;
+    const inp = document.getElementById('expCatRenameInput');
+    inp.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); confirmRenameExpenseCategory(i); } });
+    inp.focus(); inp.select();
+  } else if(kind==='delete'){
+    const targets = expCatMgrNames.filter(k=>k!==name);
+    if(!targets.includes(t('Lain-lain')) && name!==t('Lain-lain')) targets.push(t('Lain-lain'));
+    if(count>0){
+      box.innerHTML = `<div class="card" style="margin:0;background:var(--bg-soft,#F4F8FB);">
+        <p style="margin:0 0 8px;font-size:13px;">${t('Kategori')} <b>${escapeHTML(name)}</b> ${t('punya')} <b>${count}</b> ${t('pengeluaran')} (${rupiah(total)}). ${t('Pindahkan ke kategori mana?')}</p>
+        <select id="expCatMoveTarget">${targets.map((k,j)=>`<option value="${j}">${escapeHTML(k)}</option>`).join('')}</select>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-danger-ghost btn-sm" onclick="confirmDeleteExpenseCategory(${i})">${t('Pindahkan & Hapus Kategori')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="expenseCategoryAction(null)">${t('Batal')}</button>
+        </div></div>`;
+      box.dataset.targets = JSON.stringify(targets);
+    } else {
+      box.innerHTML = `<div class="card" style="margin:0;background:var(--bg-soft,#F4F8FB);">
+        <p style="margin:0 0 8px;font-size:13px;">${t('Hapus kategori')} <b>${escapeHTML(name)}</b>? ${t('Tidak ada pengeluaran di dalamnya.')}</p>
+        <div class="btn-row">
+          <button class="btn btn-danger-ghost btn-sm" onclick="confirmDeleteExpenseCategory(${i})">${t('Hapus Kategori')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="expenseCategoryAction(null)">${t('Batal')}</button>
+        </div></div>`;
+      box.dataset.targets = JSON.stringify(targets);
+    }
+  }
+}
+function expenseCategoryNeedsOnline(){
+  if(offlineMode || navigator.onLine === false){
+    showToast(t('Mengubah kategori butuh internet. Sambungkan internet dulu.'));
+    return true;
+  }
+  return false;
+}
+/* Pindahkan SEMUA pengeluaran toko dari kategori `from` ke `to` (satu query,
+   dibatasi user_id pemilik toko + kategori lama; RLS tetap berlaku). */
+async function moveExpensesToCategory(from, to){
+  const { error } = await sb.from('expenses').update({ kategori: to }).eq('user_id', shopOwnerId).eq('kategori', from);
+  if(error) return false;
+  expenses.forEach(e=>{ if(e.kategori===from) e.kategori = to; });
+  return true;
+}
+async function confirmRenameExpenseCategory(i){
+  const old = expCatMgrNames[i];
+  const nu = (document.getElementById('expCatRenameInput').value||'').trim().slice(0,60);
+  if(!nu){ showToast(t('Nama kategori tidak boleh kosong')); return; }
+  if(nu===old){ expenseCategoryAction(null); return; }
+  if(expenseCategoryNeedsOnline()) return;
+  const exists = expCatMgrNames.some(k=>k.toLowerCase()===nu.toLowerCase() && k!==old);
+  if(exists && !confirm(`${t('Kategori')} "${nu}" ${t('sudah ada. Gabungkan semua pengeluaran ke kategori itu?')}`)) return;
+  const target = exists ? expCatMgrNames.find(k=>k.toLowerCase()===nu.toLowerCase() && k!==old) : nu;
+  if(!(await moveExpensesToCategory(old, target))){ showToast(t('Gagal mengubah nama kategori')); return; }
+  if(DEFAULT_EXPENSE_CATEGORIES.includes(old)){
+    const h = getHiddenExpenseCategories(); if(!h.includes(old)) h.push(old); setHiddenExpenseCategories(h);
+  }
+  // Kalau nama baru kebetulan sama dengan bawaan yang sempat disembunyikan, tampilkan lagi.
+  setHiddenExpenseCategories(getHiddenExpenseCategories().filter(k=>k!==target));
+  showToast(t('Nama kategori diperbarui'));
+  expenseCategoryAction(null);
+  renderExpenseCategoryManager();
+}
+async function confirmDeleteExpenseCategory(i){
+  const name = expCatMgrNames[i];
+  const box = document.getElementById('expCatMgrAction');
+  const count = expenses.filter(e=>e.kategori===name).length;
+  if(expenseCategoryNeedsOnline()) return;
+  if(count>0){
+    const targets = JSON.parse(box.dataset.targets||'[]');
+    const sel = document.getElementById('expCatMoveTarget');
+    const target = targets[Number(sel ? sel.value : 0)];
+    if(target===undefined || target===name){ showToast(t('Pilih kategori tujuan')); return; }
+    if(!(await moveExpensesToCategory(name, target))){ showToast(t('Gagal memindahkan pengeluaran')); return; }
+  }
+  if(DEFAULT_EXPENSE_CATEGORIES.includes(name)){
+    const h = getHiddenExpenseCategories(); if(!h.includes(name)) h.push(name); setHiddenExpenseCategories(h);
+  }
+  showToast(count>0 ? `${t('Kategori dihapus.')} ${count} ${t('pengeluaran dipindahkan.')}` : t('Kategori dihapus'));
+  expenseCategoryAction(null);
+  renderExpenseCategoryManager();
+}
+
+/* ===================== NAVIGASI KEYBOARD FORM PENGELUARAN =====================
+   Sama seperti form Transaksi Baru (attachFormGridNav di js/00-globals.js):
+   Enter = kolom berikutnya (di kolom terakhir = simpan lalu fokus balik ke
+   Nama Barang), Home/End = kiri/kanan, PageUp/PageDown = atas/bawah,
+   ArrowUp/Down = pilih saran. Dipasang SETELAH attachSuggestKeyNav() di atas
+   supaya Enter saat memilih saran tidak ikut pindah kolom. */
+attachFormGridNav([
+  ['expTanggal'],
+  ['expNama'],
+  ['expQty','expSatuan'],
+  ['expHarga'],
+  ['expKategori'],
+  ['expToko'],
+  ['expCatatan'],
+], function(){
+  Promise.resolve(submitExpense()).then(()=>{ const n = document.getElementById('expNama'); if(n) n.focus(); });
+});

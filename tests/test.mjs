@@ -3402,6 +3402,149 @@ const result = await page.evaluate(async () => {
     if (document.getElementById('expNama').value !== '') throw new Error('nama field should reset after submit');
   });
 
+  await step('Pengeluaran: kolom Nama Toko ikut tersimpan (dan tidak dikirim kalau kosong, supaya aman sebelum migrasi kolom)', async () => {
+    expenses = [];
+    document.getElementById('expTanggal').value = '2026-08-06';
+    document.getElementById('expNama').value = 'Gas 3kg';
+    document.getElementById('expQty').value = '2';
+    document.getElementById('expHarga').value = '20000';
+    document.getElementById('expKategori').value = 'Gas';
+    document.getElementById('expToko').value = 'Agen Gas Pak Budi';
+    await submitExpense();
+    if (expenses.length !== 1 || expenses[0].toko !== 'Agen Gas Pak Budi') throw new Error('toko harus tersimpan di objek pengeluaran: ' + JSON.stringify(expenses));
+    const originalFrom = sb.from; let sent = null;
+    try {
+      sb.from = (table) => {
+        if (table !== 'expenses') return originalFrom(table);
+        const q = { insert: (row) => { sent = row; return q; }, select: () => q, single: () => Promise.resolve({ data: { id: 'x-notoko', ...sent }, error: null }) };
+        return q;
+      };
+      document.getElementById('expNama').value = 'Air Galon'; document.getElementById('expQty').value = '1';
+      document.getElementById('expHarga').value = '5000'; document.getElementById('expToko').value = '';
+      await submitExpense();
+      if ('toko' in sent) throw new Error('toko kosong tidak boleh ikut dikirim ke database: ' + JSON.stringify(sent));
+    } finally { sb.from = originalFrom; }
+  });
+
+  await step('Pengeluaran: editExpense()+submitExpense() mengubah baris yang ada (UPDATE, bukan baris baru) dan mencatat riwayat edit', async () => {
+    const originalFrom = sb.from;
+    const saved = expenses;
+    let updated = null, eqId = null;
+    try {
+      expenses = [{ id: 'e-edit', tanggal: '2026-08-01', nama: 'Gas 3kg', qty: 1, satuan: 'pcs', harga: 20000, jumlah: 20000, kategori: 'Gas', catatan: '', toko: '', outletId: null }];
+      sb.from = (table) => {
+        if (table !== 'expenses') return originalFrom(table);
+        const q = { update: (row) => { updated = row; return q; }, eq: (c, v) => { eqId = v; return q; }, select: () => q,
+          single: () => Promise.resolve({ data: { id: 'e-edit', ...updated }, error: null }) };
+        return q;
+      };
+      editExpense('e-edit');
+      if (editingExpenseId !== 'e-edit') throw new Error('editingExpenseId harus terisi');
+      if (document.getElementById('expNama').value !== 'Gas 3kg') throw new Error('form harus terisi data lama');
+      if (document.getElementById('expCancelBtn').style.display === 'none') throw new Error('tombol Batal Edit harus tampil saat mode edit');
+      document.getElementById('expHarga').value = '22000';
+      document.getElementById('expToko').value = 'Toko Baru';
+      await submitExpense();
+      if (expenses.length !== 1) throw new Error('edit tidak boleh menambah baris baru, jumlah=' + expenses.length);
+      if (expenses[0].harga !== 22000 || expenses[0].jumlah !== 22000 || expenses[0].toko !== 'Toko Baru') throw new Error('perubahan harus tersimpan: ' + JSON.stringify(expenses[0]));
+      if (eqId !== 'e-edit' || updated.toko !== 'Toko Baru' || updated.jumlah !== 22000) throw new Error('payload UPDATE salah: ' + JSON.stringify(updated));
+      if (editingExpenseId !== null) throw new Error('mode edit harus selesai setelah simpan');
+      if (document.getElementById('expCancelBtn').style.display !== 'none') throw new Error('tombol Batal Edit harus hilang setelah simpan');
+    } finally { sb.from = originalFrom; expenses = saved; editingExpenseId = null; setExpenseEditUI(false); }
+  });
+
+  await step('Pengeluaran: rekap per kategori (total, jumlah, per bulan) dan edit/hapus kategori dengan pemindahan transaksi', async () => {
+    const saved = expenses; const originalFrom = sb.from;
+    const savedHidden = getHiddenExpenseCategories();
+    try {
+      expenses = [
+        { id:'k1', tanggal:'2026-01-10', nama:'Gas', qty:1, satuan:'pcs', harga:20000, jumlah:20000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+        { id:'k2', tanggal:'2026-01-20', nama:'Gas', qty:1, satuan:'pcs', harga:25000, jumlah:25000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+        { id:'k3', tanggal:'2026-03-05', nama:'Gas', qty:1, satuan:'pcs', harga:30000, jumlah:30000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+        { id:'k4', tanggal:'2026-03-06', nama:'PLN', qty:1, satuan:'kali', harga:100000, jumlah:100000, kategori:'Listrik', catatan:'', toko:'', outletId:null },
+      ];
+      const tot = expenseCategoryTotals(expenses);
+      if (tot[0].kat !== 'Listrik' || tot[0].total !== 100000 || tot[1].kat !== 'Gas' || tot[1].total !== 75000 || tot[1].count !== 3) throw new Error('total per kategori salah: ' + JSON.stringify(tot));
+      const mon = expenseMonthlyByCategory(expenses, 2026);
+      if (mon['Gas'][0] !== 45000 || mon['Gas'][2] !== 30000 || mon['Gas'][1] !== 0) throw new Error('Gas per bulan salah: ' + JSON.stringify(mon['Gas']));
+      // UI rekap
+      document.getElementById('expKatBulanYear').value = '2026';
+      renderExpenseCategoryRecap(expenses);
+      if (document.getElementById('expKatRekap').textContent.indexOf('Gas') === -1) throw new Error('rekap harus menampilkan kategori Gas');
+      // mock update kategori
+      const calls = [];
+      sb.from = (table) => {
+        if (table !== 'expenses') return originalFrom(table);
+        const f = {}; const q = { update: (row) => { f.row = row; return q; }, eq: (c, v) => { f[c] = v; return q; },
+          then: (res) => { calls.push(f); return res({ error: null }); } };
+        return q;
+      };
+      openExpenseCategories();
+      // GANTI NAMA: Gas -> Gas LPG
+      let idx = expCatMgrNames.indexOf('Gas');
+      expenseCategoryAction('rename', idx);
+      document.getElementById('expCatRenameInput').value = 'Gas LPG';
+      await confirmRenameExpenseCategory(idx);
+      if (!expenses.filter(e => e.kategori === 'Gas LPG').length === 3) throw new Error('3 pengeluaran harus ikut berganti nama');
+      if (expenses.some(e => e.kategori === 'Gas')) throw new Error('tidak boleh ada yang tersisa di nama lama');
+      if (calls[0].row.kategori !== 'Gas LPG' || calls[0].kategori !== 'Gas') throw new Error('query UPDATE kategori salah: ' + JSON.stringify(calls[0]));
+      // HAPUS dengan pindah: Listrik -> Gas LPG
+      idx = expCatMgrNames.indexOf('Listrik');
+      expenseCategoryAction('delete', idx);
+      const sel = document.getElementById('expCatMoveTarget');
+      if (!sel) throw new Error('harus muncul pilihan kategori tujuan saat kategori punya pengeluaran');
+      const targets = JSON.parse(document.getElementById('expCatMgrAction').dataset.targets);
+      if (targets.includes('Listrik')) throw new Error('kategori yang dihapus tidak boleh jadi tujuan');
+      sel.value = String(targets.indexOf('Gas LPG'));
+      await confirmDeleteExpenseCategory(idx);
+      if (expenses.find(e => e.id === 'k4').kategori !== 'Gas LPG') throw new Error('pengeluaran Listrik harus pindah ke Gas LPG');
+      if (!getHiddenExpenseCategories().includes('Listrik')) throw new Error('kategori bawaan yang dihapus harus disembunyikan dari daftar');
+      if (distinctExpenseCategories().includes('Listrik')) throw new Error('Listrik tidak boleh muncul lagi di saran kategori');
+      closeExpenseCategories();
+    } finally {
+      sb.from = originalFrom; expenses = saved; setHiddenExpenseCategories(savedHidden);
+      document.getElementById('expenseCategoryModal').classList.remove('show');
+    }
+  });
+
+  await step('Pengeluaran: navigasi keyboard Enter/Home/End/PageUp/PageDown sama seperti form Transaksi', async () => {
+    const press = (id, key) => { const el = document.getElementById(id); el.focus(); el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); return document.activeElement && document.activeElement.id; };
+    if (press('expTanggal', 'Enter') !== 'expNama') throw new Error('Enter di Tanggal harus ke Nama');
+    if (press('expQty', 'End') !== 'expSatuan') throw new Error('End di Qty harus ke Satuan');
+    if (press('expSatuan', 'Home') !== 'expQty') throw new Error('Home di Satuan harus ke Qty');
+    if (press('expQty', 'Enter') !== 'expSatuan') throw new Error('Enter di Qty harus ke Satuan');
+    if (press('expNama', 'PageDown') !== 'expQty') throw new Error('PageDown di Nama harus ke baris Qty/Satuan');
+    if (press('expHarga', 'PageUp') !== 'expQty') throw new Error('PageUp di Harga harus ke baris Qty/Satuan');
+    if (press('expKategori', 'Enter') !== 'expToko') throw new Error('Enter di Kategori harus ke Toko');
+    if (press('expToko', 'Enter') !== 'expCatatan') throw new Error('Enter di Toko harus ke Catatan');
+  });
+
+  await step('Layanan Tambahan Tempo/Bulanan: Enter/Home/End/PageUp/PageDown berfungsi seperti Transaksi, Enter di Harga menambahkan layanan', async () => {
+    const press = (id, key) => { const el = document.getElementById(id); el.focus(); el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); return document.activeElement && document.activeElement.id; };
+    // Form ada di dalam modal Detail Paket -- harus tampil supaya elemennya bisa difokus.
+    const detailModal = document.getElementById('subsDetailModal');
+    detailModal.classList.add('show');
+    try {
+    if (press('extraTanggal', 'Enter') !== 'extraEstimasi') throw new Error('Enter di Tanggal harus ke Estimasi');
+    if (press('extraEstimasi', 'Enter') !== 'extraLayanan') throw new Error('Enter di Estimasi harus ke Nama Layanan');
+    if (press('extraLayanan', 'Enter') !== 'extraQty') throw new Error('Enter di Nama Layanan harus ke Qty');
+    if (press('extraQty', 'End') !== 'extraSatuan') throw new Error('End di Qty harus ke Satuan');
+    if (press('extraSatuan', 'Home') !== 'extraQty') throw new Error('Home di Satuan harus ke Qty');
+    if (press('extraTanggal', 'End') !== 'extraEstimasi') throw new Error('End di Tanggal harus ke Estimasi');
+    if (press('extraLayanan', 'PageDown') !== 'extraQty') throw new Error('PageDown di Nama Layanan harus ke Qty');
+    if (press('extraHarga', 'PageUp') !== 'extraQty') throw new Error('PageUp di Harga harus ke Qty');
+    const orig = window.addExtraService; let called = 0;
+    try {
+      window.addExtraService = async () => { called++; };
+      press('extraSatuan', 'Enter'); // ke Harga
+      press('extraHarga', 'Enter');
+      await new Promise(r => setTimeout(r, 20));
+      if (called !== 1) throw new Error('Enter di Harga harus memanggil addExtraService(), dipanggil ' + called + 'x');
+      if (document.activeElement.id !== 'extraLayanan') throw new Error('setelah menambah, fokus harus balik ke Nama Layanan, fokus di ' + document.activeElement.id);
+    } finally { window.addExtraService = orig; }
+    } finally { detailModal.classList.remove('show'); }
+  });
+
   await step('submitExpense() rejects when nama is empty or qty*harga is zero', async () => {
     const before = expenses.length;
     document.getElementById('expNama').value = '';
