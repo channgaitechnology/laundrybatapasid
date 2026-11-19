@@ -226,12 +226,13 @@
      saat halaman di-scroll; konten diberi margin kiri sebesar lebar rel. */
   #view-pengeluaran{animation:none;} /* transform di animasi .view akan merusak position:fixed */
   .exp-layout{display:block;}
-  .exp-rail{position:fixed;z-index:15;top:50%;transform:translateY(-50%);left:calc(max(0px,(100vw - 520px)/2) + 3px);width:42px;display:flex;flex-direction:column;gap:6px;}
+  .exp-rail{position:fixed;z-index:15;top:50%;transform:translateY(-50%);left:3px;width:42px;display:flex;flex-direction:column;gap:6px;}
   .exp-rail-btn{display:flex;flex-direction:column;align-items:center;gap:1px;width:42px;padding:6px 0 4px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink-soft);cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(13,79,104,0.12);}
   .exp-rail-btn span{font-size:18px;line-height:1.1;}
   .exp-rail-btn small{font-size:9px;font-weight:600;}
   .exp-rail-btn.active{background:var(--suds);border-color:var(--suds);color:#fff;}
-  .exp-main{margin-left:34px;min-width:0;}
+  /* margin kiri hanya sebesar yang masih dibutuhkan agar konten tidak tertutup rel: di layar lebar kolom sudah jauh dari tepi, jadi 0 */
+  .exp-main{margin-left:max(0px,calc(36px - max(0px,(100vw - 520px)/2)));min-width:0;}
   .exp-panel{display:none;}
   .exp-panel.active{display:block;}
   .suggest-item:last-child{border-bottom:none;}
@@ -683,7 +684,7 @@
     main{max-width:min(94vw,1400px);}
     .appbar{max-width:min(94vw,1400px);margin:0 auto;}
     .tabbar{max-width:min(94vw,1400px);margin:0 auto;border-radius:16px 16px 0 0;}
-    .exp-rail{left:calc(max(0px,(100vw - min(94vw,1400px))/2) + 3px);}
+    .exp-main{margin-left:max(0px,calc(36px - max(0px,(100vw - min(94vw,1400px))/2)));}
   }
   @media (min-width:640px){
     /* .settings-grid/.notes-grid sengaja TIDAK ikut ditambah kolom di sini --
