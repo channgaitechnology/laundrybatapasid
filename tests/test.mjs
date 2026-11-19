@@ -3368,7 +3368,8 @@ const result = await page.evaluate(async () => {
     showExpKategoriSuggest();
     const box = document.getElementById('expKategoriSuggestBox');
     const items = Array.from(box.querySelectorAll('.suggest-item'));
-    const poisoned = items.find(el => el.textContent === payload);
+    // Teks kategori sekarang ada di <span> pertama (di sebelahnya ada tombol Edit/Hapus), jadi dicocokkan lewat span itu.
+    const poisoned = items.find(el => el.firstElementChild && el.firstElementChild.textContent === payload);
     if (!poisoned) throw new Error('REGRESI: suggestion untuk kategori payload tidak ditemukan sama sekali: ' + box.innerHTML);
     // Cek lewat DOM API (properti elemen sungguhan), BUKAN substring di string
     // HTML -- payload-nya SENGAJA berisi teks "onmouseover=" sebagai LABEL
@@ -3504,6 +3505,35 @@ const result = await page.evaluate(async () => {
     } finally {
       sb.from = originalFrom; expenses = saved; setHiddenExpenseCategories(savedHidden);
       document.getElementById('expenseCategoryModal').classList.remove('show');
+    }
+  });
+
+  await step('Pengeluaran: daftar saran kategori punya tombol Edit & Hapus yang membuka panel kelola kategori', async () => {
+    const saved = expenses;
+    try {
+      expenses = [{ id:'s1', tanggal:'2026-08-01', nama:'Gas', qty:1, satuan:'pcs', harga:20000, jumlah:20000, kategori:'Gas', catatan:'', toko:'', outletId:null }];
+      document.getElementById('expKategori').value = '';
+      showExpKategoriSuggest();
+      const items = document.querySelectorAll('#expKategoriSuggestBox .suggest-item');
+      if (!items.length) throw new Error('saran kategori harus tampil');
+      if (items[0].querySelectorAll('button').length !== 2) throw new Error('tiap saran harus punya 2 tombol (edit, hapus)');
+      const i = expKategoriSuggestOptions.indexOf('Gas');
+      // klik tombol Hapus pada saran "Gas" tidak boleh ikut memilih kategori
+      document.getElementById('expKategori').value = '';
+      items[i].querySelectorAll('button')[1].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      if (document.getElementById('expKategori').value !== '') throw new Error('klik tombol tidak boleh memilih kategori');
+      if (!document.getElementById('expenseCategoryModal').classList.contains('show')) throw new Error('modal Kelola Kategori harus terbuka');
+      if (!document.getElementById('expCatMoveTarget')) throw new Error('panel hapus + pilihan pindah harus tampil untuk kategori yang punya pengeluaran');
+      expenseCategoryAction(null);
+      showExpKategoriSuggest();
+      const j = expKategoriSuggestOptions.indexOf('Gas');
+      document.querySelectorAll('#expKategoriSuggestBox .suggest-item')[j].querySelectorAll('button')[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      if (!document.getElementById('expCatRenameInput') || document.getElementById('expCatRenameInput').value !== 'Gas') throw new Error('panel ganti nama harus tampil berisi nama lama');
+    } finally {
+      expenses = saved;
+      document.getElementById('expenseCategoryModal').classList.remove('show');
+      expenseCategoryAction(null);
+      document.getElementById('expKategoriSuggestBox').classList.remove('show');
     }
   });
 
