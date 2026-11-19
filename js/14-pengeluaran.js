@@ -531,18 +531,52 @@ function expenseMonthlyByCategory(list, year){
   });
   return m;
 }
+/* Tiap baris kategori adalah dropdown (<details>): ketuk untuk melihat rincian
+   setiap pengeluaran di kategori itu (terbaru di atas). Nama kategori tidak
+   pernah masuk atribut HTML -- toggle memakai indeks ke expKatRecapNames.
+   Kategori yang sedang terbuka diingat (expKatRecapOpen) supaya tidak menutup
+   sendiri saat daftar dirender ulang. */
+const EXP_KAT_DETAIL_MAX = 200; // batas baris rincian per kategori
+let expKatRecapNames = [];
+const expKatRecapOpen = new Set();
+function expKatToggle(i, isOpen){
+  const name = expKatRecapNames[i];
+  if(name===undefined) return;
+  if(isOpen) expKatRecapOpen.add(name); else expKatRecapOpen.delete(name);
+}
 function renderExpenseCategoryRecap(list){
   const el = document.getElementById('expKatRekap');
   if(!el) return;
   const rows = expenseCategoryTotals(list);
   const total = rows.reduce((s,r)=>s+r.total,0);
+  expKatRecapNames = rows.map(r=>r.kat);
   if(rows.length===0){
     el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada pengeluaran periode ini')}</div>`;
     return;
   }
-  el.innerHTML = rows.map(r=>`
-    <div class="item-line"><span>${escapeHTML(r.kat)} <span style="color:var(--ink-soft);font-size:11.5px;">(${r.count}x · ${total>0 ? Math.round(r.total/total*100) : 0}%)</span></span><span>${rupiah(r.total)}</span></div>
-  `).join('') + `<div class="total-line"><span>${t('Total')}</span><span>${rupiah(total)}</span></div>`;
+  el.innerHTML = rows.map((r,i)=>{
+    const items = list.filter(e=>(e.kategori || t('Lain-lain'))===r.kat)
+      .sort((a,b)=> (b.tanggal||'').localeCompare(a.tanggal||'') || String(b.id).localeCompare(String(a.id)));
+    const shown = items.slice(0, EXP_KAT_DETAIL_MAX);
+    const detail = shown.map(e=>`
+      <div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px;">
+        <div style="min-width:0;">
+          <div><b>${escapeHTML(e.nama||'-')}</b> <span style="color:var(--ink-soft);">· ${escapeHTML(fmtDate(e.tanggal))}</span></div>
+          ${e.qty ? `<div style="color:var(--ink-soft);">${escapeHTML(String(e.qty))} ${escapeHTML(e.satuan||'')} x ${rupiah(e.harga||0)}</div>` : ''}
+          ${e.toko ? `<div style="color:var(--ink-soft);">🏪 ${escapeHTML(e.toko)}</div>` : ''}
+          ${e.catatan ? `<div style="color:var(--ink-soft);">${escapeHTML(e.catatan)}</div>` : ''}
+        </div>
+        <div style="font-weight:600;white-space:nowrap;">${rupiah(e.jumlah)}</div>
+      </div>`).join('');
+    const more = items.length>shown.length ? `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">… ${t('dan')} ${items.length-shown.length} ${t('pengeluaran lainnya (unduh PDF untuk daftar lengkap)')}</div>` : '';
+    return `<details class="exp-kat-detail" ${expKatRecapOpen.has(r.kat)?'open':''} ontoggle="expKatToggle(${i}, this.open)" style="border-bottom:1px solid var(--line);">
+      <summary style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 0;cursor:pointer;font-size:13.5px;list-style:none;">
+        <span><span aria-hidden="true">▸</span> ${escapeHTML(r.kat)} <span style="color:var(--ink-soft);font-size:11.5px;">(${r.count}x · ${total>0 ? Math.round(r.total/total*100) : 0}%)</span></span>
+        <span style="font-weight:600;white-space:nowrap;">${rupiah(r.total)}</span>
+      </summary>
+      <div style="padding:0 0 8px 14px;">${detail}${more}</div>
+    </details>`;
+  }).join('') + `<div class="total-line"><span>${t('Total')}</span><span>${rupiah(total)}</span></div>`;
 }
 function expKatBulanChanged(){
   const sel = document.getElementById('expKatBulanSel');
