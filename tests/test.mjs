@@ -3537,6 +3537,30 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Pengeluaran: Rekap per Kategori berupa dropdown yang memuat rincian tiap pengeluaran (terbaru di atas, nama/toko ter-escape)', () => {
+    const list = [
+      { id:'d1', tanggal:'2026-08-01', nama:'Gas 3kg', qty:2, satuan:'pcs', harga:20000, jumlah:40000, kategori:'Gas', catatan:'', toko:'Agen Pak Budi', outletId:null },
+      { id:'d2', tanggal:'2026-08-05', nama:'<img src=x onerror=alert(1)>', qty:1, satuan:'pcs', harga:25000, jumlah:25000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+      { id:'d3', tanggal:'2026-08-03', nama:'PLN', qty:1, satuan:'kali', harga:100000, jumlah:100000, kategori:'Listrik', catatan:'', toko:'', outletId:null },
+    ];
+    renderExpenseCategoryRecap(list);
+    const dets = document.querySelectorAll('#expKatRekap details.exp-kat-detail');
+    if (dets.length !== 2) throw new Error('harus ada 1 dropdown per kategori, ada ' + dets.length);
+    if (dets[0].open) throw new Error('dropdown harus tertutup di awal');
+    const gas = Array.from(dets).find(d => d.querySelector('summary').textContent.includes('Gas'));
+    const rows = gas.querySelectorAll('div > div[style*="justify-content:space-between"]');
+    if (rows.length !== 2) throw new Error('rincian Gas harus 2 baris, ada ' + rows.length);
+    if (!rows[0].textContent.includes('<img src=x')) throw new Error('urutan harus terbaru dulu (tanggal 5 Agu di atas) dan nama tampil sebagai teks');
+    if (gas.querySelector('img')) throw new Error('KEAMANAN: nama pengeluaran tidak boleh jadi elemen HTML');
+    if (!gas.textContent.includes('Agen Pak Budi')) throw new Error('nama toko harus tampil di rincian');
+    gas.open = true; gas.dispatchEvent(new Event('toggle'));
+    renderExpenseCategoryRecap(list);
+    const gas2 = Array.from(document.querySelectorAll('#expKatRekap details')).find(d => d.querySelector('summary').textContent.includes('Gas'));
+    if (!gas2.open) throw new Error('dropdown yang terbuka harus tetap terbuka setelah render ulang');
+    expKatRecapOpen.clear();
+    renderExpenseCategoryRecap([]);
+  });
+
   await step('Pengeluaran: navigasi keyboard Enter/Home/End/PageUp/PageDown sama seperti form Transaksi', async () => {
     const press = (id, key) => { const el = document.getElementById(id); el.focus(); el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); return document.activeElement && document.activeElement.id; };
     if (press('expTanggal', 'Enter') !== 'expNama') throw new Error('Enter di Tanggal harus ke Nama');
