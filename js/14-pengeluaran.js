@@ -233,6 +233,7 @@ function editExpense(id){
   document.getElementById('expCatatan').value = exp.catatan || '';
   updateExpenseSubtotalPreview();
   setExpenseEditUI(true);
+  showExpenseTab('catat');
   window.scrollTo(0,0);
   document.getElementById('expNama').focus();
 }
@@ -282,6 +283,7 @@ async function submitExpense(){
     cancelExpenseEdit();
     showToast(t('Pengeluaran diperbarui'));
     renderExpenseList();
+    showExpenseTab('riwayat'); // kembali ke daftar, tempat edit dimulai
     return;
   }
 
@@ -398,6 +400,7 @@ function renderExpenseList(){
     el.innerHTML = `<div class="empty"><h3>${t('Lengkapi periode dulu')}</h3></div>`;
     expenseReportCache = null;
     renderExpenseCategoryRecap([]);
+    renderExpenseStoreRecap([]);
     renderExpenseCategoryMonthly();
     return;
   }
@@ -434,6 +437,7 @@ function renderExpenseList(){
   }
   expenseReportCache = { range, list: listAsc, total };
   renderExpenseCategoryRecap(listAsc);
+  renderExpenseStoreRecap(listAsc);
   renderExpenseCategoryMonthly();
 }
 function downloadExpensePDF(){
@@ -506,6 +510,46 @@ function downloadExpensePDF(){
 
 
 
+/* ===================== HALAMAN (SUB-TAB) PENGELUARAN =====================
+   Tab Pengeluaran dibagi jadi beberapa halaman dengan rel tab sempit di kiri
+   supaya tidak panjang ke bawah: Catat, Riwayat, Kategori, Bulanan, Toko.
+   Kartu pemilih Periode dipakai bersama oleh Riwayat/Kategori/Toko (id-nya
+   cuma satu), jadi cuma tampil di halaman-halaman itu. */
+const EXP_TABS_WITH_PERIOD = ['riwayat','kategori','toko'];
+let expActiveTab = 'catat';
+function showExpenseTab(name){
+  if(!['catat','riwayat','kategori','bulanan','toko'].includes(name)) name = 'catat';
+  expActiveTab = name;
+  document.querySelectorAll('#view-pengeluaran .exp-panel').forEach(p=>p.classList.toggle('active', p.dataset.sub===name));
+  document.querySelectorAll('#view-pengeluaran .exp-rail-btn').forEach(b=>{
+    const on = b.dataset.sub===name;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  const per = document.getElementById('expPeriodCard');
+  if(per) per.style.display = EXP_TABS_WITH_PERIOD.includes(name) ? '' : 'none';
+}
+/* Rekap per toko/tempat bayar untuk periode yang dipilih. */
+function renderExpenseStoreRecap(list){
+  const el = document.getElementById('expTokoRekap');
+  if(!el) return;
+  const m = {};
+  list.forEach(e=>{
+    const k = (e.toko||'').trim() || '';
+    if(!m[k]) m[k] = { toko:k, total:0, count:0 };
+    m[k].total += e.jumlah; m[k].count += 1;
+  });
+  const rows = Object.values(m).sort((a,b)=>b.total-a.total);
+  const total = rows.reduce((s,r)=>s+r.total,0);
+  if(rows.length===0){
+    el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada pengeluaran periode ini')}</div>`;
+    return;
+  }
+  el.innerHTML = rows.map(r=>`
+    <div class="item-line"><span>${r.toko ? '🏪 '+escapeHTML(r.toko) : '<i>'+t('(tanpa nama toko)')+'</i>'} <span style="color:var(--ink-soft);font-size:11.5px;">(${r.count}x · ${total>0 ? Math.round(r.total/total*100) : 0}%)</span></span><span>${rupiah(r.total)}</span></div>
+  `).join('') + `<div class="total-line"><span>${t('Total')}</span><span>${rupiah(total)}</span></div>`;
+}
+
 /* ===================== REKAP PER KATEGORI ===================== */
 const EXP_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 /* Total & jumlah catatan per kategori dari satu daftar pengeluaran, diurut
@@ -546,6 +590,7 @@ let expRecapItemIds = []; // id pengeluaran per baris rincian (indeks dipakai di
 function gotoExpenseCard(k){
   const id = expRecapItemIds[k];
   if(id===undefined) return;
+  showExpenseTab('riwayat'); // kartu catatan ada di halaman Riwayat
   const card = Array.from(document.querySelectorAll('#expenseList .trx-card')).find(c=>c.dataset.expId===String(id));
   if(!card){ showToast(t('Catatan tidak ditemukan di daftar')); return; }
   card.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -825,3 +870,6 @@ attachFormGridNav([
 ], function(){
   Promise.resolve(submitExpense()).then(()=>{ const n = document.getElementById('expNama'); if(n) n.focus(); });
 });
+
+// Halaman awal tab Pengeluaran.
+showExpenseTab('catat');

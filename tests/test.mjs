@@ -3588,6 +3588,40 @@ const result = await page.evaluate(async () => {
     } finally { expenses = saved; renderExpenseList(); }
   });
 
+  await step('Pengeluaran: halaman terpisah dengan rel tab kiri (Catat/Riwayat/Kategori/Bulanan/Toko), kartu Periode hanya di halaman yang butuh, rekap per toko', () => {
+    const saved = expenses;
+    try {
+      const vis = (sub) => document.querySelector('#view-pengeluaran .exp-panel[data-sub="' + sub + '"]').classList.contains('active');
+      const period = () => document.getElementById('expPeriodCard').style.display !== 'none';
+      showExpenseTab('catat');
+      if (!vis('catat') || vis('riwayat') || vis('kategori') || period()) throw new Error('halaman Catat: hanya form yang tampil, kartu Periode tersembunyi');
+      showExpenseTab('riwayat');
+      if (!vis('riwayat') || vis('catat') || !period()) throw new Error('halaman Riwayat: daftar + kartu Periode tampil');
+      showExpenseTab('bulanan');
+      if (!vis('bulanan') || period()) throw new Error('halaman Bulanan: tanpa kartu Periode');
+      showExpenseTab('toko');
+      if (!vis('toko') || !period()) throw new Error('halaman Toko: rekap toko + kartu Periode');
+      const active = document.querySelectorAll('#view-pengeluaran .exp-rail-btn.active');
+      if (active.length !== 1 || active[0].dataset.sub !== 'toko') throw new Error('tepat satu tombol rel yang aktif');
+      showExpenseTab('ngawur');
+      if (!vis('catat')) throw new Error('nama halaman tak dikenal harus jatuh ke Catat');
+      expenses = [];
+      renderExpenseStoreRecap([
+        { id:'a', tanggal:'2026-08-01', nama:'A', jumlah:30000, kategori:'Gas', toko:'Toko <b>X</b>' },
+        { id:'b', tanggal:'2026-08-02', nama:'B', jumlah:10000, kategori:'Gas', toko:'Toko <b>X</b>' },
+        { id:'c', tanggal:'2026-08-03', nama:'C', jumlah:10000, kategori:'Gas', toko:'' },
+      ]);
+      const rek = document.getElementById('expTokoRekap');
+      if (rek.querySelector('b')) throw new Error('KEAMANAN: nama toko tidak boleh jadi elemen HTML');
+      if (!rek.textContent.includes('(2x') || !rek.textContent.includes('tanpa nama toko')) throw new Error('rekap toko harus menghitung per toko dan grup tanpa toko: ' + rek.textContent);
+      // edit dari halaman manapun harus membuka halaman Catat
+      expenses = [{ id:'ed1', tanggal:'2026-08-01', nama:'Gas', qty:1, satuan:'pcs', harga:20000, jumlah:20000, kategori:'Gas', catatan:'', toko:'', outletId:null }];
+      showExpenseTab('riwayat');
+      editExpense('ed1');
+      if (!vis('catat')) throw new Error('editExpense() harus pindah ke halaman Catat');
+    } finally { cancelExpenseEdit(); expenses = saved; showExpenseTab('catat'); }
+  });
+
   await step('Pengeluaran: navigasi keyboard Enter/Home/End/PageUp/PageDown sama seperti form Transaksi', async () => {
     const press = (id, key) => { const el = document.getElementById(id); el.focus(); el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); return document.activeElement && document.activeElement.id; };
     if (press('expTanggal', 'Enter') !== 'expNama') throw new Error('Enter di Tanggal harus ke Nama');
