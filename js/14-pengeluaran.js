@@ -64,8 +64,22 @@ function showExpKategoriSuggest(){
   const options = distinctExpenseCategories().filter(k=>!val || k.toLowerCase().includes(val));
   expKategoriSuggestOptions = options;
   if(options.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
-  box.innerHTML = options.map((k,i)=>`<div class="suggest-item" onmousedown="event.preventDefault();selectExpKategoriSuggest(${i})">${escapeHTML(k)}</div>`).join('');
+  // Tiap saran punya tombol ✏️ (ganti nama) dan 🗑️ (hapus + pindahkan). Tombol
+  // memanggil expKategoriSuggestAction(jenis, indeks) -- nama kategori tidak
+  // pernah masuk atribut HTML, hanya indeks.
+  box.innerHTML = options.map((k,i)=>`<div class="suggest-item" style="display:flex;align-items:center;justify-content:space-between;gap:8px;" onmousedown="event.preventDefault();selectExpKategoriSuggest(${i})"><span style="flex:1;min-width:0;">${escapeHTML(k)}</span><span style="display:flex;gap:4px;flex-shrink:0;"><button type="button" aria-label="${t('Edit')}" style="background:none;border:none;font-size:16px;padding:4px 8px;cursor:pointer;" onmousedown="event.preventDefault();event.stopPropagation();expKategoriSuggestAction('rename',${i})">✏️</button><button type="button" aria-label="${t('Hapus')}" style="background:none;border:none;font-size:16px;padding:4px 8px;cursor:pointer;" onmousedown="event.preventDefault();event.stopPropagation();expKategoriSuggestAction('delete',${i})">🗑️</button></span></div>`).join('');
   box.classList.add('show');
+}
+/* Dari daftar saran: langsung buka Kelola Kategori dengan panel ganti nama /
+   hapus (pilihan pindah ke kategori lain) untuk kategori yang dipilih. */
+function expKategoriSuggestAction(kind, i){
+  const name = expKategoriSuggestOptions[i];
+  if(name===undefined) return;
+  const box = document.getElementById('expKategoriSuggestBox');
+  if(box) box.classList.remove('show');
+  openExpenseCategories();
+  const idx = expCatMgrNames.indexOf(name);
+  if(idx>=0) expenseCategoryAction(kind, idx);
 }
 function hideExpKategoriSuggestDelayed(){
   setTimeout(()=>{ const box=document.getElementById('expKategoriSuggestBox'); if(box) box.classList.remove('show'); }, 150);
