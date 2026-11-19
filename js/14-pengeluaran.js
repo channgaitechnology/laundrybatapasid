@@ -414,7 +414,7 @@ function renderExpenseList(){
     </div>`;
   } else {
     el.innerHTML = listAsc.slice().reverse().map(e=>`
-      <div class="trx-card">
+      <div class="trx-card" data-exp-id="${escapeHTML(String(e.id))}">
         <div class="trx-top">
           <div>
             <div class="trx-name">${escapeHTML(e.nama||e.kategori)}</div>
@@ -538,6 +538,22 @@ function expenseMonthlyByCategory(list, year){
    sendiri saat daftar dirender ulang. */
 const EXP_KAT_DETAIL_MAX = 200; // batas baris rincian per kategori
 let expKatRecapNames = [];
+let expRecapItemIds = []; // id pengeluaran per baris rincian (indeks dipakai di onclick, bukan id mentah)
+/* Ketuk satu baris rincian di Rekap per Kategori -> gulir ke kartu
+   pengeluaran yang sama di daftar di bawah (yang punya tombol Edit/Hapus)
+   dan sorot sebentar. Kartu dicari lewat dataset, bukan selector, supaya id
+   apa pun aman. */
+function gotoExpenseCard(k){
+  const id = expRecapItemIds[k];
+  if(id===undefined) return;
+  const card = Array.from(document.querySelectorAll('#expenseList .trx-card')).find(c=>c.dataset.expId===String(id));
+  if(!card){ showToast(t('Catatan tidak ditemukan di daftar')); return; }
+  card.scrollIntoView({ behavior:'smooth', block:'center' });
+  card.classList.remove('exp-flash');
+  void card.offsetWidth; // restart animasi kalau diketuk berulang
+  card.classList.add('exp-flash');
+  setTimeout(()=>card.classList.remove('exp-flash'), 2600);
+}
 const expKatRecapOpen = new Set();
 function expKatToggle(i, isOpen){
   const name = expKatRecapNames[i];
@@ -550,6 +566,7 @@ function renderExpenseCategoryRecap(list){
   const rows = expenseCategoryTotals(list);
   const total = rows.reduce((s,r)=>s+r.total,0);
   expKatRecapNames = rows.map(r=>r.kat);
+  expRecapItemIds = [];
   if(rows.length===0){
     el.innerHTML = `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;padding:8px 0;">${t('Belum ada pengeluaran periode ini')}</div>`;
     return;
@@ -558,16 +575,16 @@ function renderExpenseCategoryRecap(list){
     const items = list.filter(e=>(e.kategori || t('Lain-lain'))===r.kat)
       .sort((a,b)=> (b.tanggal||'').localeCompare(a.tanggal||'') || String(b.id).localeCompare(String(a.id)));
     const shown = items.slice(0, EXP_KAT_DETAIL_MAX);
-    const detail = shown.map(e=>`
-      <div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px;">
+    const detail = shown.map(e=>{ const k = expRecapItemIds.push(e.id)-1; return `
+      <div role="button" tabindex="0" onclick="gotoExpenseCard(${k})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gotoExpenseCard(${k});}" style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px;cursor:pointer;">
         <div style="min-width:0;">
           <div><b>${escapeHTML(e.nama||'-')}</b> <span style="color:var(--ink-soft);">· ${escapeHTML(fmtDate(e.tanggal))}</span></div>
           ${e.qty ? `<div style="color:var(--ink-soft);">${escapeHTML(String(e.qty))} ${escapeHTML(e.satuan||'')} x ${rupiah(e.harga||0)}</div>` : ''}
           ${e.toko ? `<div style="color:var(--ink-soft);">🏪 ${escapeHTML(e.toko)}</div>` : ''}
           ${e.catatan ? `<div style="color:var(--ink-soft);">${escapeHTML(e.catatan)}</div>` : ''}
         </div>
-        <div style="font-weight:600;white-space:nowrap;">${rupiah(e.jumlah)}</div>
-      </div>`).join('');
+        <div style="font-weight:600;white-space:nowrap;">${rupiah(e.jumlah)} <span aria-hidden="true" style="color:var(--ink-soft);font-weight:400;">›</span></div>
+      </div>`; }).join('');
     const more = items.length>shown.length ? `<div style="font-size:12px;color:var(--ink-soft);padding:6px 0;">… ${t('dan')} ${items.length-shown.length} ${t('pengeluaran lainnya (unduh PDF untuk daftar lengkap)')}</div>` : '';
     return `<details class="exp-kat-detail" ${expKatRecapOpen.has(r.kat)?'open':''} ontoggle="expKatToggle(${i}, this.open)" style="border-bottom:1px solid var(--line);">
       <summary style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 0;cursor:pointer;font-size:13.5px;list-style:none;">
