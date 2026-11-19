@@ -3561,6 +3561,33 @@ const result = await page.evaluate(async () => {
     renderExpenseCategoryRecap([]);
   });
 
+  await step('Pengeluaran: ketuk baris rincian di Rekap per Kategori -> gulir & sorot kartu catatan yang sama (punya Edit/Hapus)', () => {
+    const saved = expenses;
+    try {
+      expenses = [
+        { id:'g1', tanggal:'2026-08-01', nama:'Gas A', qty:1, satuan:'pcs', harga:20000, jumlah:20000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+        { id:'g2', tanggal:'2026-08-02', nama:'Gas B', qty:1, satuan:'pcs', harga:21000, jumlah:21000, kategori:'Gas', catatan:'', toko:'', outletId:null },
+      ];
+      document.getElementById('expPeriodeType').value = 'bulanan';
+      document.getElementById('expBulan').value = '2026-08';
+      renderExpenseList();
+      const cards = document.querySelectorAll('#expenseList .trx-card');
+      if (cards.length !== 2) throw new Error('daftar harus punya 2 kartu, ada ' + cards.length);
+      let scrolled = 0; const origScroll = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function(){ scrolled++; this.dataset.scrolledTo = '1'; };
+      try {
+        const rows = document.querySelectorAll('#expKatRekap details [role="button"]');
+        if (rows.length !== 2) throw new Error('2 baris rincian harus bisa diketuk, ada ' + rows.length);
+        // baris pertama = terbaru = Gas B (g2)
+        rows[0].click();
+        const target = Array.from(cards).find(c => c.dataset.expId === 'g2');
+        if (!target.classList.contains('exp-flash') || target.dataset.scrolledTo !== '1') throw new Error('kartu Gas B harus tergulir & tersorot');
+        if (Array.from(cards).find(c => c.dataset.expId === 'g1').dataset.scrolledTo === '1') throw new Error('kartu lain tidak boleh ikut');
+        if (!target.querySelector('button[onclick^="editExpense"]') || !target.querySelector('button[onclick^="deleteExpense"]')) throw new Error('kartu tujuan harus punya tombol Edit & Hapus');
+      } finally { Element.prototype.scrollIntoView = origScroll; }
+    } finally { expenses = saved; renderExpenseList(); }
+  });
+
   await step('Pengeluaran: navigasi keyboard Enter/Home/End/PageUp/PageDown sama seperti form Transaksi', async () => {
     const press = (id, key) => { const el = document.getElementById(id); el.focus(); el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); return document.activeElement && document.activeElement.id; };
     if (press('expTanggal', 'Enter') !== 'expNama') throw new Error('Enter di Tanggal harus ke Nama');
