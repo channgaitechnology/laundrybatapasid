@@ -7,7 +7,15 @@ function switchTab(name){
   const map = { baru:'view-baru', riwayat:'view-riwayat', laporan:'view-laporan', nota:'view-nota', paket:'view-paket', pengeluaran:'view-pengeluaran', papan:'view-papan' };
   document.getElementById(map[name]).classList.add('active');
   const tabBtn = document.querySelector('.tab[data-tab="'+name+'"]');
-  if(tabBtn) tabBtn.classList.add('active');
+  if(tabBtn){
+    tabBtn.classList.add('active');
+    // Tab bawah bisa digeser: bawa tab aktif ke tengah supaya selalu terlihat.
+    // Dihitung manual (bukan scrollIntoView) agar halaman utama tidak ikut bergulir.
+    const bar = tabBtn.parentElement;
+    if(bar && bar.scrollWidth > bar.clientWidth){
+      try{ bar.scrollTo({ left: tabBtn.offsetLeft - (bar.clientWidth - tabBtn.offsetWidth)/2, behavior:'smooth' }); }catch(e){}
+    }
+  }
   if(name==='riwayat') renderHistory();
   if(name==='laporan'){ renderReport(); renderLabaRugi(); renderPeringkatPelanggan(); }
   if(name==='paket') renderSubscriptions();

@@ -266,10 +266,15 @@
     background:#fff;border-top:1px solid var(--line);
     display:flex;padding:6px 10px calc(6px + env(safe-area-inset-bottom));
     box-shadow:0 -4px 16px rgba(13,79,104,0.08);
+    /* Tab terlalu banyak untuk layar sempit -> bisa digeser kiri-kanan, tidak
+       melebarkan halaman (yang membuat browser memperkecil tampilan dan
+       menyisakan ruang kosong di kanan). */
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;
   }
+  .tabbar::-webkit-scrollbar{display:none;}
   .tab{
-    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    background:none;border:none;padding:8px 4px;border-radius:12px;color:var(--ink-soft);
+    flex:1 0 auto;min-width:62px;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:3px;
+    background:none;border:none;padding:8px 6px;border-radius:12px;color:var(--ink-soft);
   }
   .tab svg{width:21px;height:21px;}
   .tab span{font-size:10.5px;font-weight:600;}
