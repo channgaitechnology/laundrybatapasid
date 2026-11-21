@@ -40,13 +40,13 @@
  * di index.html, SESUAIKAN APP_SHELL / CDN_ASSETS di bawah dan NAIKKAN
  * CACHE_NAME.
  */
-const CACHE_NAME = 'laundry-batapas-v13';
+const CACHE_NAME = 'laundry-batapas-v14';
 /* Cache CDN terpisah: isinya pustaka dengan versi dipin, tidak perlu ikut
    dibuang tiap CACHE_NAME dinaikkan (hemat unduhan ulang ~600 KB). Naikkan
    suffix-nya HANYA kalau URL pustaka di index.html berubah. */
 const CDN_CACHE = 'laundry-batapas-cdn-v1';
 const KEEP_CACHES = [CACHE_NAME, CDN_CACHE];
-const NETWORK_TIMEOUT_MS = 6000;
+const NETWORK_TIMEOUT_MS = 2500;
 
 const APP_SHELL = [
   './',

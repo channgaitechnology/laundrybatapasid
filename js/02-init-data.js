@@ -63,7 +63,15 @@ async function resolveRoleAndInit(){
       localStorage.removeItem('nk_pendingRegCode');
     }
   }catch(e){}
-  const { data: memberRow, error: memberErr } = await sb.from('team_members').select('*').eq('member_id', currentUser.id).eq('status','aktif').maybeSingle();
+  /* Tiga pengecekan peran dijalankan SERENTAK (bukan satu-satu menunggu) --
+     memangkas 2 kali bolak-balik jaringan saat buka app, yang terasa jelas
+     di sinyal lambat. Hasilnya dibaca dengan urutan prioritas yang sama. */
+  const [memberRes, settingsRes, trxRes] = await Promise.all([
+    sb.from('team_members').select('*').eq('member_id', currentUser.id).eq('status','aktif').maybeSingle(),
+    sb.from('settings').select('user_id').eq('user_id', currentUser.id).maybeSingle(),
+    sb.from('transactions').select('id').eq('user_id', currentUser.id).limit(1)
+  ]);
+  const { data: memberRow, error: memberErr } = memberRes;
   // Server tidak terjangkau (sinyal macet): peran tidak bisa dipastikan -- jangan
   // lanjut ke cabang "akun baru" di bawah.
   if(offlineIsNetworkError(memberErr)){ await offlineFallbackOrNotify(currentUser.id); return; }
@@ -77,8 +85,8 @@ async function resolveRoleAndInit(){
     await initUserData();
     return;
   }
-  const { data: ownSettings, error: ownSettingsErr } = await sb.from('settings').select('user_id').eq('user_id', currentUser.id).maybeSingle();
-  const { data: ownTrx, error: ownTrxErr } = await sb.from('transactions').select('id').eq('user_id', currentUser.id).limit(1);
+  const { data: ownSettings, error: ownSettingsErr } = settingsRes;
+  const { data: ownTrx, error: ownTrxErr } = trxRes;
   if(offlineIsNetworkError(ownSettingsErr) || offlineIsNetworkError(ownTrxErr)){ await offlineFallbackOrNotify(currentUser.id); return; }
   if(ownSettings || (ownTrx && ownTrx.length>0)){
     currentRole = 'owner';

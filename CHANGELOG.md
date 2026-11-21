@@ -6,6 +6,18 @@ Log kronologis perbaikan, regresi, dan audit — dipindah dari README supaya pan
 
 <!-- isi-dipindah-dari-README -->
 
+## Landscape, buka app lebih cepat, layar login ringkas (22 November 2026)
+
+- **Landscape**: `manifest.json` diberi `"orientation": "any"` dan ada CSS khusus
+  layar pendek (app bar, tab bawah, modal dipadatkan). APK Play Store hasil
+  PWABuilder/TWA mungkin perlu dibuat ulang supaya aturan orientasi barunya terbaca.
+- **Buka app setelah mati**: ada layar pembuka (`#bootSplash`) yang menutup form
+  login selama sesi dicek (tidak ada lagi kedipan login); tiga cek peran di
+  `resolveRoleAndInit()` dijalankan serentak (`Promise.all`); batas tunggu jaringan
+  `sw.js` 6 dtk -> 2,5 dtk (`CACHE_NAME` v14).
+- **Layar login**: awalnya hanya tombol Masuk dan Daftar; form email/password muncul
+  setelah salah satunya diketuk, ada tombol "← Kembali".
+
 ## Revisi tab Pengeluaran & layanan tambahan (18 November 2026)
 
 - **Edit pengeluaran**: tombol ✏️ Edit di tiap kartu; form berubah ke mode edit

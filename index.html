@@ -559,6 +559,22 @@
   .btn-cta-signup:hover{
     transform:translateY(-2px);background:#F0FDF4;color:#166534;
   }
+  /* ---- Layar pembuka (splash): menutup layar login selama sesi dicek, supaya
+     user yang masih login tidak sempat melihat form login berkedip. ---- */
+  #bootSplash{
+    position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:linear-gradient(160deg,var(--suds) 0%, var(--suds-deep) 65%);color:#fff;
+    transition:opacity .25s;
+  }
+  #bootSplash.hide{opacity:0;pointer-events:none;visibility:hidden;}
+  #bootSplash img{width:104px;height:104px;object-fit:contain;border-radius:20px;}
+  #bootSplash .spin{width:28px;height:28px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:bootspin .8s linear infinite;}
+  @keyframes bootspin{to{transform:rotate(360deg);}}
+  /* Kartu login ringkas: awalnya cuma 2 tombol Masuk/Daftar, form muncul setelah salah satunya diketuk. */
+  .auth-card.collapsed #authFormWrap{display:none;}
+  .auth-card.collapsed .auth-toggle{background:none;padding:0;flex-direction:column;gap:10px;margin-bottom:6px;}
+  .auth-card.collapsed .auth-toggle button{padding:14px;font-size:15px;border-radius:12px;border:2px solid var(--suds-deep);background:#fff;color:var(--suds-deep);}
+  .auth-card.collapsed #tabMasuk{background:var(--suds-deep);color:#fff;}
   #authScreen.hidden{display:none;}
   .auth-lang-switch{position:absolute;top:18px;right:18px;display:flex;gap:6px;z-index:5;}
   .auth-lang-btn{
@@ -686,6 +702,24 @@
 
   body.dark-mode .toast {
     background:#2A3C4A;
+  }
+
+  /* ---- Mode landscape (HP diputar mendatar): tinggi layar sempit, jadi app bar,
+     tab bawah, dan modal dipadatkan supaya area isi tidak habis tertutup. ---- */
+  @media (orientation:landscape) and (max-height:520px){
+    .appbar{padding:8px 16px 10px;border-radius:0 0 16px 16px;}
+    .appbar-title .logo{width:30px;height:30px;}
+    .appbar-title h1{font-size:15px;}
+    .appbar-title p{display:none;}
+    .tabbar{padding:3px 10px calc(3px + env(safe-area-inset-bottom));}
+    .tab{padding-top:3px;padding-bottom:3px;}
+    main{padding:10px 14px 64px;}
+    .modal{max-height:94vh;max-width:min(94vw,640px);border-radius:16px;}
+    .modal-bg{align-items:center;}
+    .toast{bottom:64px;}
+    #authScreen{padding:14px 16px 40px;}
+    .auth-card{padding:16px 20px;}
+    .auth-card .logo-wrap img{width:64px!important;height:64px!important;}
   }
 
   /* ---- Layar lebar (tablet landscape/desktop): lebar konten menyesuaikan
@@ -1957,13 +1991,22 @@
 <div id="printArea"></div>
 
 <!-- Auth screen -->
+<div id="bootSplash" role="status" aria-live="polite">
+  <img src="icons/logo-auth.png" alt="Dokter Laundry">
+  <div class="spin" aria-hidden="true"></div>
+</div>
+<script>
+  /* Cadangan: kalau pengecekan sesi macet, splash tetap diangkat setelah 10 detik. */
+  window.hideBootSplash = function(){ var e=document.getElementById('bootSplash'); if(e) e.classList.add('hide'); };
+  setTimeout(window.hideBootSplash, 10000);
+</script>
 <div id="authScreen">
   <div class="auth-top-wrap">
     <div class="auth-lang-switch">
       <button type="button" class="auth-lang-btn" id="authLangBtnId" onclick="setLanguage('id')">🇮🇩 ID</button>
       <button type="button" class="auth-lang-btn" id="authLangBtnEn" onclick="setLanguage('en')">🇬🇧 EN</button>
     </div>
-    <div class="auth-card">
+    <div class="auth-card collapsed">
       <div class="logo-wrap">
 <img src="icons/logo-auth.png" alt="Logo Dokter Laundry" style="width:120px;height:120px;object-fit:contain;border-radius:16px;">
       </div>
@@ -1971,9 +2014,10 @@
       <p class="sub" style="margin-bottom:2px;font-weight:600;">Diagnosa Masalah Admin, Kami Kasih Obatnya</p>
       <p class="sub">Capek nota manual, hitung-hitung sendiri, dan laporan kacau gara-gara hitungan manual? Masuk dan mulai sembuhkan admin laundry kamu.</p>
       <div class="auth-toggle">
-        <button id="tabMasuk" class="active" onclick="setAuthMode('masuk')">Masuk</button>
+        <button id="tabMasuk" onclick="setAuthMode('masuk')">Masuk</button>
         <button id="tabDaftar" onclick="setAuthMode('daftar')">Daftar</button>
       </div>
+      <div id="authFormWrap">
       <div id="regCodeField" style="display:none;">
         <label for="regCodeInput">Kode Pendaftaran (opsional)</label>
         <input id="regCodeInput" placeholder="Kosongkan untuk trial 30 hari gratis" style="text-transform:uppercase;">
@@ -1999,6 +2043,8 @@
       </label>
       <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
       <button class="btn btn-ghost" style="margin-top:10px;" onclick="openForgotPassword()">Lupa Password?</button>
+      <button class="btn btn-ghost" style="margin-top:4px;" onclick="collapseAuthForm()">← Kembali</button>
+      </div>
       <button class="btn btn-outline" id="offlineContinueBtn" style="display:none;margin-top:10px;width:100%;" onclick="offlineContinueFromAuth()">📴 Lanjut offline (data terakhir)</button>
       <div class="auth-footer-links">
         <a href="syarat-ketentuan.html" target="_blank" rel="noopener">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener">Kebijakan Refund</a>
@@ -2486,14 +2532,14 @@
     if(session && session.user){
       currentUser = session.user;
       document.getElementById('authScreen').classList.add('hidden');
-      resolveRoleAndInit();
+      Promise.resolve(resolveRoleAndInit()).catch(()=>{}).then(hideBootSplash);
     } else {
       currentUser = null;
       stopAdminNotifPolling(); // hentikan polling notifikasi admin & sembunyikan lonceng saat logout
       document.getElementById('authScreen').classList.remove('hidden');
       // Tanpa sesi karena OFFLINE (bukan karena user keluar akun): buka dari
       // snapshot data terakhir, jangan paksa layar login (js/24-offline.js).
-      offlineHandleNoSession();
+      Promise.resolve(offlineHandleNoSession()).catch(()=>{}).then(hideBootSplash);
     }
   });
 
