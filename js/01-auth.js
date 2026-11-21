@@ -27,8 +27,17 @@ function scrollToAuthForm(mode){
   if(el){ el.scrollTo({ top: 0, behavior: 'smooth' }); }
   if(mode && typeof setAuthMode === 'function'){ setAuthMode(mode); }
 }
+function collapseAuthForm(){
+  const card = document.querySelector('.auth-card');
+  if(card) card.classList.add('collapsed');
+  document.getElementById('tabMasuk').classList.remove('active');
+  document.getElementById('tabDaftar').classList.remove('active');
+  document.getElementById('authMsg').textContent = '';
+}
 function setAuthMode(mode){
   authMode = mode;
+  const card = document.querySelector('.auth-card');
+  if(card) card.classList.remove('collapsed');
   document.getElementById('tabMasuk').classList.toggle('active', mode==='masuk');
   document.getElementById('tabDaftar').classList.toggle('active', mode==='daftar');
   document.getElementById('authSubmitBtn').textContent = mode==='masuk' ? t('Masuk') : t('Daftar');
