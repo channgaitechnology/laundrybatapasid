@@ -70,6 +70,14 @@
   }
   .appbar-title h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px;}
   .appbar-title p{margin:0;font-size:11.5px;color:rgba(255,255,255,0.78);}
+  /* Tombol-tombol di app bar: kalau terlalu banyak untuk lebar layar, barisnya
+     bisa digeser kiri-kanan (tidak melebarkan halaman). Judul toko mengalah
+     (teksnya turun baris) dan tombol dibatasi maksimal 62% lebar app bar. */
+  .appbar-title{flex:1 1 auto;min-width:0;}
+  .appbar-title h1{overflow-wrap:anywhere;}
+  .appbar-actions{display:flex;gap:8px;flex:0 1 auto;min-width:0;max-width:62%;overflow-x:auto;overflow-y:hidden;padding:2px 0;margin:-2px 0;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;}
+  .appbar-actions::-webkit-scrollbar{display:none;}
+  .appbar-actions .icon-btn{flex:none;}
   .icon-btn{
     background:rgba(255,255,255,0.16);border:none;border-radius:12px;
     min-width:44px;padding:6px 7px 5px;display:flex;flex-direction:column;
@@ -708,7 +716,7 @@
       </button>
     </div>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div class="appbar-actions">
     <button class="icon-btn" onclick="openTutorial()" aria-label="Tutorial penggunaan">
       <span class="icon-btn-emoji">📖</span>
       <span class="icon-btn-label">Tutorial</span>
