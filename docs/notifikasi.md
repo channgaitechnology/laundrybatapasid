@@ -51,7 +51,7 @@ webhook**:
 - **Events**: centang **Insert** saja (jangan Update/Delete)
 - **Type**: HTTP Request
 - **Method**: `POST`
-- **URL**: `https://laundryassist.netlify.app/.netlify/functions/notify-new-payment-request`
+- **URL**: `https://dokterlaundry.my.id/.netlify/functions/notify-new-payment-request`
 - **HTTP Headers**: tambah header
   `X-Webhook-Secret: <nilai yang sama dengan PAYMENT_WEBHOOK_SECRET>`
 

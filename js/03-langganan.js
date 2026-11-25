@@ -234,7 +234,7 @@ async function shareReferral(){
   const code = stale ? await getOrCreateReferralCode() : el.textContent;
   if(!code){ showToast(t('Gagal membuat kode referral, coba lagi')); return; }
   if(el) el.textContent = code;
-  const text = `${t('Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!')} ${t('Coba juga -- pas Daftar, isi Kode Pendaftaran ini. Begitu akun barumu aktif berbayar, kita berdua sama-sama dapat bonus 15 hari gratis:')} ${code}\n\nhttps://laundryassist.netlify.app`;
+  const text = `${t('Saya pakai Dokter Laundry buat kasir & nota laundry toko saya, gampang banget!')} ${t('Coba juga -- pas Daftar, isi Kode Pendaftaran ini. Begitu akun barumu aktif berbayar, kita berdua sama-sama dapat bonus 15 hari gratis:')} ${code}\n\nhttps://dokterlaundry.my.id`;
   try{
     if(navigator.share){
       await navigator.share({ title:'Dokter Laundry', text });
