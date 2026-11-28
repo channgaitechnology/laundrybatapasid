@@ -303,3 +303,28 @@ var editingSubscriptionId = null;
 var savedContacts = [];
 var appSubscription = null;
 
+
+/* ===================== CEGAH AUTOFILL EMAIL/PASSWORD NYASAR =====================
+   Chrome/Android mengisi email & password tersimpan ke kolom teks biasa (cari
+   pelanggan, nama, dll) karena di halaman ada kolom password. Semua kolom isian
+   diberi autocomplete="off" -- kecuali kolom login/ganti password yang punya
+   atribut khusus (username / current-password / new-password / email). Kolom
+   yang dibuat belakangan lewat innerHTML ikut ditangani MutationObserver. */
+(function(){
+  function nonaktifkan(el){
+    if(el && el.tagName === 'INPUT' && !el.hasAttribute('autocomplete')) el.setAttribute('autocomplete','off');
+  }
+  function pindai(root){
+    if(!root || root.nodeType !== 1) return;
+    nonaktifkan(root);
+    if(root.querySelectorAll) root.querySelectorAll('input:not([autocomplete])').forEach(nonaktifkan);
+  }
+  try{
+    new MutationObserver(function(muts){
+      for(var i=0;i<muts.length;i++){
+        var add = muts[i].addedNodes;
+        for(var j=0;j<add.length;j++) pindai(add[j]);
+      }
+    }).observe(document.documentElement, { childList:true, subtree:true });
+  }catch(e){}
+})();
