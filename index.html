@@ -107,6 +107,8 @@
   .section-title{font-size:13px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.6px;margin:18px 2px 8px;}
 
   label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  input[type=search]{-webkit-appearance:none;appearance:none;}
+  input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;}
   input,select,textarea{
     width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
     font-family:'Inter',sans-serif;font-size:14.5px;color:var(--ink);background:#fcfdfe;
@@ -805,17 +807,17 @@
       </div>
       <label for="inHP">No. WhatsApp</label>
       <div style="display:flex;gap:8px;">
-        <input id="inHP" placeholder="cth. 0812xxxxxxx" inputmode="tel" style="flex:1;">
+        <input autocomplete="off" id="inHP" placeholder="cth. 0812xxxxxxx" inputmode="tel" style="flex:1;">
         <button type="button" class="btn btn-ghost btn-sm" style="width:auto;padding:0 14px;white-space:nowrap;" onclick="pickContact()">📇 Kontak</button>
       </div>
       <div class="row2">
         <div>
           <label for="inTanggal">Tanggal Masuk</label>
-          <input id="inTanggal" type="date">
+          <input autocomplete="off" id="inTanggal" type="date">
         </div>
         <div>
           <label for="inEstimasi">Estimasi Selesai</label>
-          <input id="inEstimasi" type="date">
+          <input autocomplete="off" id="inEstimasi" type="date">
         </div>
       </div>
     </div>
@@ -834,7 +836,7 @@
           </div>
           <div>
             <label>Qty</label>
-            <input id="itQty" type="number" min="0" step="0.1" value="1">
+            <input autocomplete="off" id="itQty" type="number" min="0" step="0.1" value="1">
           </div>
           <div>
             <label>Satuan</label>
@@ -848,7 +850,7 @@
           </div>
           <div>
             <label>Harga/satuan</label>
-            <input id="itHarga" type="number" min="0" placeholder="Rp">
+            <input autocomplete="off" id="itHarga" type="number" min="0" placeholder="Rp">
           </div>
           <div></div>
         </div>
@@ -862,11 +864,11 @@
       <div class="row2" style="margin-top:10px;">
         <div>
           <label for="inDiskon">Diskon (Rp)</label>
-          <input id="inDiskon" type="number" min="0" value="0">
+          <input autocomplete="off" id="inDiskon" type="number" min="0" value="0">
         </div>
         <div>
           <label for="inDP">Uang Muka / DP (Rp)</label>
-          <input id="inDP" type="number" min="0" value="0">
+          <input autocomplete="off" id="inDP" type="number" min="0" value="0">
         </div>
       </div>
       <div class="total-line"><span>Total Tagihan</span><span id="totalPreview">Rp0</span></div>
@@ -909,7 +911,7 @@
     </div>
     <div class="search-bar">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="searchInput" placeholder="Cari nama atau no. nota..." oninput="renderHistory()">
+      <input autocomplete="off" id="searchInput" type="search" placeholder="Cari nama atau no. nota..." oninput="renderHistory()">
     </div>
     <div class="row2" style="margin-bottom:10px;">
       <div>
@@ -920,10 +922,10 @@
           <option value="belum">Belum Lunas</option>
         </select>
       </div>
-      <div><label for="historyDariFilter">Dari Tanggal</label><input id="historyDariFilter" type="date" onchange="renderHistory()"></div>
+      <div><label for="historyDariFilter">Dari Tanggal</label><input autocomplete="off" id="historyDariFilter" type="date" onchange="renderHistory()"></div>
     </div>
     <div class="row2" style="margin-bottom:10px;">
-      <div><label for="historySampaiFilter">Sampai Tanggal</label><input id="historySampaiFilter" type="date" onchange="renderHistory()"></div>
+      <div><label for="historySampaiFilter">Sampai Tanggal</label><input autocomplete="off" id="historySampaiFilter" type="date" onchange="renderHistory()"></div>
       <div style="display:flex;align-items:flex-end;">
         <button class="btn btn-outline btn-sm" id="historyResetFilterBtn" style="display:none;width:100%;" onclick="resetHistoryFilter()">✕ Bersihkan Filter</button>
       </div>
@@ -954,8 +956,8 @@
       <div class="section-title" style="margin-top:16px;">Unduh Daftar Tugas (JPG)</div>
       <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Pilih rentang tanggal untuk melihat daftar tugas yang sudah lama sekalipun — defaultnya sudah dari nota pertama kali diinput (data dari awal input transaksi) sampai hari ini. Cucian yang sudah lama otomatis ditulis "Selesai Dikerjakan" dan "Lunas" di gambar (dianggap sudah beres semua).</p>
       <div class="row2">
-        <div><label for="papanUnduhDari">Dari Tanggal</label><input id="papanUnduhDari" type="date"></div>
-        <div><label for="papanUnduhSampai">Sampai Tanggal</label><input id="papanUnduhSampai" type="date"></div>
+        <div><label for="papanUnduhDari">Dari Tanggal</label><input autocomplete="off" id="papanUnduhDari" type="date"></div>
+        <div><label for="papanUnduhSampai">Sampai Tanggal</label><input autocomplete="off" id="papanUnduhSampai" type="date"></div>
       </div>
       <button class="btn btn-accent btn-sm" style="width:100%;margin-top:8px;" onclick="downloadWorkBoardImage()">📥 Unduh JPG</button>
       <button class="btn btn-danger-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="openPapanHapusModal()">🗑️ Hapus Tugas dari Papan</button>
@@ -973,7 +975,7 @@
     </div>
     <div class="card">
       <label for="reportMonth">Pilih Bulan</label>
-      <input id="reportMonth" type="month" onchange="renderReport()">
+      <input autocomplete="off" id="reportMonth" type="month" onchange="renderReport()">
     </div>
 
     <div class="stat-grid">
@@ -1000,8 +1002,8 @@
         <option value="bulanan">Per Bulan</option>
         <option value="tahunan">Per Tahun</option>
       </select>
-      <div id="lrBulanField"><label for="lrBulan">Pilih Bulan</label><input id="lrBulan" type="month"></div>
-      <div id="lrTahunField" style="display:none;"><label for="lrTahun">Pilih Tahun</label><input id="lrTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <div id="lrBulanField"><label for="lrBulan">Pilih Bulan</label><input autocomplete="off" id="lrBulan" type="month"></div>
+      <div id="lrTahunField" style="display:none;"><label for="lrTahun">Pilih Tahun</label><input autocomplete="off" id="lrTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
       <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;margin-bottom:12px;" onclick="renderLabaRugi()">Tampilkan</button>
 
       <div class="item-line"><span>Total Pemasukan (Omzet)</span><span id="lrPemasukan">Rp0</span></div>
@@ -1039,16 +1041,16 @@
       </select>
 
       <div id="perCustomFields" class="row2">
-        <div><label for="perDari">Dari Tanggal</label><input id="perDari" type="date"></div>
-        <div><label for="perSampai">Sampai Tanggal</label><input id="perSampai" type="date"></div>
+        <div><label for="perDari">Dari Tanggal</label><input autocomplete="off" id="perDari" type="date"></div>
+        <div><label for="perSampai">Sampai Tanggal</label><input autocomplete="off" id="perSampai" type="date"></div>
       </div>
       <div id="perBulanField" style="display:none;">
         <label for="perBulan">Pilih Bulan</label>
-        <input id="perBulan" type="month">
+        <input autocomplete="off" id="perBulan" type="month">
       </div>
       <div id="perTahunField" style="display:none;">
         <label for="perTahun">Pilih Tahun</label>
-        <input id="perTahun" type="number" min="2000" max="2100" placeholder="cth. 2026">
+        <input autocomplete="off" id="perTahun" type="number" min="2000" max="2100" placeholder="cth. 2026">
       </div>
 
       <button class="btn btn-primary btn-sm" style="width:100%;margin-top:12px;" onclick="renderPerPelangganReport()">Tampilkan Laporan</button>
@@ -1078,8 +1080,8 @@
         <option value="tahunan">Per Tahun</option>
         <option value="semua">Semua Waktu</option>
       </select>
-      <div id="rankBulanField"><label for="rankBulan">Pilih Bulan</label><input id="rankBulan" type="month"></div>
-      <div id="rankTahunField" style="display:none;"><label for="rankTahun">Pilih Tahun</label><input id="rankTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <div id="rankBulanField"><label for="rankBulan">Pilih Bulan</label><input autocomplete="off" id="rankBulan" type="month"></div>
+      <div id="rankTahunField" style="display:none;"><label for="rankTahun">Pilih Tahun</label><input autocomplete="off" id="rankTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
       <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;margin-bottom:12px;" onclick="renderPeringkatPelanggan()">Tampilkan</button>
       <p style="font-size:12px;color:var(--ink-soft);margin:-6px 0 10px;">Diurutkan dari pelanggan dengan total pembayaran terbanyak.</p>
       <div id="rankList"></div>
@@ -1095,7 +1097,7 @@
       </div>
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="subsSearchInput" placeholder="Cari nama pelanggan paket/tempo..." oninput="renderSubscriptions()">
+        <input autocomplete="off" id="subsSearchInput" type="search" placeholder="Cari nama pelanggan paket/tempo..." oninput="renderSubscriptions()">
       </div>
       <div class="row2">
         <div>
@@ -1140,7 +1142,7 @@
       </div>
       <div id="expEditBanner" style="display:none;background:#FFF6E0;border:1px solid #F0D58A;border-radius:10px;padding:8px 10px;font-size:12.5px;margin:6px 0;">✏️ Sedang mengedit pengeluaran — ubah lalu tekan <b>Simpan Perubahan</b>.</div>
       <label for="expTanggal">Tanggal</label>
-      <input id="expTanggal" type="date">
+      <input autocomplete="off" id="expTanggal" type="date">
 
       <label for="expNama">Nama Barang / Jasa</label>
       <div style="position:relative;">
@@ -1151,7 +1153,7 @@
       <div class="row2">
         <div>
           <label for="expQty">Qty</label>
-          <input id="expQty" type="number" min="0" step="0.1" value="1" oninput="updateExpenseSubtotalPreview()">
+          <input autocomplete="off" id="expQty" type="number" min="0" step="0.1" value="1" oninput="updateExpenseSubtotalPreview()">
         </div>
         <div>
           <label for="expSatuan">Satuan</label>
@@ -1167,7 +1169,7 @@
         </div>
       </div>
       <label for="expHarga">Harga / Satuan (Rp)</label>
-      <input id="expHarga" type="number" min="0" placeholder="cth. 30000" oninput="updateExpenseSubtotalPreview()">
+      <input autocomplete="off" id="expHarga" type="number" min="0" placeholder="cth. 30000" oninput="updateExpenseSubtotalPreview()">
       <div class="total-line"><span>Jumlah</span><span id="expJumlahPreview">Rp0</span></div>
 
       <label for="expKategori">Kategori</label>
@@ -1183,7 +1185,7 @@
       </div>
 
       <label for="expCatatan">Catatan (opsional)</label>
-      <input id="expCatatan" placeholder="cth. Bayar listrik bulan Agustus">
+      <input autocomplete="off" id="expCatatan" placeholder="cth. Bayar listrik bulan Agustus">
       <button class="btn btn-primary" style="margin-top:10px;" id="expSubmitBtn" onclick="submitExpense()">+ Simpan Pengeluaran</button>
       <button class="btn btn-ghost" style="margin-top:8px;display:none;" id="expCancelBtn" onclick="cancelExpenseEdit()">Batal Edit</button>
     </div>
@@ -1196,9 +1198,9 @@
         <option value="harian">Per Hari</option>
         <option value="tahunan">Per Tahun</option>
       </select>
-      <div id="expHariField" style="display:none;"><label for="expHari">Pilih Tanggal</label><input id="expHari" type="date"></div>
-      <div id="expBulanField"><label for="expBulan">Pilih Bulan</label><input id="expBulan" type="month"></div>
-      <div id="expTahunField" style="display:none;"><label for="expTahun">Pilih Tahun</label><input id="expTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
+      <div id="expHariField" style="display:none;"><label for="expHari">Pilih Tanggal</label><input autocomplete="off" id="expHari" type="date"></div>
+      <div id="expBulanField"><label for="expBulan">Pilih Bulan</label><input autocomplete="off" id="expBulan" type="month"></div>
+      <div id="expTahunField" style="display:none;"><label for="expTahun">Pilih Tahun</label><input autocomplete="off" id="expTahun" type="number" min="2000" max="2100" placeholder="cth. 2026"></div>
       <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;" onclick="renderExpenseList()">Tampilkan</button>
 
       <div class="stat-grid" style="margin-top:10px;">
@@ -1237,7 +1239,7 @@
       <p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;">Pilih satu kategori (mis. Gas) untuk lihat total tiap bulan.</p>
       <div class="row2">
         <div><label for="expKatBulanSel">Kategori</label><select id="expKatBulanSel" onchange="expKatBulanChanged()"></select></div>
-        <div><label for="expKatBulanYear">Tahun</label><input id="expKatBulanYear" type="number" min="2000" max="2100" onchange="renderExpenseCategoryMonthly()"></div>
+        <div><label for="expKatBulanYear">Tahun</label><input autocomplete="off" id="expKatBulanYear" type="number" min="2000" max="2100" onchange="renderExpenseCategoryMonthly()"></div>
       </div>
       <div id="expKatBulanList" style="margin-top:8px;"></div>
     </div>
@@ -1271,7 +1273,7 @@
       <div id="subsNamaSuggestBox" class="suggest-dropdown"></div>
     </div>
     <label for="subsHP">No. WhatsApp</label>
-    <input id="subsHP" placeholder="cth. 0812xxxxxxx" inputmode="tel">
+    <input autocomplete="off" id="subsHP" placeholder="cth. 0812xxxxxxx" inputmode="tel">
     <label for="subsTipe">Jenis Pelanggan</label>
     <select id="subsTipe" onchange="onSubsTipeChange()">
       <option value="bulanan">Paket Bulanan (kuota kg)</option>
@@ -1282,8 +1284,8 @@
       <select id="subsPaket" onchange="fillSubsFromPaket()"></select>
     </div>
     <div class="row2" id="subsRow2">
-      <div id="subsKuotaField"><label for="subsKuota">Kuota (kg)</label><input id="subsKuota" type="number" min="0"></div>
-      <div><label for="subsTanggalMulai">Tanggal Mulai</label><input id="subsTanggalMulai" type="date" oninput="updateSubsEndPreview()"></div>
+      <div id="subsKuotaField"><label for="subsKuota">Kuota (kg)</label><input autocomplete="off" id="subsKuota" type="number" min="0"></div>
+      <div><label for="subsTanggalMulai">Tanggal Mulai</label><input autocomplete="off" id="subsTanggalMulai" type="date" oninput="updateSubsEndPreview()"></div>
     </div>
     <div id="subsEndPreviewRow" style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Periode berakhir otomatis: <b id="subsEndPreview">-</b> (1 bulan dari tanggal mulai)</div>
     <p id="subsTempoHint" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:-6px 0 14px;">Tanpa kuota & tanpa batas periode. Setiap laundry masuk dicatat pakai harga layanan reguler dari katalog dan tercatat di nota — pelanggan boleh bayar kapan saja siap, langsung, dicicil, atau nanti sekaligus.</p>
@@ -1318,21 +1320,21 @@
     <div id="subsUsageKgSection">
       <h2 style="font-size:14px;">Catat Laundry Masuk (kg)</h2>
       <div class="row2">
-        <div><label for="usageTanggal">Tanggal</label><input id="usageTanggal" type="date"></div>
-        <div><label for="usageEstimasi">Estimasi Selesai</label><input id="usageEstimasi" type="date"></div>
+        <div><label for="usageTanggal">Tanggal</label><input autocomplete="off" id="usageTanggal" type="date"></div>
+        <div><label for="usageEstimasi">Estimasi Selesai</label><input autocomplete="off" id="usageEstimasi" type="date"></div>
       </div>
       <label for="usageBerat">Berat (kg)</label>
-      <input id="usageBerat" type="number" min="0" step="0.1">
+      <input autocomplete="off" id="usageBerat" type="number" min="0" step="0.1">
       <label for="usageCatatan">Catatan (opsional)</label>
-      <input id="usageCatatan" placeholder="cth. 2 karung">
+      <input autocomplete="off" id="usageCatatan" placeholder="cth. 2 karung">
       <button class="btn btn-primary btn-sm" style="width:100%;margin-bottom:18px;" onclick="addUsage()">+ Catat Laundry Masuk</button>
     </div>
 
     <h2 style="font-size:14px;" id="extraSectionHeading">Tambah Layanan Lain (di luar paket)</h2>
     <p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 8px;" id="extraSectionHint">cth. ekspres — dari Katalog Reguler, ditagih bersama saat lunas.</p>
     <div class="row2">
-      <div><label for="extraTanggal">Tanggal</label><input id="extraTanggal" type="date"></div>
-      <div><label for="extraEstimasi">Estimasi Selesai</label><input id="extraEstimasi" type="date"></div>
+      <div><label for="extraTanggal">Tanggal</label><input autocomplete="off" id="extraTanggal" type="date"></div>
+      <div><label for="extraEstimasi">Estimasi Selesai</label><input autocomplete="off" id="extraEstimasi" type="date"></div>
     </div>
     <label for="extraLayanan">Nama Layanan</label>
     <div style="position:relative;">
@@ -1340,7 +1342,7 @@
       <div id="extraLayananSuggestBox" class="suggest-dropdown"></div>
     </div>
     <div class="row2">
-      <div><label for="extraQty">Qty</label><input id="extraQty" type="number" min="0" step="0.1" value="1"></div>
+      <div><label for="extraQty">Qty</label><input autocomplete="off" id="extraQty" type="number" min="0" step="0.1" value="1"></div>
       <div>
         <label for="extraSatuan">Satuan</label>
         <select id="extraSatuan">
@@ -1353,7 +1355,7 @@
       </div>
     </div>
     <label for="extraHarga">Harga/satuan</label>
-    <input id="extraHarga" type="number" min="0">
+    <input autocomplete="off" id="extraHarga" type="number" min="0">
     <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:12px;" id="extraSectionSubmitBtn" onclick="addExtraService()">+ Tambah Layanan Ini</button>
 
     <div id="extraDraftListWrap" style="display:none;">
@@ -1378,7 +1380,7 @@
     </div>
 
     <div class="row2" style="margin-top:14px;">
-      <div><label for="subsDPInput">Catat DP (Rp)</label><input id="subsDPInput" type="number" min="0" placeholder="0"></div>
+      <div><label for="subsDPInput">Catat DP (Rp)</label><input autocomplete="off" id="subsDPInput" type="number" min="0" placeholder="0"></div>
       <div style="display:flex;align-items:flex-end;"><button class="btn btn-outline btn-sm" style="width:100%;" onclick="saveSubsDP()">Simpan DP</button></div>
     </div>
     <div class="btn-row" style="margin-top:10px;">
@@ -1492,7 +1494,7 @@
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
           <img id="logoPreviewImg" alt="Logo toko" style="width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;border:1.5px solid var(--line);">
           <div style="flex:1;">
-            <input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoFileChange(event)">
+            <input autocomplete="off" type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoFileChange(event)">
             <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:6px;" onclick="document.getElementById('logoFileInput').click()">🖼️ Pilih Logo Baru</button>
             <button type="button" class="btn btn-ghost btn-sm" style="width:100%;" onclick="resetShopLogo()">Pakai Logo Default</button>
           </div>
@@ -1500,11 +1502,11 @@
         <p style="font-size:11.5px;color:var(--ink-soft);margin:-2px 0 16px;">Logo ini dipakai di header aplikasi dan semua nota (JPG/PDF & tampilan di app) setelah kamu login — bukan logo di layar masuk/daftar.</p>
 
         <label for="setNama">Nama Toko</label>
-        <input id="setNama" placeholder="cth. Laundry Bersih Jaya">
+        <input autocomplete="off" id="setNama" placeholder="cth. Laundry Bersih Jaya">
         <label for="setAlamat">Alamat</label>
-        <input id="setAlamat" placeholder="cth. Jl. Merdeka No. 10, Samarinda">
+        <input autocomplete="off" id="setAlamat" placeholder="cth. Jl. Merdeka No. 10, Samarinda">
         <label for="setHP">No. Telepon Toko</label>
-        <input id="setHP" placeholder="cth. 0812xxxxxxx" inputmode="tel">
+        <input autocomplete="off" id="setHP" placeholder="cth. 0812xxxxxxx" inputmode="tel">
         <label for="setCatatan">Catatan Kaki Nota</label>
         <textarea id="setCatatan" rows="2" placeholder="cth. Terima kasih telah menggunakan jasa kami">Terima kasih telah menggunakan jasa laundry kami</textarea>
         <button class="btn btn-primary" onclick="saveSettingsForm()">Simpan Pengaturan</button>
@@ -1514,19 +1516,19 @@
         <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Kalau aktif, begitu status kerjaan di Daftar Tugas diubah jadi "Selesai", WhatsApp langsung terbuka dengan pesan siap kirim ke pelanggan (masih perlu satu ketuk "Kirim" di WhatsApp, browser tidak bisa mengirim otomatis tanpa itu). Kalau dimatikan, tombol "Kirim Notifikasi" muncul manual di tiap kartu Daftar Tugas yang sudah Selesai.</p>
         <div class="item-line" style="align-items:center;">
           <span>Kirim notifikasi WA otomatis saat Selesai</span>
-          <input type="checkbox" id="setAutoNotifySelesai" style="width:20px;height:20px;" onchange="toggleAutoNotifySelesai(this.checked)">
+          <input autocomplete="off" type="checkbox" id="setAutoNotifySelesai" style="width:20px;height:20px;" onchange="toggleAutoNotifySelesai(this.checked)">
         </div>
       </div>
 
       <div class="settings-sub-panel" id="settingsSub-keamanan">
         <label for="setEmailBaru">Ganti Email</label>
         <div style="display:flex;gap:8px;">
-          <input id="setEmailBaru" type="email" placeholder="email baru" style="flex:1;">
+          <input autocomplete="off" id="setEmailBaru" type="email" placeholder="email baru" style="flex:1;">
           <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountEmail()">Ganti</button>
         </div>
         <label for="setPasswordBaru">Ganti Password</label>
         <div style="display:flex;gap:8px;">
-          <input id="setPasswordBaru" type="password" placeholder="password baru (min. 6 karakter)" style="flex:1;">
+          <input autocomplete="new-password" id="setPasswordBaru" type="password" placeholder="password baru (min. 6 karakter)" style="flex:1;">
           <button type="button" class="btn btn-outline btn-sm" style="width:auto;padding:0 14px;" onclick="changeAccountPassword()">Ganti</button>
         </div>
         <div id="accountMsg" style="font-size:12.5px;margin:-4px 0 4px;"></div>
@@ -1544,11 +1546,11 @@
         <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">Punya lebih dari satu lokasi toko? Tambahkan outletnya di sini — begitu ada 1 outlet, muncul pemilih outlet di bawah nama toko untuk pilih lokasi mana yang sedang dikerjakan. Transaksi, Paket, dan Pengeluaran otomatis tercatat & terfilter sesuai outlet aktif.</p>
         <div id="outletManagerList" style="margin-bottom:10px;"></div>
         <div class="row2">
-          <div><label for="outletNama">Nama Outlet</label><input id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
-          <div><label for="outletTelp">No. Telepon</label><input id="outletTelp" placeholder="cth. 0812xxxxxxx" inputmode="tel"></div>
+          <div><label for="outletNama">Nama Outlet</label><input autocomplete="off" id="outletNama" placeholder="cth. Cabang Fatmawati"></div>
+          <div><label for="outletTelp">No. Telepon</label><input autocomplete="off" id="outletTelp" placeholder="cth. 0812xxxxxxx" inputmode="tel"></div>
         </div>
         <label for="outletAlamat">Alamat</label>
-        <input id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
+        <input autocomplete="off" id="outletAlamat" placeholder="cth. Jl. Fatmawati No. 5">
         <button type="button" class="btn btn-outline btn-sm" style="width:100%;margin-bottom:10px;" onclick="addOutlet()">➕ Tambah Outlet</button>
       </div>
 
@@ -1633,7 +1635,7 @@
           <b style="font-size:13px;">Pembayaran Otomatis (Midtrans)</b>
           <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Tombol "Bayar Otomatis" di layar perpanjangan langganan cuma muncul kalau dinyalakan di sini. <b>Nyalakan HANYA setelah</b> akun Midtrans Anda benar-benar aktif/terverifikasi — kalau belum, transaksi akan ditolak Midtrans (error "akun belum aktif") walau env var sudah diisi. Sebelum itu, jalur transfer manual tetap berfungsi seperti biasa.</p>
           <label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;margin:0 0 14px;">
-            <input type="checkbox" id="brandMidtransEnabled" style="width:auto;" onchange="toggleMidtransPayment(this.checked)"> Aktifkan tombol Bayar Otomatis
+            <input autocomplete="off" type="checkbox" id="brandMidtransEnabled" style="width:auto;" onchange="toggleMidtransPayment(this.checked)"> Aktifkan tombol Bayar Otomatis
           </label>
 
           <b style="font-size:13px;">Kode Pendaftaran</b>
@@ -1643,13 +1645,13 @@
           <b style="font-size:13px;">Footer Nota (kredit pengembang)</b>
           <p style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 8px;">Baris "dikembangkan oleh..." yang muncul di bawah SEMUA nota (semua toko yang pakai instance app ini) — bukan per-toko. Ubah kalau app ini dipakai/dijual ulang oleh pihak lain.</p>
           <label for="brandNama">Nama Pengembang</label>
-          <input id="brandNama" placeholder="cth. Tinggiran Tech Studio">
+          <input autocomplete="off" id="brandNama" placeholder="cth. Tinggiran Tech Studio">
           <label for="brandTagline">Tagline</label>
-          <input id="brandTagline" placeholder="cth. Bikin Apps & Website Kilat">
+          <input autocomplete="off" id="brandTagline" placeholder="cth. Bikin Apps & Website Kilat">
           <label for="brandWA">No. WhatsApp</label>
-          <input id="brandWA" placeholder="cth. 081293228520" inputmode="tel">
+          <input autocomplete="off" id="brandWA" placeholder="cth. 081293228520" inputmode="tel">
           <label for="brandEmail">Email</label>
-          <input id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
+          <input autocomplete="off" id="brandEmail" type="email" placeholder="cth. tinggirantech@gmail.com">
           <button type="button" class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="saveAppBranding()">Simpan Footer Nota</button>
         </div>
       </div>
@@ -1681,7 +1683,7 @@
     <div id="catatanEditorView" style="display:none;">
       <button type="button" class="settings-sub-back" onclick="closeCatatanEditor()">← Kembali</button>
       <label for="noteJudul">Judul</label>
-      <input id="noteJudul" placeholder="cth. Stok Deterjen, Ide Promo, dll." maxlength="80">
+      <input autocomplete="off" id="noteJudul" placeholder="cth. Stok Deterjen, Ide Promo, dll." maxlength="80">
       <label>Isi Catatan</label>
       <div class="note-toolbar">
         <button type="button" class="note-tb-btn" onmousedown="event.preventDefault()" onclick="noteFormat('bold')" title="Tebal" aria-label="Tebal"><b>B</b></button>
@@ -1703,7 +1705,7 @@
         <button type="button" class="note-hl-swatch" style="background:#FFB74D;" onmousedown="event.preventDefault()" onclick="noteHighlight('#FFB74D')" title="Oranye" aria-label="Stabilo Oranye"></button>
         <button type="button" class="note-hl-swatch note-hl-clear" onmousedown="event.preventDefault()" onclick="noteHighlight('transparent')" title="Hapus Stabilo" aria-label="Hapus Stabilo">✕</button>
       </div>
-      <input type="file" id="noteImageInput" accept="image/*" style="display:none;" onchange="insertNoteImage(event)">
+      <input autocomplete="off" type="file" id="noteImageInput" accept="image/*" style="display:none;" onchange="insertNoteImage(event)">
       <div id="noteIsi" class="note-editor" contenteditable="true" data-placeholder="Tulis catatan seputar laundry di sini..." onchange="handleNoteEditorChange(event)"></div>
       <div id="noteDatesInfo" style="font-size:11px;color:var(--ink-soft);margin:6px 0 12px;"></div>
       <div style="display:flex;gap:8px;">
@@ -1740,8 +1742,8 @@
       <option value="custom">Per periode (pilih tanggal sendiri)</option>
     </select>
     <div id="papanHapusCustomFields" class="row2" style="display:none;">
-      <div><label for="papanHapusDari">Dari Tanggal</label><input id="papanHapusDari" type="date" onchange="updatePapanHapusPreview()"></div>
-      <div><label for="papanHapusSampai">Sampai Tanggal</label><input id="papanHapusSampai" type="date" onchange="updatePapanHapusPreview()"></div>
+      <div><label for="papanHapusDari">Dari Tanggal</label><input autocomplete="off" id="papanHapusDari" type="date" onchange="updatePapanHapusPreview()"></div>
+      <div><label for="papanHapusSampai">Sampai Tanggal</label><input autocomplete="off" id="papanHapusSampai" type="date" onchange="updatePapanHapusPreview()"></div>
     </div>
     <p id="papanHapusPreview" style="font-size:12.5px;color:var(--ink-soft);margin:8px 0 0;"></p>
     <button class="btn btn-danger-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="confirmPapanHapus()">🗑️ Hapus Sekarang</button>
@@ -1930,22 +1932,22 @@
       <option value="paket">Paket Bulanan (kuota kg)</option>
     </select>
     <label for="catNama">Nama Layanan / Paket</label>
-    <input id="catNama" placeholder="cth. Cuci Reguler / Paket Cuci Lipat 50kg">
+    <input autocomplete="off" id="catNama" placeholder="cth. Cuci Reguler / Paket Cuci Lipat 50kg">
 
     <div class="row2" id="catRegulerFields">
       <div><label>Satuan</label>
         <select id="catSatuan"><option>kg</option><option>pcs</option><option>set</option><option value="kali">kali</option><option>m²</option></select>
       </div>
-      <div><label>Harga per Satuan</label><input id="catHarga" type="number" min="0" placeholder="Rp"></div>
+      <div><label>Harga per Satuan</label><input autocomplete="off" id="catHarga" type="number" min="0" placeholder="Rp"></div>
     </div>
 
     <div class="row2" id="catPaketFields" style="display:none;">
-      <div><label>Harga Paket / Bulan</label><input id="catHargaPaket" type="number" min="0" placeholder="Rp"></div>
-      <div><label>Kuota (kg) / Bulan</label><input id="catKuotaKg" type="number" min="0" placeholder="cth. 50"></div>
+      <div><label>Harga Paket / Bulan</label><input autocomplete="off" id="catHargaPaket" type="number" min="0" placeholder="Rp"></div>
+      <div><label>Kuota (kg) / Bulan</label><input autocomplete="off" id="catKuotaKg" type="number" min="0" placeholder="cth. 50"></div>
     </div>
     <div id="catPaketFields2" style="display:none;">
       <label for="catHargaLebih">Harga per kg Kelebihan Kuota (opsional)</label>
-      <input id="catHargaLebih" type="number" min="0" placeholder="cth. 8000 — kosongkan untuk pakai rata-rata harga paket">
+      <input autocomplete="off" id="catHargaLebih" type="number" min="0" placeholder="cth. 8000 — kosongkan untuk pakai rata-rata harga paket">
     </div>
 
     <div class="btn-row" style="margin-bottom:16px;">
@@ -1963,7 +1965,7 @@
     <h3>Katalog Barang/Jasa Pengeluaran</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:14px;">Muncul sebagai saran otomatis saat mencatat pengeluaran.</p>
     <label for="expCatNama">Nama Barang / Jasa</label>
-    <input id="expCatNama" placeholder="cth. Sabun Cair 5L / Token Listrik">
+    <input autocomplete="off" id="expCatNama" placeholder="cth. Sabun Cair 5L / Token Listrik">
     <div class="row2">
       <div>
         <label for="expCatSatuan">Satuan</label>
@@ -1977,7 +1979,7 @@
           <option value="lainnya">lainnya</option>
         </select>
       </div>
-      <div><label for="expCatHarga">Harga per Satuan</label><input id="expCatHarga" type="number" min="0" placeholder="Rp"></div>
+      <div><label for="expCatHarga">Harga per Satuan</label><input autocomplete="off" id="expCatHarga" type="number" min="0" placeholder="Rp"></div>
     </div>
     <div class="btn-row" style="margin-bottom:16px;">
       <button class="btn btn-primary btn-sm" onclick="addOrUpdateExpenseCatalogItem()" id="expCatSubmitBtn">+ Tambah ke Katalog</button>
@@ -2020,15 +2022,15 @@
       <div id="authFormWrap">
       <div id="regCodeField" style="display:none;">
         <label for="regCodeInput">Kode Pendaftaran (opsional)</label>
-        <input id="regCodeInput" placeholder="Kosongkan untuk trial 30 hari gratis" style="text-transform:uppercase;">
+        <input autocomplete="off" id="regCodeInput" placeholder="Kosongkan untuk trial 30 hari gratis" style="text-transform:uppercase;">
         <p style="font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Langsung daftar untuk mulai trial 30 hari gratis. Sudah bayar & punya kode dari admin? <a href="#" onclick="openPaymentInfo();return false;" style="color:var(--suds);font-weight:600;">Lihat cara daftar &amp; bayar</a></p>
       </div>
       <label for="authEmail">Email</label>
-      <input id="authEmail" type="email" placeholder="nama@email.com">
+      <input autocomplete="username" id="authEmail" type="email" placeholder="nama@email.com">
       <p id="authEmailHint" style="display:none;font-size:11.5px;color:var(--ink-soft);margin:-4px 0 10px;">Pakai email aktif yang bisa kamu buka -- nanti ada link konfirmasi yang wajib diklik dulu sebelum bisa masuk.</p>
       <label for="authPassword">Password</label>
       <div style="position:relative;">
-        <input id="authPassword" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
+        <input autocomplete="current-password" id="authPassword" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
         <button type="button" onclick="togglePasswordVisibility('authPassword','eyeIcon')" aria-label="Tampilkan password"
           style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;padding:10.5px;color:var(--ink-soft);cursor:pointer;">
           <svg id="eyeIcon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2038,7 +2040,7 @@
       </div>
       <div class="auth-msg" id="authMsg"></div>
       <label id="authTosField" class="auth-tos-check" style="display:none;">
-        <input type="checkbox" id="authTosCheck">
+        <input autocomplete="off" type="checkbox" id="authTosCheck">
         <span>Saya sudah membaca &amp; setuju dengan <a href="syarat-ketentuan.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Syarat &amp; Ketentuan</a> · <a href="privacy.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Privasi</a> · <a href="kebijakan-refund.html" target="_blank" rel="noopener" onclick="event.stopPropagation()">Kebijakan Refund</a></span>
       </label>
       <button class="btn btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">Masuk</button>
@@ -2258,7 +2260,7 @@
     <h3>Lupa Password</h3>
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Masukkan email akunmu. Kami akan kirim link untuk atur ulang password.</p>
     <label for="forgotEmail">Email</label>
-    <input id="forgotEmail" type="email" placeholder="nama@email.com">
+    <input autocomplete="email" id="forgotEmail" type="email" placeholder="nama@email.com">
     <div class="auth-msg" id="forgotMsg"></div>
     <button class="btn btn-primary" onclick="sendResetPasswordEmail()">Kirim Link Reset</button>
   </div>
@@ -2272,7 +2274,7 @@
     <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Masukkan password baru untuk akunmu.</p>
     <label for="newPasswordInput">Password Baru</label>
     <div style="position:relative;">
-      <input id="newPasswordInput" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
+      <input autocomplete="new-password" id="newPasswordInput" type="password" placeholder="Minimal 6 karakter" style="padding-right:44px;">
       <button type="button" onclick="togglePasswordVisibility('newPasswordInput','eyeIconNew')" aria-label="Tampilkan password"
         style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;padding:10.5px;color:var(--ink-soft);cursor:pointer;">
         <svg id="eyeIconNew" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2282,7 +2284,7 @@
     </div>
     <label for="newPasswordConfirmInput">Ulangi Password Baru</label>
     <div style="position:relative;">
-      <input id="newPasswordConfirmInput" type="password" placeholder="Ketik ulang password baru" style="padding-right:44px;">
+      <input autocomplete="new-password" id="newPasswordConfirmInput" type="password" placeholder="Ketik ulang password baru" style="padding-right:44px;">
       <button type="button" onclick="togglePasswordVisibility('newPasswordConfirmInput','eyeIconNewConfirm')" aria-label="Tampilkan password"
         style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;padding:10.5px;color:var(--ink-soft);cursor:pointer;">
         <svg id="eyeIconNewConfirm" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2459,11 +2461,11 @@
     </div>
 
     <label for="preqNama">Nama Kamu</label>
-    <input id="preqNama" placeholder="cth. Budi - Laundry Cemerlang">
+    <input autocomplete="off" id="preqNama" placeholder="cth. Budi - Laundry Cemerlang">
     <label for="preqWA">No. WhatsApp</label>
-    <input id="preqWA" placeholder="cth. 0812xxxxxxx" inputmode="tel">
+    <input autocomplete="off" id="preqWA" placeholder="cth. 0812xxxxxxx" inputmode="tel">
     <label for="preqCatatan">Catatan (opsional)</label>
-    <input id="preqCatatan" placeholder="cth. sudah transfer jam 10:15 dari BCA">
+    <input autocomplete="off" id="preqCatatan" placeholder="cth. sudah transfer jam 10:15 dari BCA">
     <div class="auth-msg" id="preqMsg"></div>
     <button class="btn btn-primary" onclick="submitPaymentRequest()">Kirim Konfirmasi Pembayaran</button>
     <button class="btn btn-wa" id="preqNotifBtn" style="display:none;margin-top:10px;" onclick="">📲 Kirim Notifikasi WA ke Admin</button>
@@ -2478,7 +2480,7 @@
     <button class="btn btn-primary" style="margin-top:10px;" onclick="chooseOwnerRole()">🏪 Saya Pemilik Toko Baru</button>
     <div class="section-title" style="margin-top:18px;">Atau, saya kasir/karyawan</div>
     <label for="inviteCodeInput">Kode Undangan dari Pemilik Toko</label>
-    <input id="inviteCodeInput" placeholder="cth. AB12CD" style="text-transform:uppercase;">
+    <input autocomplete="off" id="inviteCodeInput" placeholder="cth. AB12CD" style="text-transform:uppercase;">
     <div class="auth-msg" id="inviteMsg"></div>
     <button class="btn btn-outline" onclick="claimInviteCode()">Gabung sebagai Kasir</button>
   </div>

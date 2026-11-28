@@ -6,6 +6,14 @@ Log kronologis perbaikan, regresi, dan audit — dipindah dari README supaya pan
 
 <!-- isi-dipindah-dari-README -->
 
+## Autofill email/password nyasar ke kolom biasa (28 November 2026)
+
+- Chrome/Android mengisi email & password tersimpan ke kolom teks biasa (mis. kolom
+  cari pelanggan) karena ada kolom password di halaman. Semua `<input>` kini
+  `autocomplete="off"` (kolom login: `username`/`current-password`, ganti password:
+  `new-password`), kolom cari memakai `type="search"`, dan input yang dibuat lewat
+  innerHTML ikut ditangani `MutationObserver` di `js/00-globals.js`.
+
 ## Landscape, buka app lebih cepat, layar login ringkas (22 November 2026)
 
 - **Landscape**: `manifest.json` diberi `"orientation": "any"` dan ada CSS khusus

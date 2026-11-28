@@ -7024,6 +7024,21 @@ const result = await page.evaluate(async () => {
     }
   });
 
+  await step('Autofill: semua input punya autocomplete; kolom cari bukan type text; input dinamis ikut off', async () => {
+    const tanpa = [...document.querySelectorAll('input')].filter(i => !i.hasAttribute('autocomplete'));
+    if (tanpa.length) throw new Error('BUG: input tanpa autocomplete: ' + tanpa.map(i => i.id || i.placeholder).join(', '));
+    const exp = { authEmail:'username', authPassword:'current-password', setPasswordBaru:'new-password', forgotEmail:'email' };
+    for (const id in exp) if (document.getElementById(id).getAttribute('autocomplete') !== exp[id]) throw new Error('BUG: autocomplete salah di #' + id);
+    for (const id of ['searchInput','subsSearchInput']) if (document.getElementById(id).type !== 'search') throw new Error('#' + id + ' harus type=search');
+    const box = document.createElement('div');
+    box.innerHTML = '<input id="__dinamis">';
+    document.body.appendChild(box);
+    await new Promise(r => setTimeout(r, 50));
+    const v = document.getElementById('__dinamis').getAttribute('autocomplete');
+    box.remove();
+    if (v !== 'off') throw new Error('BUG: input dinamis harus otomatis autocomplete=off, dapat: ' + v);
+  });
+
   return out;
 });
 
