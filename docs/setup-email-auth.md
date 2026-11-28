@@ -13,9 +13,9 @@ Dua masalah nyata yang pernah terjadi di produksi, dan cara setelnya:
 ### 1. Site URL / Redirect URLs (link di email mengarah ke `localhost:3000`)
 
 Supabase Dashboard → **Authentication → URL Configuration**:
-- **Site URL**: `https://laundryassist.netlify.app` (BUKAN `http://localhost:3000`
+- **Site URL**: `https://dokterlaundry.my.id` (BUKAN `http://localhost:3000`
   yang jadi default bawaan Supabase).
-- **Redirect URLs**: tambahkan `https://laundryassist.netlify.app/**`.
+- **Redirect URLs**: tambahkan `https://dokterlaundry.my.id/**`.
 
 Tanpa ini, link konfirmasi/reset password yang dikirim ke email user akan
 mencoba redirect ke `localhost:3000` dan gagal dibuka (`ERR_CONNECTION_REFUSED`)
@@ -59,10 +59,9 @@ ke Resend (sudah dipakai juga untuk notifikasi admin, lihat bagian
 "Notifikasi Email untuk Permintaan Baru" di [notifikasi.md](notifikasi.md)) sebagai Custom SMTP, limit
 naik ke 30+/jam dengan deliverability jauh lebih baik — TAPI mensyaratkan
 **domain terverifikasi sendiri** (SPF/DKIM via DNS, lihat dashboard Resend →
-Domains). `laundryassist.netlify.app` TIDAK BISA diverifikasi untuk ini
-karena itu subdomain milik Netlify, bukan domain yang DNS-nya dikuasai
-sendiri — perlu beli domain sendiri dulu (bisa langsung lewat menu "Domain
-management" di dashboard Netlify, atau registrar manapun).
+Domains). Alamat `laundryassist.netlify.app` TIDAK BISA diverifikasi untuk ini
+karena itu subdomain milik Netlify -- tapi sekarang sudah ada domain sendiri
+(`dokterlaundry.my.id`), jadi domain itulah yang diverifikasi di Resend.
 
 ### 3. Template isi email masih default (Bahasa Inggris)
 
