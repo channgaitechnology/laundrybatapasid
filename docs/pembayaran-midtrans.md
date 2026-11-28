@@ -65,7 +65,7 @@ Dashboard Midtrans → Settings → Configuration → **Payment Notification
 URL**, isi dengan:
 
 ```
-https://laundryassist.netlify.app/.netlify/functions/midtrans-webhook
+https://dokterlaundry.my.id/.netlify/functions/midtrans-webhook
 ```
 
 (ganti domain kalau beda dari yang dipakai sekarang). Ini yang dipanggil

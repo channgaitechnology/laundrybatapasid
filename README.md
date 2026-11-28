@@ -5,7 +5,7 @@ cetak/kirim nota (gambar & PDF), laporan bulanan & per pelanggan, sistem
 trial/langganan, panel admin untuk kode pendaftaran & pembayaran.
 
 Nama produk untuk pelanggan: **Dokter Laundry** (The Myth Tech). Situs live:
-`laundrybatapasid.netlify.app`. Deploy ke production otomatis lewat Netlify
+`dokterlaundry.my.id` (alamat lama `laundryassist.netlify.app` tetap aktif). Deploy ke production otomatis lewat Netlify
 begitu PR di-merge ke `main`.
 
 ## Asal kode ini

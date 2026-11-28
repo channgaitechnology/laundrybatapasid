@@ -14,6 +14,11 @@ Log kronologis perbaikan, regresi, dan audit — dipindah dari README supaya pan
   `new-password`), kolom cari memakai `type="search"`, dan input yang dibuat lewat
   innerHTML ikut ditangani `MutationObserver` di `js/00-globals.js`.
 
+## Domain kustom dokterlaundry.my.id (25 November 2026)
+
+- Link referral dan dokumen setup diarahkan ke `dokterlaundry.my.id`; langkah
+  pemindahan lengkap ada di [docs/domain.md](docs/domain.md).
+
 ## Landscape, buka app lebih cepat, layar login ringkas (22 November 2026)
 
 - **Landscape**: `manifest.json` diberi `"orientation": "any"` dan ada CSS khusus
